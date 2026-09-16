@@ -1,0 +1,4 @@
+.idea
+*.mv.db
+*.trace.db
+.env
