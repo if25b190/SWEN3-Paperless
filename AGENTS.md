@@ -1,6 +1,6 @@
 # Backend — Spring Boot
 
-Standards: [`docs/java-style.md`](docs/java-style.md) · [`docs/annotations.md`](docs/annotations.md) ·
+Standards: [`docs/kotlin-style.md`](docs/kotlin-style.md) · [`docs/annotations.md`](docs/annotations.md) ·
 [`docs/layered-architecture.md`](docs/layered-architecture.md) · [`docs/controllers.md`](docs/controllers.md) ·
 [`docs/mappers.md`](docs/mappers.md) · [`docs/exceptions.md`](docs/exceptions.md) ·
 [`docs/testing.md`](docs/testing.md) · [`docs/logging.md`](docs/logging.md)

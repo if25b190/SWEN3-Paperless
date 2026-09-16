@@ -1,3 +1,31 @@
 spring:
   application:
     name: paperless
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperless}
+    username: ${SPRING_DATASOURCE_USERNAME:paperless}
+    password: ${SPRING_DATASOURCE_PASSWORD:paperless}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+
+elasticsearch:
+  host: ${ELASTICSEARCH_HOST:localhost}
+  port: ${ELASTICSEARCH_PORT:9200}
+  username: ${ELASTIC_USER:elastic}
+  password: ${ELASTIC_PASSWORD:paperless}
