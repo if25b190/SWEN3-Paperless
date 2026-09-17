@@ -12,7 +12,7 @@ A document management and processing platform consisting of a Spring Boot (Kotli
 
 - **[Docker](https://docs.docker.com/get-docker/)** & **[Docker Compose](https://docs.docker.com/compose/)** (v2.24+)
 
-*(Optional for running services natively without Docker: Java 25+, Maven, Node.js 22+, and pnpm 12+)*
+*(Optional for running services natively without Docker: Java 25+, Gradle, Node.js 22+, and pnpm 12+)*
 
 ---
 

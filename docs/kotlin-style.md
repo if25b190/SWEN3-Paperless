@@ -14,11 +14,11 @@ Do not rely on manual formatting review:
 - Enforce formatting using **Spotless** (with ktlint) or **ktlint**:
   - Fix formatting:
     ```bash
-    ./mvnw spotless:apply
+    ./gradlew spotlessApply
     ```
   - Verify formatting in CI and pre-commit/pre-push quality gates:
     ```bash
-    ./mvnw spotless:check
+    ./gradlew spotlessCheck
     ```
 
 ## Variables & Immutability (`val` vs. `var`)

@@ -2,14 +2,14 @@
 FROM eclipse-temurin:25-jdk AS builder
 WORKDIR /app
 
-# Copy Maven wrapper and POM to leverage layer caching
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN chmod +x ./mvnw && ./mvnw dependency:go-offline -B || true
+# Copy Gradle wrapper and build files to leverage layer caching
+COPY gradle/ gradle/
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+RUN chmod +x ./gradlew && ./gradlew dependencies --no-daemon || true
 
-# Copy source code and build package
+# Copy source code and build bootJar
 COPY src/ src/
-RUN ./mvnw clean package -DskipTests -B
+RUN ./gradlew bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:25-jre AS runner
@@ -19,8 +19,8 @@ WORKDIR /app
 RUN groupadd -r spring && useradd -r -g spring spring
 USER spring:spring
 
-# Copy built artifact from builder stage
-COPY --from=builder /app/target/*.jar app.jar
+# Copy built artifact from builder stage (Gradle outputs to build/libs)
+COPY --from=builder /app/build/libs/*.jar app.jar
 
 ENV PORT=8080
 EXPOSE 8080

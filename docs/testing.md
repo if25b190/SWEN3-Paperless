@@ -42,5 +42,5 @@ For each service, ensure tests cover:
 Nothing is merged without passing formatting checks and test suites:
 
 ```bash
-./mvnw spotless:check && ./mvnw test
+./gradlew spotlessCheck && ./gradlew test
 ```

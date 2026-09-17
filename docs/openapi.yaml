@@ -3,10 +3,14 @@ info:
   title: Paperless REST API
   description: |
     Document Management System REST API for the SWEN3 Paperless project.
-    Provides endpoints for document archiving, file storage, asynchronous OCR processing,
-    Google Gemini GenAI summarization, Elasticsearch full-text and fuzzy search,
-    and metadata management (tags, correspondents, document types).
+    Provides endpoints for:
+    - Document Upload: file storage, automated OCR processing, Elasticsearch full-text indexing, and GenAI summarization.
+    - Document Search: full-text and fuzzy search powered by Elasticsearch.
+    - Document Management: document lifecycle (details, metadata update, deletion, download) and metadata (correspondents, document types).
+    - User and Team Management: authentication (login, me), user management (User-MM), teams, and role-based memberships (User <-- m:n (role) --> Team; roles: ADMIN, READONLY, MEMBER).
   version: 1.0.0
+  x-api-id: d0184f38-b98d-11e7-9c56-68f728c1ba70
+  x-audience: company-internal
   contact:
     name: Philip Duong & Patrick Hornek
     email: contact@paperless.local
@@ -18,25 +22,451 @@ servers:
   - url: http://localhost:8080
     description: Local Docker / Development Server
 
+security:
+  - bearerAuth: []
+
 tags:
+  - name: Auth
+    description: User authentication and session management (login, me).
+  - name: Users
+    description: User management (User-MM) and user team memberships.
+  - name: Teams
+    description: Team management and role assignments (User <-- m:n (role) --> Team).
   - name: Documents
     description: Core document uploading, lifecycle management, metadata, and file downloads.
   - name: Search
     description: Full-text and fuzzy search powered by Elasticsearch.
-  - name: Tags
-    description: Categorization labels for organizing documents.
   - name: Correspondents
     description: Senders and recipients of documents (e.g., companies, authorities, individuals).
   - name: Document Types
     description: Document classifications (e.g., Invoice, Contract, Receipt, Bank Statement).
-  - name: Batch Processing
-    description: Batch processing access logs from external systems (XML import).
 
 paths:
   # ============================================================================
+  # AUTH
+  # ============================================================================
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: User login
+      description: Authenticates a user with login credentials and returns a JWT access token and user profile.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successfully authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current authenticated user
+      description: Returns the user profile and team memberships for the currently authenticated user.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user profile retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # USERS (USER-MM)
+  # ============================================================================
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users
+      description: Returns a list of all registered users in the application.
+      operationId: getUsers
+      responses:
+        '200':
+          description: List of users retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      description: Creates/registers a new user account (User-MM).
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully.
+          headers:
+            Location:
+              description: URI of the newly created user resource.
+              schema:
+                type: string
+                format: uri
+                example: "/users/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Returns user profile by ID.
+      operationId: getUserById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: User retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Updates user profile details (User-MM).
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Deletes a user account.
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: User deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{id}/teams:
+    get:
+      tags:
+        - Users
+      summary: Get teams and roles for user
+      description: Returns all teams the user belongs to and their assigned roles in each team (User <-- m:n (role) --> Team).
+      operationId: getUserTeams
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: User team memberships and roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTeamMembershipListResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # TEAMS & ROLES (User <-- m:n (role) --> Team)
+  # ============================================================================
+  /teams:
+    get:
+      tags:
+        - Teams
+      summary: List all teams
+      description: Returns all teams in the organization.
+      operationId: getTeams
+      responses:
+        '200':
+          description: List of teams retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Teams
+      summary: Create a new team
+      description: Creates a new team.
+      operationId: createTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created successfully.
+          headers:
+            Location:
+              description: URI of the newly created team resource.
+              schema:
+                type: string
+                format: uri
+                example: "/teams/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}:
+    get:
+      tags:
+        - Teams
+      summary: Get team by ID
+      description: Returns details of a specific team.
+      operationId: getTeamById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Team retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Teams
+      summary: Update a team
+      description: Updates a team's name and description.
+      operationId: updateTeam
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamRequest'
+      responses:
+        '200':
+          description: Team updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Teams
+      summary: Delete a team
+      description: Deletes a team and associated memberships.
+      operationId: deleteTeam
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: Team deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}/members:
+    get:
+      tags:
+        - Teams
+      summary: List team members and their roles
+      description: Returns all users belonging to this team with their assigned roles (admin, readonly, member).
+      operationId: getTeamMembers
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: List of team members and roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberListResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Teams
+      summary: Add a member to a team with a role
+      description: "Assigns a user to a team with an explicit role (Entities: User <-- m:n (role) --> Team; e.g. ADMIN, READONLY)."
+      operationId: addTeamMember
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTeamMemberRequest'
+      responses:
+        '201':
+          description: Member added to team successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}/members/{user_id}:
+    put:
+      tags:
+        - Teams
+      summary: Update a team member's role
+      description: Updates the role of a user within a team (e.g. promoting from READONLY to ADMIN).
+      operationId: updateTeamMemberRole
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - name: user_id
+          in: path
+          description: Unique identifier of the user.
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamMemberRoleRequest'
+      responses:
+        '200':
+          description: Member role updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Teams
+      summary: Remove a member from a team
+      description: Removes a user's membership from the team.
+      operationId: removeTeamMember
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - name: user_id
+          in: path
+          description: Unique identifier of the user to remove.
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Member removed from team successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
   # DOCUMENTS
   # ============================================================================
-  /api/v1/documents:
+  /documents:
     get:
       tags:
         - Documents
@@ -67,22 +497,15 @@ paths:
           required: false
           schema:
             type: string
-            default: createdAt,desc
-        - name: tagId
-          in: query
-          description: Filter by associated Tag ID.
-          required: false
-          schema:
-            type: integer
-            format: int64
-        - name: correspondentId
+            default: created_at,desc
+        - name: correspondent_id
           in: query
           description: Filter by Correspondent ID.
           required: false
           schema:
             type: integer
             format: int64
-        - name: documentTypeId
+        - name: document_type_id
           in: query
           description: Filter by Document Type ID.
           required: false
@@ -107,7 +530,10 @@ paths:
       summary: Upload a new document
       description: |
         Uploads a PDF document to file storage (MinIO).
-        Triggers asynchronous message dispatch to RabbitMQ for OCR recognition and GenAI summarization.
+        Automatically triggers asynchronous processing:
+        - Performs OCR recognition to extract document text.
+        - Automatically indexes extracted text for full-text search in Elasticsearch.
+        - Automatically generates an AI summary using Google Gemini.
       operationId: uploadDocument
       requestBody:
         required: true
@@ -127,25 +553,26 @@ paths:
                   type: string
                   example: Electricity Invoice October 2026
                   maxLength: 255
-                correspondentId:
+                correspondent_id:
                   type: integer
                   format: int64
                   nullable: true
                   example: 1
-                documentTypeId:
+                document_type_id:
                   type: integer
                   format: int64
                   nullable: true
                   example: 2
-                tagIds:
-                  type: array
-                  items:
-                    type: integer
-                    format: int64
-                  example: [1, 3]
       responses:
         '201':
           description: Document successfully uploaded and queued for processing.
+          headers:
+            Location:
+              description: URI of the newly uploaded document resource.
+              schema:
+                type: string
+                format: uri
+                example: "/documents/1"
           content:
             application/json:
               schema:
@@ -155,7 +582,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/documents/{id}:
+  /documents/{id}:
     get:
       tags:
         - Documents
@@ -176,11 +603,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-    patch:
+    put:
       tags:
         - Documents
       summary: Update document metadata
-      description: Updates editable metadata fields of a document (title, correspondent, document type, tags).
+      description: Updates editable metadata fields of a document (title, correspondent, document type).
       operationId: updateDocumentMetadata
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -220,7 +647,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/documents/{id}/download:
+  /documents/{id}/download:
     get:
       tags:
         - Documents
@@ -249,12 +676,12 @@ paths:
   # ============================================================================
   # SEARCH (ELASTICSEARCH)
   # ============================================================================
-  /api/v1/search:
+  /search:
     get:
       tags:
         - Search
       summary: Full-text and fuzzy search across documents
-      description: Performs full-text queries against OCR extracted text, titles, and summaries using Elasticsearch.
+      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries using Elasticsearch.
       operationId: searchDocumentsFullText
       parameters:
         - name: query
@@ -266,7 +693,7 @@ paths:
             example: "invoice electric"
         - name: fuzzy
           in: query
-          description: Enable fuzzy typo tolerance matching.
+          description: Enable fuzzy typo tolerance matching in Elasticsearch.
           required: false
           schema:
             type: boolean
@@ -298,117 +725,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
-  # TAGS
+  # CORRESPONDENTS (DOCUMENT METADATA)
   # ============================================================================
-  /api/v1/tags:
-    get:
-      tags:
-        - Tags
-      summary: List all tags
-      operationId: searchTags
-      responses:
-        '200':
-          description: List of all tags.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TagResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    post:
-      tags:
-        - Tags
-      summary: Create a new tag
-      operationId: createTag
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateTagRequest'
-      responses:
-        '201':
-          description: Tag created successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TagResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tags/{id}:
-    get:
-      tags:
-        - Tags
-      summary: Get tag by ID
-      operationId: getTagById
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      responses:
-        '200':
-          description: Tag retrieved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TagResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    put:
-      tags:
-        - Tags
-      summary: Update a tag
-      operationId: updateTag
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateTagRequest'
-      responses:
-        '200':
-          description: Tag updated successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TagResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    delete:
-      tags:
-        - Tags
-      summary: Delete a tag
-      operationId: deleteTag
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      responses:
-        '204':
-          description: Tag deleted successfully.
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  # ============================================================================
-  # CORRESPONDENTS
-  # ============================================================================
-  /api/v1/correspondents:
+  /correspondents:
     get:
       tags:
         - Correspondents
@@ -420,9 +739,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CorrespondentResponse'
+                $ref: '#/components/schemas/CorrespondentListResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -440,6 +757,13 @@ paths:
       responses:
         '201':
           description: Correspondent created successfully.
+          headers:
+            Location:
+              description: URI of the newly created correspondent resource.
+              schema:
+                type: string
+                format: uri
+                example: "/correspondents/1"
           content:
             application/json:
               schema:
@@ -451,7 +775,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/correspondents/{id}:
+  /correspondents/{id}:
     get:
       tags:
         - Correspondents
@@ -514,9 +838,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
-  # DOCUMENT TYPES
+  # DOCUMENT TYPES (DOCUMENT METADATA)
   # ============================================================================
-  /api/v1/document-types:
+  /document-types:
     get:
       tags:
         - Document Types
@@ -528,9 +852,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/DocumentTypeResponse'
+                $ref: '#/components/schemas/DocumentTypeListResponse'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -548,6 +870,13 @@ paths:
       responses:
         '201':
           description: Document type created successfully.
+          headers:
+            Location:
+              description: URI of the newly created document type resource.
+              schema:
+                type: string
+                format: uri
+                example: "/document-types/1"
           content:
             application/json:
               schema:
@@ -559,7 +888,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /api/v1/document-types/{id}:
+  /document-types/{id}:
     get:
       tags:
         - Document Types
@@ -621,55 +950,17 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  # ============================================================================
-  # BATCH PROCESSING (SPRINT 6)
-  # ============================================================================
-  /api/v1/batch/access-logs:
-    post:
-      tags:
-        - Batch Processing
-      summary: Ingest external access logs (XML batch upload)
-      description: Imports access log records in XML format and stores processing results in PostgreSQL.
-      operationId: ingestAccessLogs
-      requestBody:
-        required: true
-        content:
-          application/xml:
-            schema:
-              type: string
-              example: |
-                <?xml version="1.0" encoding="UTF-8"?>
-                <accessLogs>
-                  <logEntry>
-                    <timestamp>2026-10-15T01:00:00Z</timestamp>
-                    <sourceSystem>ExternalAccounting</sourceSystem>
-                    <action>DOCUMENT_FETCH</action>
-                    <documentId>1</documentId>
-                  </logEntry>
-                </accessLogs>
-      responses:
-        '200':
-          description: Batch logs ingested and processed successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  recordsProcessed:
-                    type: integer
-                    example: 42
-                  status:
-                    type: string
-                    example: SUCCESS
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
 # ==============================================================================
 # COMPONENTS & SCHEMAS
 # ==============================================================================
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard Bearer Token authorization header using a JWT.
+
   parameters:
     PathId:
       name: id
@@ -687,8 +978,8 @@ components:
       required:
         - page
         - size
-        - totalElements
-        - totalPages
+        - total_elements
+        - total_pages
       properties:
         page:
           type: integer
@@ -696,13 +987,268 @@ components:
         size:
           type: integer
           example: 10
-        totalElements:
+        total_elements:
           type: integer
           format: int64
           example: 25
-        totalPages:
+        total_pages:
           type: integer
           example: 3
+
+    # --- Role Enum ---
+    Role:
+      type: string
+      enum:
+        - ADMIN
+        - READONLY
+        - MEMBER
+      example: ADMIN
+
+    # --- User Schemas (User-MM & Login) ---
+    UserResponse:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:32:10Z"
+
+    UserListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 100
+          example: "SecretP@ss123"
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 100
+          example: "NewSecretP@ss123"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: john_doe
+        password:
+          type: string
+          format: password
+          example: "SecretP@ss123"
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - token_type
+        - user
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    # --- Team Schemas (User <-- m:n (role) --> Team) ---
+    TeamResponse:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Accounting
+        description:
+          type: string
+          nullable: true
+          example: Handles invoices and bills
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:32:10Z"
+
+    TeamListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamResponse'
+
+    CreateTeamRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Accounting
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Handles invoices and bills
+
+    UpdateTeamRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Finance & Accounting
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Handles financial documents
+
+    TeamMemberResponse:
+      type: object
+      required:
+        - user
+        - role
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        role:
+          $ref: '#/components/schemas/Role'
+        joined_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+
+    TeamMemberListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMemberResponse'
+
+    AddTeamMemberRequest:
+      type: object
+      required:
+        - user_id
+        - role
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UpdateTeamMemberRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UserTeamMembershipResponse:
+      type: object
+      required:
+        - team
+        - role
+      properties:
+        team:
+          $ref: '#/components/schemas/TeamResponse'
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UserTeamMembershipListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserTeamMembershipResponse'
 
     # --- Document Schemas ---
     ProcessingStatus:
@@ -720,12 +1266,12 @@ components:
       required:
         - id
         - title
-        - originalFilename
-        - contentType
-        - fileSize
+        - original_filename
+        - content_type
+        - file_size
         - status
-        - createdAt
-        - updatedAt
+        - created_at
+        - updated_at
       properties:
         id:
           type: integer
@@ -734,20 +1280,20 @@ components:
         title:
           type: string
           example: Electricity Invoice October 2026
-        originalFilename:
+        original_filename:
           type: string
           example: invoice_oct_2026.pdf
-        contentType:
+        content_type:
           type: string
           example: application/pdf
-        fileSize:
+        file_size:
           type: integer
           format: int64
           description: Size in bytes.
           example: 245760
         status:
           $ref: '#/components/schemas/ProcessingStatus'
-        ocrContent:
+        ocr_content:
           type: string
           nullable: true
           description: Extracted text from OCR worker.
@@ -757,25 +1303,21 @@ components:
           nullable: true
           description: AI summary generated by Google Gemini worker.
           example: "Monthly utility invoice for electricity services totaling 142.50 EUR due by end of month."
-        storageKey:
+        storage_key:
           type: string
           description: Object key in MinIO.
           example: "documents/2026/10/1_invoice_oct_2026.pdf"
         correspondent:
           $ref: '#/components/schemas/CorrespondentResponse'
           nullable: true
-        documentType:
+        document_type:
           $ref: '#/components/schemas/DocumentTypeResponse'
           nullable: true
-        tags:
-          type: array
-          items:
-            $ref: '#/components/schemas/TagResponse'
-        createdAt:
+        created_at:
           type: string
           format: date-time
           example: "2026-10-15T14:30:00Z"
-        updatedAt:
+        updated_at:
           type: string
           format: date-time
           example: "2026-10-15T14:32:10Z"
@@ -783,12 +1325,12 @@ components:
     DocumentPageResponse:
       type: object
       required:
-        - metaData
-        - data
+        - pagination
+        - items
       properties:
-        metaData:
+        pagination:
           $ref: '#/components/schemas/PageMetadata'
-        data:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/DocumentResponse'
@@ -800,22 +1342,16 @@ components:
           type: string
           maxLength: 255
           example: "Updated Invoice Title"
-        correspondentId:
+        correspondent_id:
           type: integer
           format: int64
           nullable: true
           example: 1
-        documentTypeId:
+        document_type_id:
           type: integer
           format: int64
           nullable: true
           example: 2
-        tagIds:
-          type: array
-          items:
-            type: integer
-            format: int64
-          example: [1, 2]
 
     # --- Search Result Schemas ---
     SearchResultItem:
@@ -843,62 +1379,15 @@ components:
     SearchResponse:
       type: object
       required:
-        - metaData
-        - data
+        - pagination
+        - items
       properties:
-        metaData:
+        pagination:
           $ref: '#/components/schemas/PageMetadata'
-        data:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/SearchResultItem'
-
-    # --- Tag Schemas ---
-    TagResponse:
-      type: object
-      required:
-        - id
-        - name
-        - color
-      properties:
-        id:
-          type: integer
-          format: int64
-          example: 1
-        name:
-          type: string
-          example: Important
-        color:
-          type: string
-          description: Hex color code.
-          example: "#FF5733"
-
-    CreateTagRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 50
-          example: Taxes
-        color:
-          type: string
-          default: "#007BFF"
-          example: "#28A745"
-
-    UpdateTagRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 50
-          example: Taxes 2026
-        color:
-          type: string
-          example: "#1E7E34"
 
     # --- Correspondent Schemas ---
     CorrespondentResponse:
@@ -918,6 +1407,16 @@ components:
           type: string
           nullable: true
           example: "Austrian energy provider"
+
+    CorrespondentListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CorrespondentResponse'
 
     CreateCorrespondentRequest:
       type: object
@@ -966,6 +1465,16 @@ components:
           nullable: true
           example: Billing and payment invoices
 
+    DocumentTypeListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTypeResponse'
+
     CreateDocumentTypeRequest:
       type: object
       required:
@@ -994,75 +1503,107 @@ components:
           nullable: true
           example: Legal and financial binding contracts
 
-    # --- Standard Error Envelope ---
-    ErrorResponse:
+    # --- RFC 7807 Problem JSON ---
+    Problem:
       type: object
       required:
-        - timestamp
+        - type
+        - title
         - status
-        - error
-        - message
-        - path
       properties:
-        timestamp:
+        type:
           type: string
-          format: date-time
-          example: "2026-10-15T14:40:00Z"
+          format: uri
+          description: A URI reference that identifies the problem type.
+          example: "urn:problem-type:not-found"
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+          example: "Resource Not Found"
         status:
           type: integer
+          description: The HTTP status code generated by the origin server.
           example: 404
-        error:
+        detail:
           type: string
-          example: Not Found
-        message:
-          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
           example: "Document with id 42 was not found."
-        path:
+        instance:
           type: string
-          example: "/api/v1/documents/42"
-        validationErrors:
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+          example: "/documents/42"
+        invalid_params:
           type: array
-          nullable: true
+          description: An array of invalid parameter errors (RFC 7807 extension).
           items:
-            type: object
-            properties:
-              field:
-                type: string
-                example: title
-              rejectedValue:
-                nullable: true
-              message:
-                type: string
-                example: "Title must not be blank."
+            $ref: '#/components/schemas/InvalidParam'
+
+    InvalidParam:
+      type: object
+      required:
+        - name
+        - reason
+      properties:
+        name:
+          type: string
+          description: The name of the invalid parameter or field.
+          example: "title"
+        reason:
+          type: string
+          description: Explanation of why the parameter is invalid.
+          example: "Title must not be blank."
 
   # ============================================================================
   # RESPONSES
   # ============================================================================
   responses:
     BadRequestError:
-      description: Bad Request - Validation failure or malformed body.
+      description: Bad Request - Validation failure or malformed payload.
       content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: '#/components/schemas/Problem'
+
+    UnauthorizedError:
+      description: Unauthorized - Authentication is required or credentials are invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
 
     NotFoundError:
       description: Not Found - The requested entity does not exist.
       content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: '#/components/schemas/Problem'
 
     ConflictError:
       description: Conflict - A resource with the same identifier or unique constraint already exists.
       content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: '#/components/schemas/Problem'
 
     InternalServerError:
       description: Internal Server Error - Unexpected failure on the server.
       content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorResponse'
+            $ref: '#/components/schemas/Problem'

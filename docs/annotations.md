@@ -1,23 +1,15 @@
 # Annotations
 
-## Lombok
+## Kotlin Idioms (No Lombok)
 
-Use Lombok to reduce repetitive boilerplate, keeping usage disciplined and consistent:
+Lombok is not used in this project because Kotlin natively provides these capabilities:
 
-- `@RequiredArgsConstructor`: Used for constructor-based dependency injection on `private final` fields.
-- `@Slf4j`: Used for logging across components (never instantiate `Logger` or `LoggerFactory` manually).
-- `@Builder(setterPrefix = "with")`: Used when an object is complex enough to benefit from a builder pattern.
-- **`@Data` is forbidden:** It bundles too many behaviors (`@ToString`, `@EqualsAndHashCode`, `@Getter`, `@Setter`, `@RequiredArgsConstructor`) at once. Use `@Getter` and `@Setter` individually instead.
-- **`model/` POJOs:** Carry the full Lombok set:
-  ```java
-  @Getter
-  @Setter
-  @NoArgsConstructor
-  @AllArgsConstructor
-  @Builder(setterPrefix = "with")
-  ```
-  and **never** import `jakarta.persistence.*`.
-- **`entity/` classes:** Carry the same Lombok set plus JPA annotations, and nothing else — no business logic.
+- **Primary constructors:** Used for dependency injection in classes (replacing `@RequiredArgsConstructor`).
+- **Data classes (`data class`):** Provide getters, setters (for `var`), `copy()`, `equals()`, `hashCode()`, and `toString()` natively without boilerplate.
+- **Default and named arguments:** Replace builder patterns and `@Builder`. Construct objects directly using named parameters.
+- **`model/` domain models:** Declared as Kotlin `data class` with `val` properties, and **never** import `jakarta.persistence.*`.
+- **`entity/` classes:** Plain Kotlin classes carrying JPA annotations and nothing else — no business logic. The `kotlin-jpa` plugin generates the zero-argument constructor required by JPA.
+- **Logging:** Use SLF4J `LoggerFactory.getLogger(...)` directly (replacing `@Slf4j`). See [`docs/logging.md`](logging.md).
 
 ## Spring Annotations
 
@@ -25,7 +17,7 @@ Use Lombok to reduce repetitive boilerplate, keeping usage disciplined and consi
 - `@Service`: Placed on the feature implementation `<Feature>ServiceImpl`, which implements the plain `<Feature>Service` interface (the interface itself carries no annotations).
 - `@Repository`: **Never written by hand.** Repositories are plain Spring Data interfaces (`extends JpaRepository<<Feature>Entity, Id>`) automatically registered by Spring Data JPA. Do not create manual `*RepositoryImpl` or adapter classes.
 - `@Component`: For generic Spring-managed beans; `@Configuration` for configuration classes.
-- `@Autowired`: Means constructor injection in production code (facilitated by Lombok's `@RequiredArgsConstructor`). Field injection is reserved strictly for test classes.
+- `@Autowired`: Constructor injection is used in production code via Kotlin primary constructors. Spring automatically resolves single-constructor beans without `@Autowired`. Field injection (`@Autowired lateinit var`) is reserved strictly for test classes.
 - `@ConfigurationProperties`: Used when binding 3 or more related configuration properties. For fewer than 3 properties, individual `@Value` annotations are acceptable.
 - `@Transactional`: Lives at the **class level on `@Service` implementations only**, so transaction management never leaks into controllers or repository interfaces. Use `@Transactional(readOnly = true)` for read paths and `@Transactional` for write paths.
 - `@Validated`: Placed at class or method parameter level to trigger Bean Validation. Use `@RequestBody @Valid` on incoming write DTOs.

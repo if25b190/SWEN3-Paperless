@@ -1,5 +1,7 @@
+build/
+.gradle/
 target/
-.mvn/wrapper/maven-wrapper.jar.asc
+.mvn/
 .idea/
 *.iml
 .git/

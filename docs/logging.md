@@ -2,8 +2,16 @@
 
 ## Logger Setup
 
-- Use Lombok's `@Slf4j` annotation at the class level.
-- Never instantiate `Logger` or `LoggerFactory` by hand.
+- Instantiate the SLF4J logger using `LoggerFactory.getLogger(...)`:
+  ```kotlin
+  companion object {
+      private val log = LoggerFactory.getLogger(FeatureServiceImpl::class.java)
+  }
+  ```
+  or as a private property on the class:
+  ```kotlin
+  private val log = LoggerFactory.getLogger(javaClass)
+  ```
 
 ## Log Levels
 
@@ -16,8 +24,8 @@
 
 Keep log formats uniform across the entire codebase:
 
-```java
-log.info("[<FEATURE>] - ACTION: <method>: <field>: {}", value);
+```kotlin
+log.info("[<FEATURE>] - ACTION: <method>: <field>: {}", value)
 ```
 
 - **Use `{}` placeholders:** Always use parameter placeholders. Never use string concatenation, which incurs performance overhead and risks leaking sensitive data.

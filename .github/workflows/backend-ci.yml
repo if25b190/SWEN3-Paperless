@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   backend-build-test:
-    name: Backend Build & Test (Java 25)
+    name: Backend Build & Test (Gradle / Java 25)
     runs-on: ubuntu-latest
 
     defaults:
@@ -43,24 +43,24 @@ jobs:
         with:
           java-version: '25'
           distribution: 'temurin'
-          cache: 'maven'
+          cache: 'gradle'
 
-      - name: Ensure Maven wrapper is executable
-        run: chmod +x ./mvnw
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
 
       - name: Generate OpenAPI models & compile
-        run: ./mvnw clean compile -B
+        run: ./gradlew compileKotlin --no-daemon
 
       - name: Run tests
-        run: ./mvnw test -B
+        run: ./gradlew test --no-daemon
 
       - name: Package JAR
-        run: ./mvnw package -DskipTests -B
+        run: ./gradlew bootJar -x test --no-daemon
 
-      - name: Upload Surefire test reports
+      - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-test-reports
-          path: paperless-backend/target/surefire-reports/
+          name: gradle-test-reports
+          path: paperless-backend/build/reports/tests/test/
           retention-days: 7
