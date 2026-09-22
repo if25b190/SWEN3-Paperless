@@ -1,4 +1,4 @@
-import { apiFetch, apiUpload, apiDelete, apiGetFile, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
+import { api, apiFetch, apiUpload, apiDelete, apiGetFile, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
 
 describe("api client", () => {
   const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, statusText: "Nope", json: async () => body });
@@ -35,6 +35,20 @@ describe("api client", () => {
     global.fetch = jest.fn().mockResolvedValue(response({ detail: "Bad credentials" }, 401));
     await expect(apiFetch("/auth/login", { method: "POST", auth: false, body: "{}" })).rejects.toMatchObject({ status: 401 });
     expect(localStorage.getItem("paperless_token")).toBe("abc");
+  });
+
+  it("sends a required non-empty password for user creation", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ id: 2 }));
+    await api.createUser({ username: "ada", email: "ada@example.com", password: "secret123" });
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toMatchObject({ password: "secret123" });
+  });
+
+  it("exposes detail and membership endpoint callers", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ id: 1, name: "Item" }));
+    await api.document(1); await api.user(2); await api.userTeams(2); await api.team(3); await api.members(3);
+    expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
+      "/api/documents/1", "/api/users/2", "/api/users/2/teams", "/api/teams/3", "/api/teams/3/members",
+    ]);
   });
 
   it("sends multipart uploads without overriding the content type", async () => {

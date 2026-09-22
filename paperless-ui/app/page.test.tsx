@@ -63,4 +63,12 @@ describe("Paperless workspace", () => {
     expect(screen.queryByRole("dialog", { name: /upload document/i })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(trigger);
   });
+
+  it("uses a blank search state rather than stale library cards", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(within(screen.getByRole("navigation", { name: /main navigation/i })).getByRole("button", { name: /search/i }));
+    expect(screen.getByRole("textbox", { name: /search documents/i })).toHaveValue("");
+    expect(screen.getByRole("heading", { name: /search your archive/i })).toBeInTheDocument();
+  });
 });
