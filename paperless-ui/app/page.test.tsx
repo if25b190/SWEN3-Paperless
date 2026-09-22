@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Home from "./page";
 
@@ -21,8 +21,8 @@ describe("Paperless workspace", () => {
     await userEvent.type(screen.getByLabelText(/username/i), "ada");
     await userEvent.type(screen.getByLabelText(/password/i), "wrong");
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized", json: async () => ({ detail: "Wrong password" }) });
-    await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Wrong password");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /sign in/i }));
+    expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Wrong password");
     expect(screen.getByRole("button", { name: /upload document/i })).toBeInTheDocument();
   });
 });

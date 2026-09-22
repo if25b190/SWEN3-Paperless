@@ -12,6 +12,8 @@ RUN pnpm install --frozen-lockfile
 
 # Build stage
 FROM base AS builder
+ARG BACKEND_URL=http://localhost:8080
+ENV BACKEND_URL=$BACKEND_URL
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

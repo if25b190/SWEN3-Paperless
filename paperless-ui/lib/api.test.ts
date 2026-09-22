@@ -1,4 +1,4 @@
-import { apiFetch, apiUpload, apiDelete, apiGetFile, apiUpdateDocument, normalizeApiError } from "./api";
+import { apiFetch, apiUpload, apiDelete, apiGetFile, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
 
 describe("api client", () => {
   const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, statusText: "Nope", json: async () => body });
