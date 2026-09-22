@@ -35,7 +35,6 @@ services:
       - "${UI_PORT:-3000}:3000"
     env_file:
       - .env.local
-    environment:
 
   db:
     image: postgres:16-alpine
