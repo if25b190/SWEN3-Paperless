@@ -31,6 +31,12 @@ describe("api client", () => {
     expect(localStorage.getItem("paperless_token")).toBeNull();
   });
 
+  it("preserves the token when an unauthenticated request gets 401", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ detail: "Bad credentials" }, 401));
+    await expect(apiFetch("/auth/login", { method: "POST", auth: false, body: "{}" })).rejects.toMatchObject({ status: 401 });
+    expect(localStorage.getItem("paperless_token")).toBe("abc");
+  });
+
   it("sends multipart uploads without overriding the content type", async () => {
     global.fetch = jest.fn().mockResolvedValue(response({ id: 1 }, 201));
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });

@@ -25,4 +25,44 @@ describe("Paperless workspace", () => {
     expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Wrong password");
     expect(screen.getByRole("button", { name: /upload document/i })).toBeInTheDocument();
   });
+
+  it("bootstraps documents and metadata after a successful login", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.endsWith("/auth/login")) return Promise.resolve({ ok: true, status: 200, json: async () => ({ token: "fresh", user: { id: 1, username: "ada", email: "ada@example.com" } }) });
+      if (url.endsWith("/documents?page=0&size=12&sort=created_at%2Cdesc")) return Promise.resolve({ ok: true, status: 200, json: async () => ({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }) });
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ items: [] }) });
+    });
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await user.type(screen.getByLabelText(/username/i), "ada");
+    await user.type(screen.getByLabelText(/password/i), "secret");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^sign in$/i }));
+    expect(await screen.findByText(/your desk is clear/i)).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/auth/me", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/correspondents", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/document-types", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/teams", expect.anything());
+  });
+
+  it("keeps search ready and reports search pagination failures", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /search$/i }));
+    expect(screen.getByRole("heading", { name: /search your archive/i })).toBeInTheDocument();
+    expect(screen.getByText(/search for a document/i)).toBeInTheDocument();
+  });
+
+  it("keeps focus inside an open dialog and closes with Escape", async () => {
+    const user = userEvent.setup();
+    render(<Home />);
+    const trigger = screen.getByRole("button", { name: /upload document/i });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: /upload document/i });
+    await user.tab();
+    expect(dialog).toContainElement(document.activeElement);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: /upload document/i })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(trigger);
+  });
 });
