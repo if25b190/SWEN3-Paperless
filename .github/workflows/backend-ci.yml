@@ -1,0 +1,66 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'paperless-backend/**'
+      - '.github/workflows/backend-ci.yml'
+      - 'docs/openapi.yaml'
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'paperless-backend/**'
+      - '.github/workflows/backend-ci.yml'
+      - 'docs/openapi.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-build-test:
+    name: Backend Build & Test (Gradle / Java 25)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: paperless-backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Generate OpenAPI models & compile
+        run: ./gradlew compileKotlin --no-daemon
+
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - name: Package JAR
+        run: ./gradlew bootJar -x test --no-daemon
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-test-reports
+          path: paperless-backend/build/reports/tests/test/
+          retention-days: 7

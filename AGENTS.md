@@ -1,13 +1,13 @@
 # Backend — Spring Boot
 
-Standards: [`docs/java-style.md`](docs/java-style.md) · [`docs/annotations.md`](docs/annotations.md) ·
+Standards: [`docs/kotlin-style.md`](docs/kotlin-style.md) · [`docs/annotations.md`](docs/annotations.md) ·
 [`docs/layered-architecture.md`](docs/layered-architecture.md) · [`docs/controllers.md`](docs/controllers.md) ·
 [`docs/mappers.md`](docs/mappers.md) · [`docs/exceptions.md`](docs/exceptions.md) ·
 [`docs/testing.md`](docs/testing.md) · [`docs/logging.md`](docs/logging.md)
 
 ## Stack
 
-Java 25 · Spring Boot 4.x · Maven · Spring Data JPA · Lombok · JUnit 6 + Mockito + AssertJ.
+Kotlin (JVM 25) · Spring Boot 4.x · Gradle · Spring Data JPA · JUnit 5 + Mockito + AssertJ.
 
 ## Feature package layout
 
@@ -19,7 +19,7 @@ at/fhtw/swen3/paperless/<feature>/
   service/      <Feature>Service        interface — the feature's public surface
                 <Feature>ServiceImpl    @Service, class-level @Transactional — the one impl
   repository/   <Feature>Repository     interface extends JpaRepository<<Feature>Entity, Id>
-  model/        <Feature>, enums        plain POJO (Lombok), no jakarta.persistence imports
+  model/        <Feature>, enums        domain models (data class), no jakarta.persistence imports
   entity/       <Feature>Entity         @Entity only, no logic
   dto/          Create/Update/Response records
   mapper/       <Feature>Mapper         static — DTO ↔ model
@@ -38,11 +38,10 @@ layer only when it actually carries weight.
 - The repository is a plain Spring Data interface, nothing hand-written. "Find or 404" is a
   service concern:
   `repository.findById(id).orElseThrow(() -> new AppException(AppErrorMessage.<X>_NOT_FOUND))`.
-- `model/` holds plain POJOs (no JPA imports); `entity/` holds `@Entity` classes only, no logic.
-- **No `final` on method parameters or local variables, anywhere.** Production code,
-  controllers and tests all agree on this; `final` survives only on Lombok
-  constructor-injected fields, because `@RequiredArgsConstructor` needs it.
-- `var` in controllers and tests; explicit types in services and mappers.
+- `model/` holds Kotlin domain models / data classes (no JPA imports); `entity/` holds `@Entity` classes only, no logic.
+- Primary constructor injection is used in services (`class <Feature>ServiceImpl(private val repo: <Feature>Repository) : <Feature>Service`);
+  Lombok is not used.
+- Prefer `val` for immutability; use `var` only when mutable state is strictly necessary (see [`docs/kotlin-style.md`](docs/kotlin-style.md)).
 - No existence checks or business logic in controllers — that belongs in the service, which
   should throw when something isn't there.
 - `@Transactional` at class level, service classes only (`readOnly = true` for read paths).

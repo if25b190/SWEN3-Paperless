@@ -1,0 +1,1609 @@
+openapi: 3.0.3
+info:
+  title: Paperless REST API
+  description: |
+    Document Management System REST API for the SWEN3 Paperless project.
+    Provides endpoints for:
+    - Document Upload: file storage, automated OCR processing, Elasticsearch full-text indexing, and GenAI summarization.
+    - Document Search: full-text and fuzzy search powered by Elasticsearch.
+    - Document Management: document lifecycle (details, metadata update, deletion, download) and metadata (correspondents, document types).
+    - User and Team Management: authentication (login, me), user management (User-MM), teams, and role-based memberships (User <-- m:n (role) --> Team; roles: ADMIN, READONLY, MEMBER).
+  version: 1.0.0
+  x-api-id: d0184f38-b98d-11e7-9c56-68f728c1ba70
+  x-audience: company-internal
+  contact:
+    name: Philip Duong & Patrick Hornek
+    email: contact@paperless.local
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8080
+    description: Local Docker / Development Server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: User authentication and session management (login, me).
+  - name: Users
+    description: User management (User-MM) and user team memberships.
+  - name: Teams
+    description: Team management and role assignments (User <-- m:n (role) --> Team).
+  - name: Documents
+    description: Core document uploading, lifecycle management, metadata, and file downloads.
+  - name: Search
+    description: Full-text and fuzzy search powered by Elasticsearch.
+  - name: Correspondents
+    description: Senders and recipients of documents (e.g., companies, authorities, individuals).
+  - name: Document Types
+    description: Document classifications (e.g., Invoice, Contract, Receipt, Bank Statement).
+
+paths:
+  # ============================================================================
+  # AUTH
+  # ============================================================================
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: User login
+      description: Authenticates a user with login credentials and returns a JWT access token and user profile.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successfully authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current authenticated user
+      description: Returns the user profile and team memberships for the currently authenticated user.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user profile retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # USERS (USER-MM)
+  # ============================================================================
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users
+      description: Returns a list of all registered users in the application.
+      operationId: getUsers
+      responses:
+        '200':
+          description: List of users retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Users
+      summary: Create a new user
+      description: Creates/registers a new user account (User-MM).
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully.
+          headers:
+            Location:
+              description: URI of the newly created user resource.
+              schema:
+                type: string
+                format: uri
+                example: "/users/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user by ID
+      description: Returns user profile by ID.
+      operationId: getUserById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: User retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: Updates user profile details (User-MM).
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Deletes a user account.
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: User deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /users/{id}/teams:
+    get:
+      tags:
+        - Users
+      summary: Get teams and roles for user
+      description: Returns all teams the user belongs to and their assigned roles in each team (User <-- m:n (role) --> Team).
+      operationId: getUserTeams
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: User team memberships and roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTeamMembershipListResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # TEAMS & ROLES (User <-- m:n (role) --> Team)
+  # ============================================================================
+  /teams:
+    get:
+      tags:
+        - Teams
+      summary: List all teams
+      description: Returns all teams in the organization.
+      operationId: getTeams
+      responses:
+        '200':
+          description: List of teams retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Teams
+      summary: Create a new team
+      description: Creates a new team.
+      operationId: createTeam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created successfully.
+          headers:
+            Location:
+              description: URI of the newly created team resource.
+              schema:
+                type: string
+                format: uri
+                example: "/teams/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}:
+    get:
+      tags:
+        - Teams
+      summary: Get team by ID
+      description: Returns details of a specific team.
+      operationId: getTeamById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Team retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Teams
+      summary: Update a team
+      description: Updates a team's name and description.
+      operationId: updateTeam
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamRequest'
+      responses:
+        '200':
+          description: Team updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Teams
+      summary: Delete a team
+      description: Deletes a team and associated memberships.
+      operationId: deleteTeam
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: Team deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}/members:
+    get:
+      tags:
+        - Teams
+      summary: List team members and their roles
+      description: Returns all users belonging to this team with their assigned roles (admin, readonly, member).
+      operationId: getTeamMembers
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: List of team members and roles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberListResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Teams
+      summary: Add a member to a team with a role
+      description: "Assigns a user to a team with an explicit role (Entities: User <-- m:n (role) --> Team; e.g. ADMIN, READONLY)."
+      operationId: addTeamMember
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddTeamMemberRequest'
+      responses:
+        '201':
+          description: Member added to team successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /teams/{id}/members/{user_id}:
+    put:
+      tags:
+        - Teams
+      summary: Update a team member's role
+      description: Updates the role of a user within a team (e.g. promoting from READONLY to ADMIN).
+      operationId: updateTeamMemberRole
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - name: user_id
+          in: path
+          description: Unique identifier of the user.
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamMemberRoleRequest'
+      responses:
+        '200':
+          description: Member role updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamMemberResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Teams
+      summary: Remove a member from a team
+      description: Removes a user's membership from the team.
+      operationId: removeTeamMember
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+        - name: user_id
+          in: path
+          description: Unique identifier of the user to remove.
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Member removed from team successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # DOCUMENTS
+  # ============================================================================
+  /documents:
+    get:
+      tags:
+        - Documents
+      summary: Search and list documents
+      description: Returns a paginated list of archived documents with optional metadata filtering.
+      operationId: searchDocuments
+      parameters:
+        - name: page
+          in: query
+          description: Zero-based page index.
+          required: false
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: size
+          in: query
+          description: The size of the page to be returned.
+          required: false
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: sort
+          in: query
+          description: Sorting criteria in the format property,(asc|desc).
+          required: false
+          schema:
+            type: string
+            default: created_at,desc
+        - name: correspondent_id
+          in: query
+          description: Filter by Correspondent ID.
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: document_type_id
+          in: query
+          description: Filter by Document Type ID.
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Successfully retrieved paged documents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Documents
+      summary: Upload a new document
+      description: |
+        Uploads a PDF document to file storage (MinIO).
+        Automatically triggers asynchronous processing:
+        - Performs OCR recognition to extract document text.
+        - Automatically indexes extracted text for full-text search in Elasticsearch.
+        - Automatically generates an AI summary using Google Gemini.
+      operationId: uploadDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document
+                - title
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: The binary PDF document file.
+                title:
+                  type: string
+                  example: Electricity Invoice October 2026
+                  maxLength: 255
+                correspondent_id:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  example: 1
+                document_type_id:
+                  type: integer
+                  format: int64
+                  nullable: true
+                  example: 2
+      responses:
+        '201':
+          description: Document successfully uploaded and queued for processing.
+          headers:
+            Location:
+              description: URI of the newly uploaded document resource.
+              schema:
+                type: string
+                format: uri
+                example: "/documents/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: Get document details by ID
+      description: Returns full document metadata, including OCR content, AI summary, and processing status.
+      operationId: getDocumentById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Document details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Documents
+      summary: Update document metadata
+      description: Updates editable metadata fields of a document (title, correspondent, document type).
+      operationId: updateDocumentMetadata
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDocumentRequest'
+      responses:
+        '200':
+          description: Document updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete a document
+      description: Deletes document record, file from MinIO, and Elasticsearch search index entry.
+      operationId: deleteDocument
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: Document successfully deleted.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /documents/{id}/download:
+    get:
+      tags:
+        - Documents
+      summary: Download original document file
+      description: Streams the original uploaded PDF file from object storage (MinIO).
+      operationId: downloadDocumentFile
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Binary PDF file content.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # SEARCH (ELASTICSEARCH)
+  # ============================================================================
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Full-text and fuzzy search across documents
+      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries using Elasticsearch.
+      operationId: searchDocumentsFullText
+      parameters:
+        - name: query
+          in: query
+          description: Text search query or keywords.
+          required: true
+          schema:
+            type: string
+            example: "invoice electric"
+        - name: fuzzy
+          in: query
+          description: Enable fuzzy typo tolerance matching in Elasticsearch.
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: page
+          in: query
+          description: Zero-based page index.
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: Page size.
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Search results returned successfully with highlights and relevance scores.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # CORRESPONDENTS (DOCUMENT METADATA)
+  # ============================================================================
+  /correspondents:
+    get:
+      tags:
+        - Correspondents
+      summary: List all correspondents
+      operationId: searchCorrespondents
+      responses:
+        '200':
+          description: List of correspondents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrespondentListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Correspondents
+      summary: Create a new correspondent
+      operationId: createCorrespondent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCorrespondentRequest'
+      responses:
+        '201':
+          description: Correspondent created successfully.
+          headers:
+            Location:
+              description: URI of the newly created correspondent resource.
+              schema:
+                type: string
+                format: uri
+                example: "/correspondents/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrespondentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /correspondents/{id}:
+    get:
+      tags:
+        - Correspondents
+      summary: Get correspondent by ID
+      operationId: getCorrespondentById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Correspondent retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrespondentResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Correspondents
+      summary: Update a correspondent
+      operationId: updateCorrespondent
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCorrespondentRequest'
+      responses:
+        '200':
+          description: Correspondent updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorrespondentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Correspondents
+      summary: Delete a correspondent
+      operationId: deleteCorrespondent
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: Correspondent deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ============================================================================
+  # DOCUMENT TYPES (DOCUMENT METADATA)
+  # ============================================================================
+  /document-types:
+    get:
+      tags:
+        - Document Types
+      summary: List all document types
+      operationId: searchDocumentTypes
+      responses:
+        '200':
+          description: List of document types.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Document Types
+      summary: Create a new document type
+      operationId: createDocumentType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDocumentTypeRequest'
+      responses:
+        '201':
+          description: Document type created successfully.
+          headers:
+            Location:
+              description: URI of the newly created document type resource.
+              schema:
+                type: string
+                format: uri
+                example: "/document-types/1"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /document-types/{id}:
+    get:
+      tags:
+        - Document Types
+      summary: Get document type by ID
+      operationId: getDocumentTypeById
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '200':
+          description: Document type retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Document Types
+      summary: Update a document type
+      operationId: updateDocumentType
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDocumentTypeRequest'
+      responses:
+        '200':
+          description: Document type updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentTypeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Document Types
+      summary: Delete a document type
+      operationId: deleteDocumentType
+      parameters:
+        - $ref: '#/components/parameters/PathId'
+      responses:
+        '204':
+          description: Document type deleted successfully.
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+# ==============================================================================
+# COMPONENTS & SCHEMAS
+# ==============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Standard Bearer Token authorization header using a JWT.
+
+  parameters:
+    PathId:
+      name: id
+      in: path
+      description: Unique identifier of the resource.
+      required: true
+      schema:
+        type: integer
+        format: int64
+
+  schemas:
+    # --- Page Metadata Envelope ---
+    PageMetadata:
+      type: object
+      required:
+        - page
+        - size
+        - total_elements
+        - total_pages
+      properties:
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        total_elements:
+          type: integer
+          format: int64
+          example: 25
+        total_pages:
+          type: integer
+          example: 3
+
+    # --- Role Enum ---
+    Role:
+      type: string
+      enum:
+        - ADMIN
+        - READONLY
+        - MEMBER
+      example: ADMIN
+
+    # --- User Schemas (User-MM & Login) ---
+    UserResponse:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:32:10Z"
+
+    UserListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+
+    CreateUserRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 100
+          example: "SecretP@ss123"
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: john_doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 100
+          example: "NewSecretP@ss123"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: john_doe
+        password:
+          type: string
+          format: password
+          example: "SecretP@ss123"
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - token_type
+        - user
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          example: Bearer
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    # --- Team Schemas (User <-- m:n (role) --> Team) ---
+    TeamResponse:
+      type: object
+      required:
+        - id
+        - name
+        - created_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Accounting
+        description:
+          type: string
+          nullable: true
+          example: Handles invoices and bills
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:32:10Z"
+
+    TeamListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamResponse'
+
+    CreateTeamRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Accounting
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Handles invoices and bills
+
+    UpdateTeamRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Finance & Accounting
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+          example: Handles financial documents
+
+    TeamMemberResponse:
+      type: object
+      required:
+        - user
+        - role
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        role:
+          $ref: '#/components/schemas/Role'
+        joined_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+
+    TeamMemberListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamMemberResponse'
+
+    AddTeamMemberRequest:
+      type: object
+      required:
+        - user_id
+        - role
+      properties:
+        user_id:
+          type: integer
+          format: int64
+          example: 1
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UpdateTeamMemberRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UserTeamMembershipResponse:
+      type: object
+      required:
+        - team
+        - role
+      properties:
+        team:
+          $ref: '#/components/schemas/TeamResponse'
+        role:
+          $ref: '#/components/schemas/Role'
+
+    UserTeamMembershipListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserTeamMembershipResponse'
+
+    # --- Document Schemas ---
+    ProcessingStatus:
+      type: string
+      enum:
+        - PENDING
+        - OCR_IN_PROGRESS
+        - GENAI_IN_PROGRESS
+        - COMPLETED
+        - FAILED
+      example: COMPLETED
+
+    DocumentResponse:
+      type: object
+      required:
+        - id
+        - title
+        - original_filename
+        - content_type
+        - file_size
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        title:
+          type: string
+          example: Electricity Invoice October 2026
+        original_filename:
+          type: string
+          example: invoice_oct_2026.pdf
+        content_type:
+          type: string
+          example: application/pdf
+        file_size:
+          type: integer
+          format: int64
+          description: Size in bytes.
+          example: 245760
+        status:
+          $ref: '#/components/schemas/ProcessingStatus'
+        ocr_content:
+          type: string
+          nullable: true
+          description: Extracted text from OCR worker.
+          example: "INVOICE #9821\nAmount Due: 142.50 EUR\nDate: 2026-10-01"
+        summary:
+          type: string
+          nullable: true
+          description: AI summary generated by Google Gemini worker.
+          example: "Monthly utility invoice for electricity services totaling 142.50 EUR due by end of month."
+        storage_key:
+          type: string
+          description: Object key in MinIO.
+          example: "documents/2026/10/1_invoice_oct_2026.pdf"
+        correspondent:
+          $ref: '#/components/schemas/CorrespondentResponse'
+          nullable: true
+        document_type:
+          $ref: '#/components/schemas/DocumentTypeResponse'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-10-15T14:32:10Z"
+
+    DocumentPageResponse:
+      type: object
+      required:
+        - pagination
+        - items
+      properties:
+        pagination:
+          $ref: '#/components/schemas/PageMetadata'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentResponse'
+
+    UpdateDocumentRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+          example: "Updated Invoice Title"
+        correspondent_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: 1
+        document_type_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: 2
+
+    # --- Search Result Schemas ---
+    SearchResultItem:
+      type: object
+      required:
+        - document
+        - score
+      properties:
+        document:
+          $ref: '#/components/schemas/DocumentResponse'
+        score:
+          type: number
+          format: float
+          description: Elasticsearch BM25 relevance score.
+          example: 3.842
+        highlights:
+          type: array
+          items:
+            type: string
+          description: Snippets matching search terms with <em> highlights.
+          example:
+            - "Electricity <em>Invoice</em> for October 2026"
+            - "Total <em>amount</em> due: 142.50 EUR"
+
+    SearchResponse:
+      type: object
+      required:
+        - pagination
+        - items
+      properties:
+        pagination:
+          $ref: '#/components/schemas/PageMetadata'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResultItem'
+
+    # --- Correspondent Schemas ---
+    CorrespondentResponse:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "Wien Energie GmbH"
+        notes:
+          type: string
+          nullable: true
+          example: "Austrian energy provider"
+
+    CorrespondentListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CorrespondentResponse'
+
+    CreateCorrespondentRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "A1 Telekom"
+        notes:
+          type: string
+          nullable: true
+          example: "Internet and mobile provider"
+
+    UpdateCorrespondentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: "A1 Telekom Austria AG"
+        notes:
+          type: string
+          nullable: true
+          example: "Updated company profile"
+
+    # --- Document Type Schemas ---
+    DocumentTypeResponse:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Invoice
+        description:
+          type: string
+          nullable: true
+          example: Billing and payment invoices
+
+    DocumentTypeListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentTypeResponse'
+
+    CreateDocumentTypeRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Contract
+        description:
+          type: string
+          nullable: true
+          example: Employment, tenancy, and service contracts
+
+    UpdateDocumentTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Legal Contract
+        description:
+          type: string
+          nullable: true
+          example: Legal and financial binding contracts
+
+    # --- RFC 7807 Problem JSON ---
+    Problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+          example: "urn:problem-type:not-found"
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+          example: "Resource Not Found"
+        status:
+          type: integer
+          description: The HTTP status code generated by the origin server.
+          example: 404
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+          example: "Document with id 42 was not found."
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+          example: "/documents/42"
+        invalid_params:
+          type: array
+          description: An array of invalid parameter errors (RFC 7807 extension).
+          items:
+            $ref: '#/components/schemas/InvalidParam'
+
+    InvalidParam:
+      type: object
+      required:
+        - name
+        - reason
+      properties:
+        name:
+          type: string
+          description: The name of the invalid parameter or field.
+          example: "title"
+        reason:
+          type: string
+          description: Explanation of why the parameter is invalid.
+          example: "Title must not be blank."
+
+  # ============================================================================
+  # RESPONSES
+  # ============================================================================
+  responses:
+    BadRequestError:
+      description: Bad Request - Validation failure or malformed payload.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    UnauthorizedError:
+      description: Unauthorized - Authentication is required or credentials are invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    NotFoundError:
+      description: Not Found - The requested entity does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    ConflictError:
+      description: Conflict - A resource with the same identifier or unique constraint already exists.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    InternalServerError:
+      description: Internal Server Error - Unexpected failure on the server.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'

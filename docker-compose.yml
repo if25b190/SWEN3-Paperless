@@ -1,33 +1,82 @@
 services:
   backend:
     build:
-      context: .
-      dockerfile: paperless-backend/Dockerfile
+      context: ./paperless-backend
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     env_file:
-      - .env
+      - .env.local
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://db:5432/paperless}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-paperless}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-paperless_elastic_password}
+
+  ui:
+    build:
+      context: ./paperless-ui
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${UI_PORT:-3000}:3000"
+    env_file:
+      - .env.local
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     restart: unless-stopped
     shm_size: 128mb
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    env_file:
+      - .env.local
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-paperless}
+      POSTGRES_USER: ${POSTGRES_USER:-paperless}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready", "-d", "db_prod" ]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-paperless} -d ${POSTGRES_DB:-paperless}"]
       interval: 10s
       timeout: 3s
       retries: 5
-    environment:
-      POSTGRES_DB: tourplanner
-      POSTGRES_USER: tourplanner
-      POSTGRES_PASSWORD: tourplanner
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "${ELASTIC_PORT:-9200}:9200"
+    env_file:
+      - .env.local
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: ${ELASTIC_SECURITY_ENABLED:-false}
+      xpack.security.http.ssl.enabled: "false"
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-paperless_elastic_password}
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200/_cluster/health || curl -s -f -u ${ELASTIC_USER:-elastic}:${ELASTIC_PASSWORD:-paperless_elastic_password} http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   postgres-data:
+  elasticsearch-data:
