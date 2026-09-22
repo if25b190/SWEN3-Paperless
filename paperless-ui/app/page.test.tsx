@@ -89,11 +89,12 @@ describe("Paperless workspace", () => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json(ada));
       if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
       if (url.endsWith("/correspondents") || url.endsWith("/document-types")) return Promise.resolve(json({ items: [] }));
-      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 3, name: "Editors" }] }));
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 3, name: "Editors" }, { id: 4, name: "Reviewers" }] }));
       if (url.endsWith("/users")) return Promise.resolve(json({ items: [ada] }));
       if (url.endsWith("/teams/3/members") && options?.method === "POST") return Promise.resolve(json(member));
       if (url.endsWith("/teams/3/members")) return Promise.resolve(json({ items: [] }));
       if (url.endsWith("/teams/3/members/2") && options?.method === "PUT") return Promise.resolve(json({ ...member, role: "READONLY" }));
+      if (url.endsWith("/teams/4/members")) return Promise.resolve(json({ items: [] }));
       return Promise.resolve(json(undefined, 204));
     });
     render(<Home />);
@@ -101,6 +102,10 @@ describe("Paperless workspace", () => {
     expect(fetch).toHaveBeenCalledWith("/api/users", expect.anything());
     const team = screen.getByText("Editors").closest("div.rounded-xl") as HTMLElement;
     await user.click(within(team).getByRole("button", { name: "Members" }));
+    const otherTeam = screen.getByText("Reviewers").closest("div.rounded-xl") as HTMLElement;
+    await user.click(within(otherTeam).getByRole("button", { name: "Members" }));
+    await user.selectOptions(within(team).getByRole("combobox", { name: /new member role/i }), "ADMIN");
+    expect(within(otherTeam).getByRole("combobox", { name: /new member role/i })).toHaveValue("MEMBER");
     await user.selectOptions(within(team).getByRole("combobox", { name: /member user/i }), "2");
     await user.click(within(team).getByRole("button", { name: "Add" }));
     expect(fetch).toHaveBeenCalledWith("/api/teams/3/members", expect.objectContaining({ method: "POST" }));
@@ -152,6 +157,24 @@ describe("Paperless workspace", () => {
     await user.click(within(screen.getByRole("navigation", { name: /main navigation/i })).getByRole("button", { name: /search/i }));
     expect(screen.getByRole("textbox", { name: /search documents/i })).toHaveValue("");
     expect(screen.getAllByRole("heading", { name: /search your archive/i })[0]).toBeInTheDocument();
+  });
+
+  it("clears completed search state when re-entering Search", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn().mockImplementation((url: string) => url.startsWith("/api/search?")
+      ? Promise.resolve(json({ items: [{ document: { id: 1, title: "Completed result", original_filename: "result.txt", content_type: "text/plain", file_size: 100, status: "DONE", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 1, total_pages: 1 } }))
+      : Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } })));
+    render(<Home />);
+    const input = screen.getByRole("textbox", { name: /search documents/i });
+    await user.type(input, "completed query");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    expect(await screen.findByText("Completed result")).toBeInTheDocument();
+    await user.click(within(screen.getByRole("navigation", { name: /main navigation/i })).getByRole("button", { name: /library/i }));
+    await screen.findByRole("heading", { name: /good documents/i });
+    await user.click(within(screen.getByRole("navigation", { name: /main navigation/i })).getByRole("button", { name: /search/i }));
+    expect(screen.getByRole("textbox", { name: /search documents/i })).toHaveValue("");
+    expect(screen.getAllByRole("heading", { name: /search your archive/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: /results for/i })).not.toBeInTheDocument();
   });
 
   it("closes existing panels before opening login after an authenticated 401", async () => {
