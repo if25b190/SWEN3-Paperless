@@ -45,10 +45,34 @@ describe("api client", () => {
 
   it("exposes detail and membership endpoint callers", async () => {
     global.fetch = jest.fn().mockResolvedValue(response({ id: 1, name: "Item" }));
-    await api.document(1); await api.user(2); await api.userTeams(2); await api.team(3); await api.members(3);
+    await api.document(1); await api.user(2); await api.userTeams(2); await api.team(3); await api.members(3); await api.users();
     expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
-      "/api/documents/1", "/api/users/2", "/api/users/2/teams", "/api/teams/3", "/api/teams/3/members",
+      "/api/documents/1", "/api/users/2", "/api/users/2/teams", "/api/teams/3", "/api/teams/3/members", "/api/users",
     ]);
+  });
+
+  it("uses correspondent notes and exposes metadata detail callers", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ id: 8, name: "Acme", notes: "Preferred" }));
+    await api.correspondent(8);
+    await api.documentType(9);
+    await api.createLabel("correspondents", { name: "Acme", notes: "Preferred" });
+    await api.updateLabel("correspondents", 8, { notes: "Updated" });
+    expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
+      "/api/correspondents/8", "/api/document-types/9", "/api/correspondents", "/api/correspondents/8",
+    ]);
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[2][1].body)).toEqual({ name: "Acme", notes: "Preferred" });
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[3][1].body)).toEqual({ notes: "Updated" });
+  });
+
+  it("exposes team member assignment mutations", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ user: { id: 2 }, role: "MEMBER" }));
+    await api.addMember(3, { user_id: 2, role: "MEMBER" });
+    await api.updateMember(3, 2, "ADMIN");
+    await api.removeMember(3, 2);
+    expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
+      "/api/teams/3/members", "/api/teams/3/members/2", "/api/teams/3/members/2",
+    ]);
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toEqual({ user_id: 2, role: "MEMBER" });
   });
 
   it("sends multipart uploads without overriding the content type", async () => {
@@ -56,7 +80,7 @@ describe("api client", () => {
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
     await apiUpload("/documents", { document: file, title: "Hello" });
     expect(fetch).toHaveBeenCalledWith("/api/documents", expect.objectContaining({ method: "POST", body: expect.any(FormData) }));
-    expect((fetch as jest.Mock).mock.calls[0][1].headers["Content-Type"]).toBeUndefined();
+    expect((fetch as jest.Mock).mock.calls[0][1].headers.has("Content-Type")).toBe(false);
   });
 
   it("uses real Headers for mutations and file downloads", async () => {
