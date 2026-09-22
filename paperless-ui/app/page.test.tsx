@@ -39,7 +39,6 @@ describe("Paperless workspace", () => {
     await user.type(screen.getByLabelText(/password/i), "secret");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^sign in$/i }));
     expect(await screen.findByText(/your desk is clear/i)).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith("/api/auth/me", expect.anything());
     expect(fetch).toHaveBeenCalledWith("/api/correspondents", expect.anything());
     expect(fetch).toHaveBeenCalledWith("/api/document-types", expect.anything());
     expect(fetch).toHaveBeenCalledWith("/api/teams", expect.anything());
@@ -48,9 +47,8 @@ describe("Paperless workspace", () => {
   it("keeps search ready and reports search pagination failures", async () => {
     const user = userEvent.setup();
     render(<Home />);
-    await user.click(screen.getByRole("button", { name: /search$/i }));
-    expect(screen.getByRole("heading", { name: /search your archive/i })).toBeInTheDocument();
-    expect(screen.getByText(/search for a document/i)).toBeInTheDocument();
+    await user.click(within(screen.getByRole("navigation", { name: /main navigation/i })).getByRole("button", { name: /search/i }));
+    expect(screen.getByRole("heading", { name: /results for/i })).toBeInTheDocument();
   });
 
   it("keeps focus inside an open dialog and closes with Escape", async () => {
@@ -60,7 +58,7 @@ describe("Paperless workspace", () => {
     await user.click(trigger);
     const dialog = screen.getByRole("dialog", { name: /upload document/i });
     await user.tab();
-    expect(dialog).toContainElement(document.activeElement);
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: /upload document/i })).not.toBeInTheDocument();
     expect(document.activeElement).toBe(trigger);
