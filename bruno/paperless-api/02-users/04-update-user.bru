@@ -1,0 +1,27 @@
+meta {
+  name: Update user
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/users/{{createdUserId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{createdUsername}}",
+    "email": "{{createdUserEmail}}",
+    "password": "BrunoPass123!"
+  }
+}

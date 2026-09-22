@@ -1,0 +1,27 @@
+meta {
+  name: Update document metadata
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/documents/{{documentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "Bruno Integration Invoice Updated",
+    "correspondent_id": {{correspondentId}},
+    "document_type_id": {{documentTypeId}}
+  }
+}

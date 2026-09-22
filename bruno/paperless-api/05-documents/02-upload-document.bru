@@ -1,0 +1,26 @@
+meta {
+  name: Upload document
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  document: @file(./fixtures/sample.pdf)
+  title: Bruno Integration Invoice
+  correspondent_id: {{correspondentId}}
+  document_type_id: {{documentTypeId}}
+}
+
+script:post-response {
+  bru.setVar("documentId", res.getBody().id);
+}

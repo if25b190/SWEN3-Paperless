@@ -1,0 +1,37 @@
+meta {
+  name: Create user
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+script:pre-request {
+  const suffix = Date.now().toString();
+  bru.setVar("createdUsername", `bruno_${suffix}`);
+  bru.setVar("createdUserEmail", `bruno_${suffix}@example.com`);
+}
+
+body:json {
+  {
+    "username": "{{createdUsername}}",
+    "email": "{{createdUserEmail}}",
+    "password": "BrunoPass123!"
+  }
+}
+
+script:post-response {
+  bru.setVar("createdUserId", res.getBody().id);
+}

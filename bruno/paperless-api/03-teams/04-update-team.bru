@@ -1,0 +1,26 @@
+meta {
+  name: Update team
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno Integration Team Updated",
+    "description": "Updated by the Bruno collection"
+  }
+}

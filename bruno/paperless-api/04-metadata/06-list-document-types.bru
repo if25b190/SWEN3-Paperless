@@ -1,0 +1,15 @@
+meta {
+  name: List document types
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/document-types
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

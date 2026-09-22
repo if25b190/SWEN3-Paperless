@@ -1,0 +1,26 @@
+meta {
+  name: Update correspondent
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/correspondents/{{correspondentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno Integration Correspondent Updated",
+    "notes": "Updated by the Bruno collection"
+  }
+}

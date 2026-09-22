@@ -1,0 +1,15 @@
+meta {
+  name: Get team by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/teams/{{teamId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

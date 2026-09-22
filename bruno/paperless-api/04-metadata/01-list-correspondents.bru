@@ -1,0 +1,15 @@
+meta {
+  name: List correspondents
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/correspondents
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

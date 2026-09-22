@@ -1,0 +1,15 @@
+meta {
+  name: Delete correspondent
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}/correspondents/{{correspondentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

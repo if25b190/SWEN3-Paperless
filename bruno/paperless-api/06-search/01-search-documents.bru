@@ -1,0 +1,15 @@
+meta {
+  name: Search documents
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/search?query=invoice%20bruno&fuzzy=true&page=0&size=10
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

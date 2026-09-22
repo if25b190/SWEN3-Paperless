@@ -1,0 +1,15 @@
+meta {
+  name: List documents
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/documents?page=0&size=10&sort=created_at,desc&correspondent_id={{correspondentId}}&document_type_id={{documentTypeId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Create team
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/teams
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Bruno Integration Team",
+    "description": "Team created by the Bruno collection"
+  }
+}
+
+script:post-response {
+  bru.setVar("teamId", res.getBody().id);
+}

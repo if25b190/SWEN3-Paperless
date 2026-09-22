@@ -1,0 +1,25 @@
+meta {
+  name: Update team member role
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}/members/{{userId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "READONLY"
+  }
+}
