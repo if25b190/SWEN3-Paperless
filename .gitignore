@@ -1,0 +1,7 @@
+.idea
+*.mv.db
+*.trace.db
+.env
+.env.local
+.env.*.local
+.slim/deepwork/
