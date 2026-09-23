@@ -34,7 +34,6 @@ class DocumentServiceImpl(
 
     private val storageDirectory: Path = Paths.get(System.getProperty("java.io.tmpdir"), "paperless-documents")
 
-    @Transactional(Transactional.TxType.SUPPORTS)
     override fun searchDocuments(
         page: Int,
         size: Int,
@@ -53,7 +52,6 @@ class DocumentServiceImpl(
         return documents.map(DocumentEntityMapper::toModel)
     }
 
-    @Transactional(Transactional.TxType.SUPPORTS)
     override fun getDocument(id: Long): Document = DocumentEntityMapper.toModel(findEntity(id))
 
     override fun uploadDocument(upload: DocumentUpload): Document {

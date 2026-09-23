@@ -33,10 +33,21 @@ export function apiUpload<T>(path: string, values: Record<string, string | numbe
   return apiFetch<T>(path, { method: "POST", body });
 }
 
+export async function apiGetFileBlob(id: number): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(`/api/documents/${id}/download`, { headers: new Headers(token ? { Authorization: `Bearer ${token}` } : {}) });
+  if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("paperless_token");
+      window.dispatchEvent(new Event("paperless:unauthorized"));
+    }
+    throw new ApiError(response.status, "Download failed");
+  }
+  return response.blob();
+}
+
 export async function apiGetFile(id: number, filename: string) {
-  const response = await fetch(`/api/documents/${id}/download`, { headers: new Headers(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) });
-  if (!response.ok) { if (response.status === 401) { localStorage.removeItem("paperless_token"); window.dispatchEvent(new Event("paperless:unauthorized")); } throw new ApiError(response.status, "Download failed"); }
-  const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
+  const url = URL.createObjectURL(await apiGetFileBlob(id)); const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
 }
 
 export const apiDelete = (path: string) => apiFetch<void>(path, { method: "DELETE" });

@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
+import { Poppins } from "next/font/google";
+import InitColorSchemeScript from "@mui/material/InitColorSchemeScript";
+import Providers from "./providers";
 import "./globals.css";
+
+const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap", variable: "--font-poppins" });
 
 export const metadata: Metadata = {
   title: "Paperless — your calm document desk",
@@ -10,9 +15,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className="h-full antialiased"
+      className={poppins.variable}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body>
+        <InitColorSchemeScript attribute="class" defaultMode="system" modeStorageKey="paperless_theme" />
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,4 @@
-import { api, apiFetch, apiUpload, apiDelete, apiGetFile, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
+import { api, apiFetch, apiUpload, apiDelete, apiGetFile, apiGetFileBlob, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
 
 describe("api client", () => {
   const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, statusText: "Nope", json: async () => body });
@@ -92,5 +92,21 @@ describe("api client", () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["file"]) });
     await apiGetFile(8, "receipt.pdf");
     expect((fetch as jest.Mock).mock.calls[0][0]).toBe("/api/documents/8/download");
+  });
+
+  it("returns authenticated document blobs and handles unauthorized responses", async () => {
+    const blob = new Blob(["file"]);
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => blob });
+    await expect(apiGetFileBlob(8)).resolves.toBe(blob);
+    expect(fetch).toHaveBeenCalledWith("/api/documents/8/download", { headers: expect.any(Headers) });
+    expect((fetch as jest.Mock).mock.calls[0][1].headers.get("Authorization")).toBe("Bearer abc");
+
+    const unauthorized = jest.fn();
+    window.addEventListener("paperless:unauthorized", unauthorized);
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+    await expect(apiGetFileBlob(8)).rejects.toMatchObject({ status: 401, message: "Download failed" });
+    window.removeEventListener("paperless:unauthorized", unauthorized);
+    expect(localStorage.getItem("paperless_token")).toBeNull();
+    expect(unauthorized).toHaveBeenCalled();
   });
 });
