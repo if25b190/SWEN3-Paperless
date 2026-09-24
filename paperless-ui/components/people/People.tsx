@@ -1,8 +1,11 @@
 import { useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Card,
+  Chip,
+  DialogActions,
   FormControl,
   InputLabel,
   MenuItem,
@@ -13,6 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import { api, type Member, type Team, type User } from "../../lib/api";
+import { Modal } from "../shared/Modal";
 import { sectionSx } from "../shared/styles";
 
 export function People({
@@ -35,6 +39,24 @@ export function People({
   const [members, setMembers] = useState<Record<number, Member[]>>({});
   const [memberId, setMemberId] = useState<Record<number, string>>({});
   const [roles, setRoles] = useState<Record<number, Member["role"]>>({});
+  const [editingUser, setEditingUser] = useState<{
+    id: number;
+    username: string;
+    email: string;
+    error?: string;
+  } | null>(null);
+  const [membershipsModal, setMembershipsModal] = useState<{
+    user: User;
+    items: { team: Team; role: Member["role"] }[];
+    loading: boolean;
+    error?: string;
+  } | null>(null);
+  const [editingTeam, setEditingTeam] = useState<{
+    id: number;
+    name: string;
+    description: string;
+    error?: string;
+  } | null>(null);
   const createUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -181,38 +203,44 @@ export function People({
                     api
                       .user(u.id)
                       .then((detail) => {
-                        const username = prompt("Username", detail.username);
-                        if (username)
-                          return api
-                            .updateUser(u.id, { username })
-                            .then((next) =>
-                              onUsers(
-                                users.map((x) => (x.id === next.id ? next : x)),
-                              ),
-                            );
-                        return undefined;
+                        setEditingUser({
+                          id: u.id,
+                          username: detail.username,
+                          email: detail.email || "",
+                        });
                       })
-                      .catch((err) => onError(err, "User could not be edited."))
+                      .catch((err) =>
+                        onError(err, "User details could not be loaded."),
+                      )
                   }
                 >
                   Edit
                 </Button>
                 <Button
                   size="small"
-                  onClick={() =>
+                  onClick={() => {
+                    setMembershipsModal({ user: u, items: [], loading: true });
                     api
                       .userTeams(u.id)
-                      .then((result) =>
-                        alert(
-                          result.items
-                            .map((x) => `${x.team.name}: ${x.role}`)
-                            .join("\n") || "No memberships",
-                        ),
-                      )
-                      .catch((err) =>
-                        onError(err, "Memberships could not be loaded."),
-                      )
-                  }
+                      .then((result) => {
+                        setMembershipsModal({
+                          user: u,
+                          items: result.items,
+                          loading: false,
+                        });
+                      })
+                      .catch((err) => {
+                        setMembershipsModal({
+                          user: u,
+                          items: [],
+                          loading: false,
+                          error:
+                            err instanceof Error
+                              ? err.message
+                              : "Memberships could not be loaded.",
+                        });
+                      });
+                  }}
                 >
                   Memberships
                 </Button>
@@ -281,21 +309,14 @@ export function People({
                       api
                         .team(team.id)
                         .then((detail) => {
-                          const renamed = prompt("Team name", detail.name);
-                          if (renamed)
-                            return api
-                              .updateTeam(team.id, { name: renamed })
-                              .then((next) =>
-                                onTeams(
-                                  teams.map((x) =>
-                                    x.id === next.id ? next : x,
-                                  ),
-                                ),
-                              );
-                          return undefined;
+                          setEditingTeam({
+                            id: team.id,
+                            name: detail.name,
+                            description: detail.description || "",
+                          });
                         })
                         .catch((err) =>
-                          onError(err, "Team could not be edited."),
+                          onError(err, "Team details could not be loaded."),
                         )
                     }
                   >
@@ -453,6 +474,192 @@ export function People({
           ))}
         </Stack>
       </Card>
+      {editingUser && (
+        <Modal title="Edit user" onClose={() => setEditingUser(null)}>
+          <Box
+            component="form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const next = await api.updateUser(editingUser.id, {
+                  username: editingUser.username,
+                  email: editingUser.email || undefined,
+                });
+                onUsers(users.map((x) => (x.id === next.id ? next : x)));
+                setEditingUser(null);
+              } catch (err) {
+                setEditingUser((cur) =>
+                  cur
+                    ? {
+                        ...cur,
+                        error:
+                          err instanceof Error
+                            ? err.message
+                            : "User could not be edited.",
+                      }
+                    : null,
+                );
+              }
+            }}
+          >
+            <Stack sx={{ gap: 2, mt: 1 }}>
+              <TextField
+                label="Username"
+                required
+                autoFocus
+                value={editingUser.username}
+                onChange={(e) =>
+                  setEditingUser((cur) =>
+                    cur ? { ...cur, username: e.target.value } : null,
+                  )
+                }
+              />
+              <TextField
+                label="Email"
+                type="email"
+                value={editingUser.email}
+                onChange={(e) =>
+                  setEditingUser((cur) =>
+                    cur ? { ...cur, email: e.target.value } : null,
+                  )
+                }
+              />
+              {editingUser.error && (
+                <Alert severity="error" role="alert">
+                  {editingUser.error}
+                </Alert>
+              )}
+            </Stack>
+            <DialogActions sx={{ px: 0, mt: 3 }}>
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => setEditingUser(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="contained">
+                Save changes
+              </Button>
+            </DialogActions>
+          </Box>
+        </Modal>
+      )}
+      {membershipsModal && (
+        <Modal
+          title={`Memberships for ${membershipsModal.user.username}`}
+          onClose={() => setMembershipsModal(null)}
+        >
+          {membershipsModal.error ? (
+            <Alert severity="error" role="alert">
+              {membershipsModal.error}
+            </Alert>
+          ) : membershipsModal.loading ? (
+            <Typography color="text.secondary">Loading memberships…</Typography>
+          ) : membershipsModal.items.length === 0 ? (
+            <Typography color="text.secondary">No memberships</Typography>
+          ) : (
+            <Stack sx={{ gap: 1 }}>
+              {membershipsModal.items.map((x) => (
+                <Paper
+                  key={x.team.id}
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {x.team.name}
+                  </Typography>
+                  <Chip size="small" label={x.role} />
+                </Paper>
+              ))}
+            </Stack>
+          )}
+          <DialogActions sx={{ px: 0, mt: 3 }}>
+            <Button
+              type="button"
+              variant="contained"
+              onClick={() => setMembershipsModal(null)}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Modal>
+      )}
+      {editingTeam && (
+        <Modal title="Edit team" onClose={() => setEditingTeam(null)}>
+          <Box
+            component="form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const next = await api.updateTeam(editingTeam.id, {
+                  name: editingTeam.name,
+                  description: editingTeam.description || undefined,
+                });
+                onTeams(teams.map((x) => (x.id === next.id ? next : x)));
+                setEditingTeam(null);
+              } catch (err) {
+                setEditingTeam((cur) =>
+                  cur
+                    ? {
+                        ...cur,
+                        error:
+                          err instanceof Error
+                            ? err.message
+                            : "Team could not be edited.",
+                      }
+                    : null,
+                );
+              }
+            }}
+          >
+            <Stack sx={{ gap: 2, mt: 1 }}>
+              <TextField
+                label="Team name"
+                required
+                autoFocus
+                value={editingTeam.name}
+                onChange={(e) =>
+                  setEditingTeam((cur) =>
+                    cur ? { ...cur, name: e.target.value } : null,
+                  )
+                }
+              />
+              <TextField
+                label="Description"
+                value={editingTeam.description}
+                onChange={(e) =>
+                  setEditingTeam((cur) =>
+                    cur ? { ...cur, description: e.target.value } : null,
+                  )
+                }
+              />
+              {editingTeam.error && (
+                <Alert severity="error" role="alert">
+                  {editingTeam.error}
+                </Alert>
+              )}
+            </Stack>
+            <DialogActions sx={{ px: 0, mt: 3 }}>
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => setEditingTeam(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" variant="contained">
+                Save changes
+              </Button>
+            </DialogActions>
+          </Box>
+        </Modal>
+      )}
     </Box>
   );
 }

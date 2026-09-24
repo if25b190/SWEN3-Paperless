@@ -1,30 +1,43 @@
 import { useState } from "react";
-import { Box, Button, DialogActions, Stack, TextField } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  DialogActions,
+  Stack,
+  TextField,
+} from "@mui/material";
 import { apiUpload, type Document } from "../../lib/api";
 import { Modal } from "../shared/Modal";
 
 export function UploadDialog({
   onClose,
   onUploaded,
-  onError,
 }: {
   onClose: () => void;
   onUploaded: (d: Document) => void;
-  onError: (e: unknown, f: string) => void;
 }) {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File>();
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !title) return;
+    setError("");
+    setLoading(true);
     try {
       onUploaded(
         await apiUpload<Document>("/documents", { document: file, title }),
       );
     } catch (err) {
-      onError(err, "Upload failed.");
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setLoading(false);
     }
   };
+
   return (
     <Modal title="Upload document" onClose={onClose}>
       <Box component="form" onSubmit={submit}>
@@ -43,10 +56,18 @@ export function UploadDialog({
             slotProps={{ inputLabel: { shrink: true } }}
             onChange={(e) => setFile((e.target as HTMLInputElement).files?.[0])}
           />
+          {error && (
+            <Alert severity="error" role="alert">
+              {error}
+            </Alert>
+          )}
         </Stack>
         <DialogActions sx={{ px: 0, mt: 3 }}>
-          <Button type="submit" variant="contained">
-            Upload document
+          <Button type="button" variant="outlined" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={loading}>
+            {loading ? "Uploading…" : "Upload document"}
           </Button>
         </DialogActions>
       </Box>

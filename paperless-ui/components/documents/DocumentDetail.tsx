@@ -36,7 +36,6 @@ export function DocumentDetail({
   onClose,
   onSaved,
   onDelete,
-  onError,
 }: {
   document: Document;
   correspondents: Correspondent[];
@@ -44,7 +43,6 @@ export function DocumentDetail({
   onClose: () => void;
   onSaved: (d: Document) => void;
   onDelete: (id: number) => void;
-  onError: (e: unknown, f: string) => void;
 }) {
   const [title, setTitle] = useState(document.title);
   const [correspondentId, setCorrespondentId] = useState(
@@ -53,6 +51,7 @@ export function DocumentDetail({
   const [typeId, setTypeId] = useState(
     String(document.document_type?.id || ""),
   );
+  const [error, setError] = useState("");
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const requestId = useRef(0);
   const previewUrl = useRef<string | null>(null);
@@ -102,6 +101,7 @@ export function DocumentDetail({
   };
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     try {
       await Promise.all([
         correspondentId
@@ -117,12 +117,19 @@ export function DocumentDetail({
         }),
       );
     } catch (err) {
-      onError(err, "Document could not be updated.");
+      setError(
+        err instanceof Error ? err.message : "Document could not be updated.",
+      );
     }
   };
   const visiblePreview = preview?.key === previewKey ? preview : null;
   return (
     <Modal title="Document details" onClose={onClose}>
+      {error && (
+        <Alert severity="error" role="alert" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
       <Typography color="text.secondary" variant="body2" sx={{ mb: 2 }}>
         {document.original_filename} · {bytes(document.file_size)}
       </Typography>
@@ -145,7 +152,7 @@ export function DocumentDetail({
           startIcon={<DownloadRounded fontSize="small" />}
           onClick={() =>
             apiGetFile(document.id, document.original_filename).catch((e) =>
-              onError(e, "Download failed."),
+              setError(e instanceof Error ? e.message : "Download failed."),
             )
           }
         >

@@ -7,6 +7,7 @@ import {
   Box,
   Button,
   Chip,
+  DialogActions,
   Divider,
   Drawer,
   IconButton,
@@ -43,6 +44,7 @@ import { Pagination } from "../documents/Pagination";
 import { UploadDialog } from "../documents/UploadDialog";
 import { People } from "../people/People";
 import { Settings } from "../settings/Settings";
+import { Modal } from "../shared/Modal";
 import { drawerWidth, smallLabel } from "../shared/styles";
 import { navigation, WorkspaceNavigation } from "./WorkspaceNavigation";
 import type { Notice, View } from "./types";
@@ -71,6 +73,9 @@ export default function Workspace() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const { mode, setMode, systemMode } = useColorScheme();
@@ -177,15 +182,9 @@ export default function Workspace() {
       .document(doc.id)
       .then(setSelected)
       .catch((e) => fail(e, "Document details could not be loaded."));
-  const removeDocument = async (id: number) => {
-    if (!confirm("Delete this document?")) return;
-    try {
-      await apiDelete(`/documents/${id}`);
-      setDocuments((items) => items.filter((item) => item.id !== id));
-      setSelected(null);
-    } catch (e) {
-      fail(e, "Document could not be deleted.");
-    }
+  const removeDocument = (id: number) => {
+    setDocumentToDelete(id);
+    setDeleteError("");
   };
   const selectView = (next: View) => {
     setMobileNavOpen(false);
@@ -538,7 +537,6 @@ export default function Workspace() {
             setLoginOpen(false);
             void Promise.all([loadDocs(), loadMeta()]);
           }}
-          onError={fail}
         />
       )}
       {uploadOpen && (
@@ -548,7 +546,6 @@ export default function Workspace() {
             setDocuments((items) => [doc, ...items]);
             setUploadOpen(false);
           }}
-          onError={fail}
         />
       )}
       {selected && (
@@ -564,8 +561,67 @@ export default function Workspace() {
             );
           }}
           onDelete={removeDocument}
-          onError={fail}
         />
+      )}
+      {documentToDelete !== null && (
+        <Modal
+          title="Delete document"
+          onClose={() => {
+            setDocumentToDelete(null);
+            setDeleteError("");
+          }}
+        >
+          <Stack sx={{ gap: 2 }}>
+            <Typography variant="body1">
+              Are you sure you want to delete this document? This action cannot
+              be undone.
+            </Typography>
+            {deleteError && (
+              <Alert severity="error" role="alert">
+                {deleteError}
+              </Alert>
+            )}
+          </Stack>
+          <DialogActions sx={{ px: 0, mt: 3 }}>
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={() => {
+                setDocumentToDelete(null);
+                setDeleteError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="contained"
+              color="error"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                try {
+                  await apiDelete(`/documents/${documentToDelete}`);
+                  setDocuments((items) =>
+                    items.filter((item) => item.id !== documentToDelete),
+                  );
+                  setSelected(null);
+                  setDocumentToDelete(null);
+                } catch (e) {
+                  setDeleteError(
+                    e instanceof Error
+                      ? e.message
+                      : "Document could not be deleted.",
+                  );
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogActions>
+        </Modal>
       )}
     </>
   );

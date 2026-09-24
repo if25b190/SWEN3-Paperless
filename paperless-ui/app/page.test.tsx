@@ -108,9 +108,11 @@ describe("Paperless workspace", () => {
     await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
     await userEvent.type(screen.getByLabelText(/username/i), "ada");
     await userEvent.type(screen.getByLabelText(/password/i), "wrong");
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized", json: async () => ({ detail: "Wrong password" }) });
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized", json: async () => ({ detail: "The supplied credentials are invalid." }) });
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /sign in/i }));
-    expect((await screen.findAllByRole("alert"))[0]).toHaveTextContent("Wrong password");
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("The supplied credentials are invalid.");
+    expect(within(document.getElementById("workspace-shell")!).queryByRole("alert")).not.toBeInTheDocument();
     expect(document.getElementById("workspace-shell")).toBeInTheDocument();
   });
 
@@ -304,11 +306,18 @@ describe("Paperless workspace", () => {
       if (url.endsWith("/correspondents/8")) return Promise.resolve(json({ id: 8, name: "Acme", notes: "Server notes" }));
       return Promise.resolve(json(undefined, 204));
     });
-    jest.spyOn(window, "prompt").mockReturnValueOnce("Acme updated").mockReturnValueOnce("New notes");
     render(<Home />);
     await user.click(within(await openNavigation(user)).getByRole("button", { name: /settings/i }));
     await screen.findByRole("heading", { name: /workspace settings/i });
     await user.click(await screen.findByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: /edit correspondent/i });
+    const nameInput = within(dialog).getByLabelText(/name/i);
+    const descInput = within(dialog).getByLabelText(/description/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Acme updated");
+    await user.clear(descInput);
+    await user.type(descInput, "New notes");
+    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
     const calls = (fetch as jest.Mock).mock.calls.filter(([url]) => url === "/api/correspondents/8");
     expect(calls[0][1].method).toBeUndefined();
     expect(calls[1][1].method).toBe("PUT");
@@ -364,5 +373,136 @@ describe("Paperless workspace", () => {
     expect(screen.queryByRole("dialog", { name: /upload document/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(document.getElementById("workspace-shell")?.parentElement).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("allows a user to register and automatically logs them in", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.endsWith("/users") && !url.includes("?")) {
+        return Promise.resolve(json({ id: 2, username: "newbie", email: "newbie@example.com" }, 201));
+      }
+      if (url.endsWith("/auth/login")) {
+        return Promise.resolve(json({ token: "reg_token", user: { id: 2, username: "newbie", email: "newbie@example.com" } }));
+      }
+      if (url.endsWith("/documents?page=0&size=12&sort=created_at%2Cdesc")) {
+        return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
+      }
+      return Promise.resolve(json({ items: [] }));
+    });
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await user.click(screen.getByRole("tab", { name: /register/i }));
+    expect(screen.getByRole("dialog", { name: /create an account/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/username/i), "newbie");
+    await user.type(screen.getByLabelText(/email/i), "newbie@example.com");
+    await user.type(screen.getByLabelText(/password/i), "secret123");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^register$/i }));
+    expect(await screen.findByText(/your desk is ready/i)).toBeInTheDocument();
+    expect(localStorage.getItem("paperless_token")).toBe("reg_token");
+  });
+
+  it("shows registration failure only in the modal and not on the page", async () => {
+    const user = userEvent.setup();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      json: async () => ({ detail: "Username already exists." }),
+    });
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await user.click(screen.getByRole("tab", { name: /register/i }));
+    await user.type(screen.getByLabelText(/username/i), "existing");
+    await user.type(screen.getByLabelText(/email/i), "existing@example.com");
+    await user.type(screen.getByLabelText(/password/i), "secret123");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^register$/i }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Username already exists.");
+    expect(within(document.getElementById("workspace-shell")!).queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("confirms document deletion with a modal instead of browser confirm", async () => {
+    const user = userEvent.setup();
+    mockWorkspace(sampleDocument());
+    render(<Home />);
+    expect(await screen.findByText("Sample document")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete sample document/i }));
+    const confirmModal = await screen.findByRole("dialog", { name: /delete document/i });
+    expect(within(confirmModal).getByText(/are you sure you want to delete this document/i)).toBeInTheDocument();
+    await user.click(within(confirmModal).getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByRole("dialog", { name: /delete document/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Sample document")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /delete sample document/i }));
+    const confirmModal2 = await screen.findByRole("dialog", { name: /delete document/i });
+    await user.click(within(confirmModal2).getByRole("button", { name: /^delete$/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/documents/8", expect.objectContaining({ method: "DELETE" }));
+    expect(await screen.findByText(/your desk is ready/i)).toBeInTheDocument();
+  });
+
+  it("edits user with a modal instead of prompt", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("paperless_token", "token");
+    global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
+      if (url.endsWith("/users")) return Promise.resolve(json({ items: [{ id: 1, username: "ada", email: "ada@example.com" }] }));
+      if (url.endsWith("/users/1") && options?.method === "PUT") return Promise.resolve(json({ id: 1, username: "ada_updated", email: "ada@example.com" }));
+      if (url.endsWith("/users/1")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
+      return Promise.resolve(json({ items: [] }));
+    });
+    render(<Home />);
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
+    await screen.findByRole("heading", { name: /your people/i });
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: /edit user/i });
+    const input = within(dialog).getByLabelText(/username/i);
+    await user.clear(input);
+    await user.type(input, "ada_updated");
+    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/users/1", expect.objectContaining({ method: "PUT" }));
+    expect(await screen.findByText("ada_updated")).toBeInTheDocument();
+  });
+
+  it("shows memberships in a modal instead of alert", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("paperless_token", "token");
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
+      if (url.endsWith("/users")) return Promise.resolve(json({ items: [{ id: 1, username: "ada", email: "ada@example.com" }] }));
+      if (url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [{ team: { id: 5, name: "Core Team" }, role: "ADMIN" }] }));
+      return Promise.resolve(json({ items: [] }));
+    });
+    render(<Home />);
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
+    await screen.findByRole("heading", { name: /your people/i });
+    await user.click(screen.getByRole("button", { name: "Memberships" }));
+    const dialog = await screen.findByRole("dialog", { name: /memberships for ada/i });
+    expect(within(dialog).getByText("Core Team")).toBeInTheDocument();
+    expect(within(dialog).getByText("ADMIN")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: /^close$/i }));
+    expect(screen.queryByRole("dialog", { name: /memberships for ada/i })).not.toBeInTheDocument();
+  });
+
+  it("edits team with a modal instead of prompt", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("paperless_token", "token");
+    global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 3, name: "DevOps", description: "Infra" }] }));
+      if (url.endsWith("/teams/3") && options?.method === "PUT") return Promise.resolve(json({ id: 3, name: "Platform", description: "Infra" }));
+      if (url.endsWith("/teams/3")) return Promise.resolve(json({ id: 3, name: "DevOps", description: "Infra" }));
+      return Promise.resolve(json({ items: [] }));
+    });
+    render(<Home />);
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
+    await screen.findByRole("heading", { name: /your people/i });
+    const teamCard = screen.getByText("DevOps").closest(".MuiPaper-root") as HTMLElement;
+    await user.click(within(teamCard).getByRole("button", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog", { name: /edit team/i });
+    const input = within(dialog).getByLabelText(/team name/i);
+    await user.clear(input);
+    await user.type(input, "Platform");
+    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/teams/3", expect.objectContaining({ method: "PUT" }));
+    expect(await screen.findByText("Platform")).toBeInTheDocument();
   });
 });
