@@ -14,6 +14,7 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import java.net.URI
 
@@ -64,6 +65,14 @@ class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException::class)
     fun handleNoResourceFound(exception: NoResourceFoundException): ResponseEntity<Problem> =
         problem(HttpStatus.NOT_FOUND, "Resource Not Found", "The requested resource was not found.")
+
+    @ExceptionHandler(MaxUploadSizeExceededException::class)
+    fun handleMaxUploadSizeExceeded(): ResponseEntity<Problem> =
+        problem(
+            HttpStatus.PAYLOAD_TOO_LARGE,
+            "Payload Too Large",
+            "The uploaded content exceeds the maximum allowed size."
+        )
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpectedException(exception: Exception): ResponseEntity<Problem> {
