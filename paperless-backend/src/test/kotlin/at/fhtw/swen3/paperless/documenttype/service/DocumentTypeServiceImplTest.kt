@@ -18,6 +18,7 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
 import java.util.Optional
+import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class DocumentTypeServiceImplTest {
@@ -54,7 +55,7 @@ class DocumentTypeServiceImplTest {
 
         // then
         assertAll(
-            { assertThat(result.id).isEqualTo(1) },
+            { assertThat(result.id).isEqualTo(DOCUMENT_TYPE_ID) },
             { assertThat(result.name).isEqualTo("Invoice") },
             { assertThat(result.description).isEqualTo("Bills") }
         )
@@ -75,14 +76,14 @@ class DocumentTypeServiceImplTest {
     @Test
     fun get_document_type_ok() {
         // given
-        `when`(repository.findById(1)).thenReturn(Optional.of(entity()))
+        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
 
         // when
-        val result = service.getDocumentTypeById(1)
+        val result = service.getDocumentTypeById(DOCUMENT_TYPE_ID)
 
         // then
         assertAll(
-            { assertThat(result.id).isEqualTo(1) },
+            { assertThat(result.id).isEqualTo(DOCUMENT_TYPE_ID) },
             { assertThat(result.name).isEqualTo("Invoice") }
         )
     }
@@ -90,25 +91,25 @@ class DocumentTypeServiceImplTest {
     @Test
     fun get_document_type_not_found_ko() {
         // given
-        `when`(repository.findById(42)).thenReturn(Optional.empty())
+        `when`(repository.findById(MISSING_ID)).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.getDocumentTypeById(42) }
+        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.getDocumentTypeById(MISSING_ID) }
     }
 
     @Test
     fun update_document_type_ok() {
         // given
-        `when`(repository.findById(1)).thenReturn(Optional.of(entity()))
+        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
         `when`(repository.findByName("Receipt")).thenReturn(null)
         `when`(repository.save(any(DocumentTypeEntity::class.java))).thenAnswer { it.arguments[0] as DocumentTypeEntity }
 
         // when
-        val result = service.updateDocumentType(1, DocumentType(99, "Receipt", "Proof"))
+        val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(OTHER_ID, "Receipt", "Proof"))
 
         // then
         assertAll(
-            { assertThat(result.id).isEqualTo(1) },
+            { assertThat(result.id).isEqualTo(DOCUMENT_TYPE_ID) },
             { assertThat(result.name).isEqualTo("Receipt") },
             { assertThat(result.description).isEqualTo("Proof") }
         )
@@ -117,12 +118,12 @@ class DocumentTypeServiceImplTest {
     @Test
     fun update_duplicate_document_type_ko() {
         // given
-        `when`(repository.findById(1)).thenReturn(Optional.of(entity()))
-        `when`(repository.findByName("Receipt")).thenReturn(DocumentTypeEntity(2, "Receipt"))
+        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
+        `when`(repository.findByName("Receipt")).thenReturn(DocumentTypeEntity(OTHER_ID, "Receipt"))
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.updateDocumentType(1, DocumentType(1, "Receipt", null)) } },
+            { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
             { verify(repository, never()).save(any(DocumentTypeEntity::class.java)) }
         )
     }
@@ -131,10 +132,10 @@ class DocumentTypeServiceImplTest {
     fun delete_document_type_ok() {
         // given
         val value = entity()
-        `when`(repository.findById(1)).thenReturn(Optional.of(value))
+        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(value))
 
         // when
-        service.deleteDocumentType(1)
+        service.deleteDocumentType(DOCUMENT_TYPE_ID)
 
         // then
         verify(repository).delete(value)
@@ -143,10 +144,10 @@ class DocumentTypeServiceImplTest {
     @Test
     fun delete_document_type_not_found_ko() {
         // given
-        `when`(repository.findById(42)).thenReturn(Optional.empty())
+        `when`(repository.findById(MISSING_ID)).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.deleteDocumentType(42) }
+        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.deleteDocumentType(MISSING_ID) }
     }
 
     private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
@@ -157,7 +158,13 @@ class DocumentTypeServiceImplTest {
         )
     }
 
-    private fun documentType() = DocumentType(0, "Invoice", "Bills")
+    private fun documentType() = DocumentType(null, "Invoice", "Bills")
 
-    private fun entity() = DocumentTypeEntity(1, "Invoice", "Bills")
+    private fun entity() = DocumentTypeEntity(DOCUMENT_TYPE_ID, "Invoice", "Bills")
+
+    private companion object {
+        val DOCUMENT_TYPE_ID: UUID = UUID.fromString("00000000-0000-0000-0000-000000000001")
+        val OTHER_ID: UUID = UUID.fromString("00000000-0000-0000-0000-000000000002")
+        val MISSING_ID: UUID = UUID.fromString("00000000-0000-0000-0000-000000000003")
+    }
 }

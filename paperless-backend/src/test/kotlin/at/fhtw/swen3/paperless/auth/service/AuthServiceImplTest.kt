@@ -1,12 +1,12 @@
 package at.fhtw.swen3.paperless.auth.service
 
 import at.fhtw.swen3.paperless.auth.model.LoginCredentials
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.auth.repository.AccessTokenRepository
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.service.UserService
+import at.fhtw.swen3.paperless.user.repository.UserRepository
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.extension.ExtendWith
@@ -15,12 +15,16 @@ import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
 import java.time.Instant
+import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class AuthServiceImplTest {
 
     @Mock
     lateinit var userService: UserService
+
+    @Mock lateinit var userRepository: UserRepository
+    @Mock lateinit var tokenRepository: AccessTokenRepository
 
     @InjectMocks
     lateinit var service: AuthServiceImpl
@@ -30,12 +34,13 @@ class AuthServiceImplTest {
         // given
         val user = user()
         `when`(userService.authenticate("alice", "secret")).thenReturn(user)
+        `when`(userRepository.getReferenceById(userId())).thenReturn(UserEntity(userId(), "alice", "hash"))
         val credentials = LoginCredentials("alice", "secret")
 
         // when
         val authenticated = service.login(credentials)
-        `when`(userService.getById(user.id)).thenReturn(user)
-        val current = service.getCurrentUser(authenticated.token)
+        `when`(userService.getById(requireNotNull(user.id))).thenReturn(user)
+        val current = service.getCurrentUser(requireNotNull(user.id))
 
         // then
         assertAll(
@@ -45,22 +50,7 @@ class AuthServiceImplTest {
         )
     }
 
-    @Test
-    fun get_current_user_without_token_ko() {
-        // given
-        val token: String? = null
+    private fun userId() = UUID.fromString("7d0f0b2a-4313-4cbc-ae69-52a272c4df10")
 
-        // when / then
-        assertAppError(AppErrorMessage.AUTHENTICATION_REQUIRED) { service.getCurrentUser(token) }
-    }
-
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
-        val thrown = catchThrowable(action)
-        assertAll(
-            { assertThat(thrown).isInstanceOf(AppException::class.java) },
-            { assertThat((thrown as AppException).error).isEqualTo(expected) }
-        )
-    }
-
-    private fun user() = User(1, "alice", "alice@example.com", "secret", Instant.EPOCH, null)
+    private fun user() = User(userId(), "alice", "secret", Instant.EPOCH, null)
 }
