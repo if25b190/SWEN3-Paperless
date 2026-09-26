@@ -8,7 +8,6 @@ spring:
     driver-class-name: org.postgresql.Driver
   flyway:
     locations: classpath:db/migration/postgresql
-    baseline-version: 1
   jpa:
     hibernate:
       ddl-auto: validate
