@@ -3,6 +3,7 @@ package at.fhtw.swen3.paperless.team.service
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
+import java.util.UUID
 
 interface TeamService {
 
@@ -10,17 +11,23 @@ interface TeamService {
 
     fun createTeam(team: Team): Team
 
-    fun getTeam(id: Long): Team
+    fun getTeam(id: UUID): Team
 
-    fun updateTeam(id: Long, name: String?, description: String?): Team
+    fun updateTeam(id: UUID, name: String?, description: String?): Team
 
-    fun deleteTeam(id: Long)
+    fun deleteTeam(id: UUID)
 
-    fun getTeamMembers(teamId: Long): List<TeamMember>
+    fun getTeamMembers(teamId: UUID): List<TeamMember>
 
-    fun addTeamMember(teamId: Long, userId: Long, role: Role): TeamMember
+    fun roleFor(teamId: UUID, userId: UUID): Role?
 
-    fun updateTeamMemberRole(teamId: Long, userId: Long, role: Role): TeamMember
+    fun visibleTeamIds(userId: UUID): Set<UUID>
 
-    fun removeTeamMember(teamId: Long, userId: Long)
+    fun lockedRoles(teamIds: Set<UUID>, userId: UUID): Map<UUID, Role?>
+
+    fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember
+
+    fun updateTeamMemberRole(teamId: UUID, userId: UUID, role: Role): TeamMember
+
+    fun removeTeamMember(teamId: UUID, userId: UUID)
 }

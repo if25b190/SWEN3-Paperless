@@ -9,14 +9,14 @@ object DocumentTypeMapper {
 
     fun toDto(documentType: DocumentType): DocumentTypeResponse =
         DocumentTypeResponse(
-            id = documentType.id,
+            id = requireNotNull(documentType.id) { "Cannot map an unpersisted document type to a response" },
             name = documentType.name,
             description = documentType.description
         )
 
     fun fromCreateDto(dto: CreateDocumentTypeRequest): DocumentType =
         DocumentType(
-            id = 0,
+            id = null,
             name = dto.name,
             description = dto.description
         )

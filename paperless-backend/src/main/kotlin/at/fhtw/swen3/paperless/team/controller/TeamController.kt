@@ -16,6 +16,7 @@ import at.fhtw.swen3.paperless.team.service.TeamService
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import java.util.UUID
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 
@@ -38,31 +39,31 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
             .body(response)
     }
 
-    override fun getTeamById(id: Long): ResponseEntity<TeamResponse> {
+    override fun getTeamById(id: UUID): ResponseEntity<TeamResponse> {
         val team = teamService.getTeam(id)
         val response = TeamMapper.toDto(team)
         return ResponseEntity.ok(response)
     }
 
-    override fun updateTeam(id: Long, updateTeamRequest: UpdateTeamRequest): ResponseEntity<TeamResponse> {
+    override fun updateTeam(id: UUID, updateTeamRequest: UpdateTeamRequest): ResponseEntity<TeamResponse> {
         val updated = teamService.updateTeam(id, updateTeamRequest.name, updateTeamRequest.description)
         val response = TeamMapper.toDto(updated)
         return ResponseEntity.ok(response)
     }
 
-    override fun deleteTeam(id: Long): ResponseEntity<Unit> {
+    override fun deleteTeam(id: UUID): ResponseEntity<Unit> {
         teamService.deleteTeam(id)
         return ResponseEntity.noContent().build()
     }
 
-    override fun getTeamMembers(id: Long): ResponseEntity<TeamMemberListResponse> {
+    override fun getTeamMembers(id: UUID): ResponseEntity<TeamMemberListResponse> {
         val members = teamService.getTeamMembers(id)
         val response = TeamMemberListResponse(members.map(TeamMemberMapper::toMemberDto))
         return ResponseEntity.ok(response)
     }
 
     override fun addTeamMember(
-        id: Long,
+        id: UUID,
         addTeamMemberRequest: AddTeamMemberRequest
     ): ResponseEntity<TeamMemberResponse> {
         val role = Role.valueOf(addTeamMemberRequest.role.name)
@@ -72,8 +73,8 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
     }
 
     override fun updateTeamMemberRole(
-        id: Long,
-        userId: Long,
+        id: UUID,
+        userId: UUID,
         updateTeamMemberRoleRequest: UpdateTeamMemberRoleRequest
     ): ResponseEntity<TeamMemberResponse> {
         val role = Role.valueOf(updateTeamMemberRoleRequest.role.name)
@@ -82,7 +83,7 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
         return ResponseEntity.ok(response)
     }
 
-    override fun removeTeamMember(id: Long, userId: Long): ResponseEntity<Unit> {
+    override fun removeTeamMember(id: UUID, userId: UUID): ResponseEntity<Unit> {
         teamService.removeTeamMember(id, userId)
         return ResponseEntity.noContent().build()
     }

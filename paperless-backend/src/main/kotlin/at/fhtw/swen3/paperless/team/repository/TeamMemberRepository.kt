@@ -2,18 +2,19 @@ package at.fhtw.swen3.paperless.team.repository
 
 import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
 import org.springframework.data.jpa.repository.JpaRepository
+import java.util.UUID
 
-interface TeamMemberRepository : JpaRepository<TeamMemberEntity, Long> {
+interface TeamMemberRepository : JpaRepository<TeamMemberEntity, UUID> {
 
-    fun findByTeamId(teamId: Long): List<TeamMemberEntity>
+    fun findByTeamId(teamId: UUID): List<TeamMemberEntity>
 
-    fun findByUserId(userId: Long): List<TeamMemberEntity>
+    fun findByUserId(userId: UUID): List<TeamMemberEntity>
 
-    fun findByTeamIdAndUserId(teamId: Long, userId: Long): TeamMemberEntity?
+    fun findByTeamIdAndUserId(teamId: UUID, userId: UUID): TeamMemberEntity?
 
-    fun existsByTeamIdAndUserId(teamId: Long, userId: Long): Boolean
+    fun existsByTeamIdAndUserId(teamId: UUID, userId: UUID): Boolean
 
-    fun deleteByTeamIdAndUserId(teamId: Long, userId: Long)
+    fun deleteByTeamIdAndUserId(teamId: UUID, userId: UUID)
 
-    fun deleteByTeamId(teamId: Long)
+    fun deleteByTeamId(teamId: UUID)
 }

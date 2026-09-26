@@ -5,6 +5,7 @@ import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import org.springframework.core.io.Resource
 import org.springframework.data.domain.Page
+import java.util.UUID
 
 interface DocumentService {
 
@@ -12,17 +13,18 @@ interface DocumentService {
         page: Int,
         size: Int,
         sort: String,
-        correspondentId: Long?,
-        documentTypeId: Long?
+        documentTypeId: UUID?
     ): Page<Document>
 
-    fun getDocument(id: Long): Document
+    fun visibleDocumentsForSearch(): List<Document>
+
+    fun getDocument(id: UUID): Document
 
     fun uploadDocument(upload: DocumentUpload): Document
 
-    fun updateDocument(id: Long, update: DocumentUpdate): Document
+    fun updateDocument(id: UUID, update: DocumentUpdate): Document
 
-    fun deleteDocument(id: Long)
+    fun deleteDocument(id: UUID)
 
-    fun downloadDocument(id: Long): Resource
+    fun downloadDocument(id: UUID): Resource
 }

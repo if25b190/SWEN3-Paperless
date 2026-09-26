@@ -3,14 +3,18 @@ package at.fhtw.swen3.paperless.exception
 import at.fhtw.swen3.paperless.dto.InvalidParam
 import at.fhtw.swen3.paperless.dto.Problem
 import jakarta.validation.ConstraintViolationException
+import jakarta.persistence.OptimisticLockException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.servlet.resource.NoResourceFoundException
 import java.net.URI
 
 @RestControllerAdvice
@@ -45,13 +49,21 @@ class GlobalExceptionHandler {
             detail = exception.message ?: "The request is invalid."
         )
 
-    @ExceptionHandler(DataIntegrityViolationException::class)
+    @ExceptionHandler(DataIntegrityViolationException::class, OptimisticLockException::class, ObjectOptimisticLockingFailureException::class)
     fun handleConflict(): ResponseEntity<Problem> =
         problem(
             status = HttpStatus.CONFLICT,
             title = "Conflict",
             detail = "The request conflicts with an existing resource."
         )
+
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDenied(): ResponseEntity<Problem> =
+        problem(HttpStatus.FORBIDDEN, "Forbidden", "Access is denied.")
+
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResourceFound(exception: NoResourceFoundException): ResponseEntity<Problem> =
+        problem(HttpStatus.NOT_FOUND, "Resource Not Found", "The requested resource was not found.")
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpectedException(exception: Exception): ResponseEntity<Problem> {

@@ -7,6 +7,7 @@ import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 @Transactional
@@ -28,10 +29,10 @@ class DocumentTypeServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun getDocumentTypeById(id: Long): DocumentType =
+    override fun getDocumentTypeById(id: UUID): DocumentType =
         DocumentTypeEntityMapper.toModel(findEntity(id))
 
-    override fun updateDocumentType(id: Long, documentType: DocumentType): DocumentType {
+    override fun updateDocumentType(id: UUID, documentType: DocumentType): DocumentType {
         val current = findEntity(id)
         val duplicate = repository.findByName(documentType.name)
         if (duplicate != null && duplicate.id != current.id) {
@@ -43,11 +44,11 @@ class DocumentTypeServiceImpl(
         return DocumentTypeEntityMapper.toModel(saved)
     }
 
-    override fun deleteDocumentType(id: Long) {
+    override fun deleteDocumentType(id: UUID) {
         repository.delete(findEntity(id))
     }
 
-    private fun findEntity(id: Long) =
+    private fun findEntity(id: UUID) =
         repository.findById(id).orElseThrow {
             AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
         }

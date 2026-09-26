@@ -15,6 +15,7 @@ import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.Instant
+import java.util.UUID
 
 @Entity
 @Table(
@@ -23,8 +24,8 @@ import java.time.Instant
 )
 class TeamMemberEntity(
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long = 0,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    val id: UUID? = null,
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "team_id", nullable = false)
     val team: TeamEntity = TeamEntity(),
@@ -33,6 +34,6 @@ class TeamMemberEntity(
     val user: UserEntity = UserEntity(),
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    var role: Role = Role.MEMBER,
+    var role: Role = Role.READ_WRITE,
     val joinedAt: Instant? = null
 )

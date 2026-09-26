@@ -11,15 +11,17 @@ object TeamEntityMapper {
             name = team.name,
             description = team.description,
             createdAt = team.createdAt,
-            updatedAt = team.updatedAt
+            updatedAt = team.updatedAt,
+            ownerId = team.ownerId
         )
 
     fun toModel(entity: TeamEntity): Team =
         Team(
-            id = entity.id,
+            id = requireNotNull(entity.id),
             name = entity.name,
             description = entity.description,
             createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt
+            updatedAt = entity.updatedAt,
+            ownerId = entity.ownerId
         )
 }

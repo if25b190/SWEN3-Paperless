@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 import java.time.Instant
+import java.util.UUID
 
 @RestController
 class UserController(
@@ -29,20 +30,20 @@ class UserController(
         return ResponseEntity.created(URI.create("/users/${created.id}")).body(response)
     }
 
-    override fun deleteUser(id: Long): ResponseEntity<Unit> {
+    override fun deleteUser(id: UUID): ResponseEntity<Unit> {
         userService.delete(id)
 
         return ResponseEntity.noContent().build()
     }
 
-    override fun getUserById(id: Long): ResponseEntity<UserResponse> {
+    override fun getUserById(id: UUID): ResponseEntity<UserResponse> {
         val user = userService.getById(id)
         val response = UserMapper.toDto(user)
 
         return ResponseEntity.ok(response)
     }
 
-    override fun getUserTeams(id: Long): ResponseEntity<UserTeamMembershipListResponse> {
+    override fun getUserTeams(id: UUID): ResponseEntity<UserTeamMembershipListResponse> {
         val memberships = userService.getTeams(id)
         val items = memberships.map(TeamMemberMapper::toMembershipDto)
         val response = UserTeamMembershipListResponse(items)
@@ -59,12 +60,14 @@ class UserController(
     }
 
     override fun updateUser(
-        id: Long,
+        id: UUID,
         updateUserRequest: UpdateUserRequest
     ): ResponseEntity<UserResponse> {
-        val existing = userService.getById(id)
-        val user = UserMapper.applyUpdate(existing, updateUserRequest, Instant.now())
-        val updated = userService.update(user)
+        val updated = userService.update(
+            id,
+            updateUserRequest.username,
+            updateUserRequest.password
+        )
         val response = UserMapper.toDto(updated)
 
         return ResponseEntity.ok(response)
