@@ -1,0 +1,37 @@
+meta {
+  name: Uploader clears team sharing
+  type: http
+  seq: 11
+}
+
+put {
+  url: {{baseUrl}}/documents/{{memberPrivateDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "clear_team": true
+  }
+}
+
+tests {
+  test("uploader with team write access makes the shared document private", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("memberPrivateDocumentId"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().team_id).to.be.null;
+  });
+}

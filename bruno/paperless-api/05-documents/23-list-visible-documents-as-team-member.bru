@@ -1,0 +1,32 @@
+meta {
+  name: Team member sees team and own private documents only
+  type: http
+  seq: 23
+}
+
+get {
+  url: {{baseUrl}}/documents?page=0&size=100&sort=created_at,desc&document_type_id={{documentTypeId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("current team member sees shared and own private documents but not another user's private document", function() {
+    expect(res.getStatus()).to.equal(200);
+    const documents = res.getBody().items;
+    documents.forEach((document) => {
+      expect(document.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(document.owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      if (document.team_id !== null) expect(document.team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      if (document.document_type) expect(document.document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+    const visibleIds = documents.map((document) => document.id);
+    expect(visibleIds).to.include(bru.getVar("teamDocumentId"));
+    expect(visibleIds).to.include(bru.getVar("memberPrivateDocumentId"));
+    expect(visibleIds).to.not.include(bru.getVar("privateDocumentId"));
+  });
+}

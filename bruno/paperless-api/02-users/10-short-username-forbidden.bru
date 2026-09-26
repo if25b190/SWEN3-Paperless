@@ -1,0 +1,28 @@
+meta {
+  name: Registration rejects a short username
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "abc",
+    "password": "ValidPass123!"
+  }
+}
+
+tests {
+  test("username must contain at least four characters", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

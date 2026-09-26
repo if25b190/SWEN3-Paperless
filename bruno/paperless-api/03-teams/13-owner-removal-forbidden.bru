@@ -1,0 +1,21 @@
+meta {
+  name: Team owner cannot be removed
+  type: http
+  seq: 13
+}
+
+delete {
+  url: {{baseUrl}}/teams/{{teamId}}/members/{{userId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("team ADMIN cannot remove the immutable owner", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

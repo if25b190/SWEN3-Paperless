@@ -1,0 +1,39 @@
+meta {
+  name: Duplicate user registration is rejected
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/users
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+script:pre-request {
+  bru.setVar("accessTokenBeforeDuplicateRegistration", bru.getVar("accessToken"));
+  bru.setVar("initialAccessTokenBeforeDuplicateRegistration", bru.getVar("initialAccessToken"));
+  bru.setVar("memberAccessTokenBeforeDuplicateRegistration", bru.getVar("memberAccessToken"));
+}
+
+body:json {
+  {
+    "username": "{{createdUsername}}",
+    "password": "{{createdPassword}}"
+  }
+}
+
+tests {
+  test("registration rejects a duplicate username without replacing tokens", function() {
+    expect(res.getStatus()).to.equal(409);
+    expect(bru.getVar("accessToken")).to.equal(bru.getVar("accessTokenBeforeDuplicateRegistration"));
+    expect(bru.getVar("initialAccessToken")).to.equal(bru.getVar("initialAccessTokenBeforeDuplicateRegistration"));
+    expect(bru.getVar("memberAccessToken")).to.equal(bru.getVar("memberAccessTokenBeforeDuplicateRegistration"));
+    expect(res.getBody().token).to.be.undefined;
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

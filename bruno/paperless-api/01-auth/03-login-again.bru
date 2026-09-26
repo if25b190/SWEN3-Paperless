@@ -1,0 +1,37 @@
+meta {
+  name: Login again and replace access token
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{username}}",
+    "password": "{{password}}"
+  }
+}
+
+script:post-response {
+  const body = res.getBody();
+  bru.setVar("accessToken", body.token);
+}
+
+tests {
+  test("second login returns a replacement token", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().token).to.be.a("string").and.not.empty;
+    expect(res.getBody().user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().user.id).to.equal(bru.getVar("userId"));
+    expect(res.getBody().user.email).to.be.undefined;
+  });
+}

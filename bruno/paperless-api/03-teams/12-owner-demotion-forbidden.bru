@@ -1,0 +1,31 @@
+meta {
+  name: Team owner cannot be demoted
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}/members/{{userId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "READ_WRITE"
+  }
+}
+
+tests {
+  test("team ADMIN cannot demote the immutable owner", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

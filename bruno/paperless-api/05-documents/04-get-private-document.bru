@@ -1,11 +1,11 @@
 meta {
-  name: Get team by ID
+  name: Get document by ID
   type: http
-  seq: 3
+  seq: 4
 }
 
 get {
-  url: {{baseUrl}}/teams/{{teamId}}
+  url: {{baseUrl}}/documents/{{privateDocumentId}}
   body: none
   auth: bearer
 }
@@ -15,11 +15,13 @@ auth:bearer {
 }
 
 tests {
-  test("admin can get the created team", function() {
+  test("private document owner can read the uploaded document", function() {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    expect(res.getBody().id).to.equal(bru.getVar("teamId"));
+    expect(res.getBody().id).to.equal(bru.getVar("privateDocumentId"));
     expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(res.getBody().owner_id).to.equal(bru.getVar("userId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().document_type.id).to.equal(bru.getVar("documentTypeId"));
   });
 }

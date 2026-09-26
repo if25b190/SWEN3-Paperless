@@ -1,11 +1,11 @@
 meta {
-  name: Update team
+  name: Update document type
   type: http
   seq: 4
 }
 
 put {
-  url: {{baseUrl}}/teams/{{teamId}}
+  url: {{baseUrl}}/document-types/{{documentTypeId}}
   body: json
   auth: bearer
 }
@@ -20,16 +20,15 @@ headers {
 
 body:json {
   {
-    "name": "{{updatedTeamName}}",
+    "name": "{{updatedDocumentTypeName}}",
     "description": "Updated by the Bruno collection"
   }
 }
 
 tests {
-  test("team creator can update their team", function() {
+  test("updates the document type", function() {
     expect(res.getStatus()).to.equal(200);
     expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    expect(res.getBody().id).to.equal(bru.getVar("teamId"));
-    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("documentTypeId"));
   });
 }

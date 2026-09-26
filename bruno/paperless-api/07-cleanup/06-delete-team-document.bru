@@ -1,0 +1,21 @@
+meta {
+  name: Delete team document before removing its owner
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("team ADMIN deletes the shared document before account cleanup", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

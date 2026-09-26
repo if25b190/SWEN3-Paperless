@@ -7,11 +7,7 @@ meta {
 post {
   url: {{baseUrl}}/users
   body: json
-  auth: bearer
-}
-
-auth:bearer {
-  token: {{accessToken}}
+  auth: none
 }
 
 headers {
@@ -19,19 +15,31 @@ headers {
 }
 
 script:pre-request {
-  const suffix = Date.now().toString();
-  bru.setVar("createdUsername", `bruno_${suffix}`);
-  bru.setVar("createdUserEmail", `bruno_${suffix}@example.com`);
+  bru.setVar("createdUserId", "");
+  bru.setVar("createdPassword", "BrunoPass123!");
 }
 
 body:json {
   {
     "username": "{{createdUsername}}",
-    "email": "{{createdUserEmail}}",
-    "password": "BrunoPass123!"
+    "password": "{{createdPassword}}"
   }
 }
 
 script:post-response {
-  bru.setVar("createdUserId", res.getBody().id);
+  if (res.getStatus() === 201) {
+    bru.setVar("createdUserId", res.getBody().id);
+  }
+}
+
+tests {
+  test("public registration creates the second user", function() {
+    expect(
+      res.getStatus(),
+      "Registration failed. If this is HTTP 409, bruno_member already exists: delete that account or reset the local database, then rerun this create request before continuing."
+    ).to.equal(201);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().password).to.be.undefined;
+    expect(res.getBody().email).to.be.undefined;
+  });
 }

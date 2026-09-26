@@ -1,0 +1,32 @@
+meta {
+  name: READONLY cannot update team
+  type: http
+  seq: 21
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Readonly must not update this team",
+    "description": "Expected to be forbidden"
+  }
+}
+
+tests {
+  test("a READONLY member cannot mutate the team", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

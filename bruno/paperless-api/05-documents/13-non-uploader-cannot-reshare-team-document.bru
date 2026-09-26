@@ -1,0 +1,31 @@
+meta {
+  name: Non-uploader team writer cannot change sharing
+  type: http
+  seq: 13
+}
+
+put {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "clear_team": true
+  }
+}
+
+tests {
+  test("a team ADMIN who did not upload the document cannot clear sharing", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

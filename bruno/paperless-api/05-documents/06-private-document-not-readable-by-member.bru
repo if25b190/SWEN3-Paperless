@@ -1,0 +1,21 @@
+meta {
+  name: Other account cannot read private document
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/documents/{{privateDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("a different account cannot read the private document", function() {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

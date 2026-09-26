@@ -1,0 +1,21 @@
+meta {
+  name: Delete primary team after document cleanup
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseUrl}}/teams/{{teamId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("admin deletes the primary team after removing the member", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Reject blank document title
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{baseUrl}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:pre-request {
+  bru.setVar("blankDocumentTitle", "   ");
+}
+
+body:multipart-form {
+  document: @file(./fixtures/sample.pdf)
+  title: {{blankDocumentTitle}}
+}
+
+tests {
+  test("whitespace-only document titles are rejected before upload", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

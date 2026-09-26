@@ -1,0 +1,25 @@
+meta {
+  name: Confirm renamed username after update
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/users/{{createdUserId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("GET confirms the user has the renamed username", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().username).to.equal(bru.getVar("renamedUsername"));
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

@@ -1,0 +1,46 @@
+meta {
+  name: Create document type
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/document-types
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:pre-request {
+  const suffix = Date.now();
+  bru.setVar("documentTypeId", "");
+  bru.setVar("documentTypeName", `Bruno Integration Type ${suffix}`);
+  bru.setVar("updatedDocumentTypeName", `Bruno Integration Type Updated ${suffix}`);
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "{{documentTypeName}}",
+    "description": "Created by the Bruno collection"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("documentTypeId", res.getBody().id);
+  }
+}
+
+tests {
+  test("creates a uniquely named document type", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+}

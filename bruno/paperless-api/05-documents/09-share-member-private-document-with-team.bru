@@ -1,0 +1,38 @@
+meta {
+  name: Uploader shares private document with team
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/documents/{{memberPrivateDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "team_id": "{{teamId}}"
+  }
+}
+
+tests {
+  test("uploader with team write access shares a private document", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("memberPrivateDocumentId"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().team_id).to.equal(bru.getVar("teamId"));
+  });
+}

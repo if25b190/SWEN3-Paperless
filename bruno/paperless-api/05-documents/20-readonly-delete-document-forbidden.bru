@@ -1,0 +1,21 @@
+meta {
+  name: READONLY member cannot delete team document
+  type: http
+  seq: 20
+}
+
+delete {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("READONLY team member cannot delete a team document", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

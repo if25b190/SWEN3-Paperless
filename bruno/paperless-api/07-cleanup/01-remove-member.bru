@@ -1,0 +1,21 @@
+meta {
+  name: Remove document uploader from the team before cleanup
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/teams/{{teamId}}/members/{{createdUserId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("team ADMIN removes the uploader so access is revoked", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

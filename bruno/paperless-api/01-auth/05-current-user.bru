@@ -1,0 +1,24 @@
+meta {
+  name: Get current user after token replacement
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("current user accepts the replacement token", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("userId"));
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

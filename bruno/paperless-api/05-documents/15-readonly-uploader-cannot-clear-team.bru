@@ -1,0 +1,31 @@
+meta {
+  name: READONLY uploader cannot clear team sharing
+  type: http
+  seq: 15
+}
+
+put {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "clear_team": true
+  }
+}
+
+tests {
+  test("READONLY uploader cannot remove the document's team sharing", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

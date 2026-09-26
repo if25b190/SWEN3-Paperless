@@ -1,0 +1,31 @@
+meta {
+  name: READONLY member cannot edit team document
+  type: http
+  seq: 19
+}
+
+put {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "Readonly edit must be forbidden"
+  }
+}
+
+tests {
+  test("READONLY team member cannot edit a team document", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

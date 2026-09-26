@@ -1,0 +1,32 @@
+meta {
+  name: Get registered user by ID
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/users/{{createdUserId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:pre-request {
+  const createdUserId = bru.getVar("createdUserId");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(createdUserId || "")) {
+    throw new Error("Cannot fetch the created user: createdUserId is missing or invalid. Run 02-create-user.bru successfully first; logging in only sets accessToken, not createdUserId.");
+  }
+}
+
+tests {
+  test("admin can get the registered user", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().username).to.equal(bru.getVar("createdUsername"));
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

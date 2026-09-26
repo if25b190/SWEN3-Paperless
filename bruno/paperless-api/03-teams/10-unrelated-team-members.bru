@@ -1,0 +1,28 @@
+meta {
+  name: Confirm user is ADMIN of unrelated team
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/teams/{{unrelatedTeamId}}/members
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("creator is ADMIN of the unrelated team", function() {
+    expect(res.getStatus()).to.equal(200);
+    const members = res.getBody().items;
+    members.forEach((member) => {
+      expect(member.user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+    const createdUser = members.find((member) => member.user.id === bru.getVar("createdUserId"));
+    expect(createdUser).to.exist;
+    expect(createdUser.role).to.equal("ADMIN");
+  });
+}

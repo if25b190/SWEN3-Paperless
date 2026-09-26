@@ -1,0 +1,21 @@
+meta {
+  name: Delete private document
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/documents/{{privateDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("private owner deletes the private document before account cleanup", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

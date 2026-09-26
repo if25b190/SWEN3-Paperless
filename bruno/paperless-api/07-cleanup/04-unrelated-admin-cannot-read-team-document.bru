@@ -1,0 +1,21 @@
+meta {
+  name: Unrelated team ADMIN cannot read target team document
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("ADMIN of another team cannot read the target team's document", function() {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

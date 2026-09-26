@@ -1,0 +1,32 @@
+meta {
+  name: Reject destination and clear-team together
+  type: http
+  seq: 12
+}
+
+put {
+  url: {{baseUrl}}/documents/{{memberPrivateDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "team_id": "{{teamId}}",
+    "clear_team": true
+  }
+}
+
+tests {
+  test("team_id and clear_team cannot be supplied together", function() {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

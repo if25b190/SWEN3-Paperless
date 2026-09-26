@@ -1,0 +1,40 @@
+meta {
+  name: Update created user's own profile
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/users/{{createdUserId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+script:pre-request {
+  bru.setVar("memberAccessTokenBeforeUsernameUpdate", bru.getVar("memberAccessToken"));
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{renamedUsername}}"
+  }
+}
+
+tests {
+  test("a user can rename their account without revoking their access token", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().username).to.equal(bru.getVar("renamedUsername"));
+    expect(res.getBody().email).to.be.undefined;
+    expect(bru.getVar("memberAccessToken")).to.equal(bru.getVar("memberAccessTokenBeforeUsernameUpdate"));
+  });
+}

@@ -1,0 +1,34 @@
+meta {
+  name: Make document uploader READONLY after team upload
+  type: http
+  seq: 14
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}/members/{{createdUserId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "role": "READONLY"
+  }
+}
+
+tests {
+  test("admin changes the member to READONLY", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().user.id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().role).to.equal("READONLY");
+  });
+}

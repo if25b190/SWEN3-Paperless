@@ -1,0 +1,32 @@
+meta {
+  name: Cannot update another user
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/users/{{userId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "password": "ForbiddenPassword123!"
+  }
+}
+
+tests {
+  test("a user cannot update another user's profile", function() {
+    expect(res.getStatus()).to.equal(403);
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

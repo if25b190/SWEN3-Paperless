@@ -1,7 +1,7 @@
 meta {
-  name: Create team
+  name: Create unrelated administrator team
   type: http
-  seq: 2
+  seq: 9
 }
 
 post {
@@ -11,7 +11,7 @@ post {
 }
 
 auth:bearer {
-  token: {{accessToken}}
+  token: {{memberAccessToken}}
 }
 
 headers {
@@ -20,29 +20,27 @@ headers {
 
 body:json {
   {
-    "name": "{{teamName}}",
-    "description": "Team created by the Bruno collection"
+    "name": "{{unrelatedTeamName}}",
+    "description": "Created to demonstrate team-scoped administration"
   }
 }
 
 script:pre-request {
-  const suffix = Date.now();
-  bru.setVar("teamId", "");
-  bru.setVar("teamName", `BrunoIntegrationTeam${suffix}`);
-  bru.setVar("updatedTeamName", `BrunoIntegrationTeamUpdated${suffix}`);
+  bru.setVar("unrelatedTeamId", "");
+  bru.setVar("unrelatedTeamName", `BrunoUnrelatedTeam${Date.now()}`);
 }
 
 script:post-response {
   if (res.getStatus() === 201) {
-    bru.setVar("teamId", res.getBody().id);
+    bru.setVar("unrelatedTeamId", res.getBody().id);
   }
 }
 
 tests {
-  test("initial admin creates a team", function() {
+  test("READ_WRITE member can create an unrelated team", function() {
     expect(res.getStatus()).to.equal(201);
     expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    expect(res.getBody().owner_id).to.equal(bru.getVar("userId"));
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
   });
 }

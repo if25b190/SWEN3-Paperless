@@ -1,0 +1,22 @@
+meta {
+  name: Cannot delete another user
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{baseUrl}}/users/{{userId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("a user cannot delete another user", function() {
+    expect(res.getStatus()).to.equal(403);
+    expect(res.getBody().email).to.be.undefined;
+  });
+}

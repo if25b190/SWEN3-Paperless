@@ -1,0 +1,27 @@
+meta {
+  name: READONLY member cannot upload team document
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+body:multipart-form {
+  document: @file(./fixtures/sample.pdf)
+  title: BrunoReadonlyDeniedUpload
+  team_id: {{teamId}}
+}
+
+tests {
+  test("READONLY team member cannot upload a team document", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

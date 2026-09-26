@@ -1,0 +1,21 @@
+meta {
+  name: Delete second user's private document
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/documents/{{memberPrivateDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("private uploader deletes their document before metadata and account cleanup", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

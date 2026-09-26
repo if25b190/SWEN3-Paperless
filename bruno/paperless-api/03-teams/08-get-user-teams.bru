@@ -1,0 +1,25 @@
+meta {
+  name: Get own team memberships as new member
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/users/{{createdUserId}}/teams
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("the registered user can list their own team memberships", function() {
+    expect(res.getStatus()).to.equal(200);
+    res.getBody().items.forEach((membership) => {
+      expect(membership.team.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(membership.team.owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+  });
+}

@@ -13,3 +13,13 @@ get {
 auth:bearer {
   token: {{accessToken}}
 }
+
+tests {
+  test("admin can list teams", function() {
+    expect(res.getStatus()).to.equal(200);
+    res.getBody().items.forEach((team) => {
+      expect(team.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(team.owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+  });
+}

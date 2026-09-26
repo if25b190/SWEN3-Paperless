@@ -1,0 +1,37 @@
+meta {
+  name: Login as registered user
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "username": "{{createdUsername}}",
+    "password": "{{createdPassword}}"
+  }
+}
+
+script:post-response {
+  bru.setVar("memberAccessToken", res.getBody().token);
+}
+
+tests {
+  test("created user gets a distinct member token", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().token).to.be.a("string").and.not.empty;
+    expect(res.getBody().token).to.not.equal(bru.getVar("accessToken"));
+    expect(res.getBody().user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().user.id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().user.email).to.be.undefined;
+  });
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Removed uploader loses team document access
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("removed uploader receives not found for the team document", function() {
+    expect(res.getStatus()).to.equal(404);
+  });
+}

@@ -1,0 +1,39 @@
+meta {
+  name: Metadata-only update preserves team sharing
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{baseUrl}}/documents/{{memberPrivateDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "{{updatedMemberPrivateDocumentTitle}}"
+  }
+}
+
+tests {
+  test("omitting team_id during metadata update preserves current sharing", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("memberPrivateDocumentId"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().title).to.equal(bru.getVar("updatedMemberPrivateDocumentTitle"));
+    expect(res.getBody().team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().team_id).to.equal(bru.getVar("teamId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+}

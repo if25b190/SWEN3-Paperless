@@ -1,0 +1,40 @@
+meta {
+  name: Team ADMIN updates document metadata after readonly search
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "title": "{{updatedTeamDocumentTitle}}",
+    "document_type_id": "{{documentTypeId}}"
+  }
+}
+
+tests {
+  test("team ADMIN can update the shared document metadata", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("teamDocumentId"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().team_id).to.equal(bru.getVar("teamId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().title).to.equal(bru.getVar("updatedTeamDocumentTitle"));
+  });
+}

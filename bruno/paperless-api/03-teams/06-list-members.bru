@@ -1,0 +1,31 @@
+meta {
+  name: List team members after READ_WRITE assignment
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/teams/{{teamId}}/members
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("team creator is ADMIN and the added user is READ_WRITE", function() {
+    expect(res.getStatus()).to.equal(200);
+    const members = res.getBody().items;
+    members.forEach((member) => {
+      expect(member.user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+    const creator = members.find((member) => member.user.id === bru.getVar("userId"));
+    const createdUser = members.find((member) => member.user.id === bru.getVar("createdUserId"));
+    expect(creator).to.exist;
+    expect(creator.role).to.equal("ADMIN");
+    expect(createdUser).to.exist;
+    expect(createdUser.role).to.equal("READ_WRITE");
+  });
+}

@@ -1,0 +1,56 @@
+meta {
+  name: Upload private document as primary owner
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:multipart-form {
+  document: @file(./fixtures/sample.pdf)
+  title: {{privateDocumentTitle}}
+  document_type_id: {{documentTypeId}}
+}
+
+script:pre-request {
+  const suffix = Date.now();
+  bru.setVar("privateDocumentId", "");
+  bru.setVar("teamDocumentId", "");
+  bru.setVar("memberPrivateDocumentId", "");
+  bru.setVar("privateDocumentTitle", `BrunoPrivate${suffix}`);
+  bru.setVar("teamDocumentTitle", `BrunoTeam${suffix}`);
+  bru.setVar("memberPrivateDocumentTitle", `BrunoMemberPrivate${suffix}`);
+  bru.setVar("updatedMemberPrivateDocumentTitle", `BrunoMemberPrivateUpdated${suffix}`);
+  bru.setVar("updatedTeamDocumentTitle", `BrunoTeamUpdated${suffix}`);
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("privateDocumentId", res.getBody().id);
+  }
+}
+
+tests {
+  test("primary user uploads a private document", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().title).to.equal(bru.getVar("privateDocumentTitle"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("userId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().document_type.id).to.equal(bru.getVar("documentTypeId"));
+    expect(res.getBody().original_filename).to.equal("sample.pdf");
+    expect(res.getBody().content_type).to.equal("application/pdf");
+    expect(res.getBody().file_size).to.be.a("number");
+    expect(res.getBody().status).to.equal("PENDING");
+    expect(res.getBody().team_id).to.be.null;
+  });
+}

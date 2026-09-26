@@ -1,0 +1,35 @@
+meta {
+  name: Add READ_WRITE team member
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/teams/{{teamId}}/members
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "user_id": "{{createdUserId}}",
+    "role": "READ_WRITE"
+  }
+}
+
+tests {
+  test("admin adds the second user as READ_WRITE", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().user.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().user.id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().role).to.equal("READ_WRITE");
+  });
+}

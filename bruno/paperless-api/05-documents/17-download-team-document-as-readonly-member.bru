@@ -1,0 +1,25 @@
+meta {
+  name: READONLY member can download team document
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/documents/{{teamDocumentId}}/download
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Accept: application/pdf
+}
+
+tests {
+  test("READONLY team member can download the shared document", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

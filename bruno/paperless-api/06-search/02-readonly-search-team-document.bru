@@ -1,0 +1,28 @@
+meta {
+  name: READONLY member can search team document
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/search?query={{teamDocumentTitle}}&fuzzy=false&page=0&size=10
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("READONLY team member search includes the visible team document", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().pagination.total_elements).to.equal(1);
+    const document = res.getBody().items[0].document;
+    expect(document.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(document.id).to.equal(bru.getVar("teamDocumentId"));
+    expect(document.owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(document.team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(document.document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+}

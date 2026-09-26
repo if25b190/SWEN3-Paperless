@@ -1,0 +1,21 @@
+meta {
+  name: Delete created document type
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/document-types/{{documentTypeId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("admin deletes the created document type", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

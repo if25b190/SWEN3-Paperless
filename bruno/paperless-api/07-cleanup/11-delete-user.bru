@@ -1,0 +1,21 @@
+meta {
+  name: Delete own account after document and team cleanup
+  type: http
+  seq: 11
+}
+
+delete {
+  url: {{baseUrl}}/users/{{createdUserId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("a user can delete their own account", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

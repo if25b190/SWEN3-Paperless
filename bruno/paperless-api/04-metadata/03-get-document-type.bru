@@ -1,0 +1,23 @@
+meta {
+  name: Get document type by ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/document-types/{{documentTypeId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("admin can get the created document type", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.equal(bru.getVar("documentTypeId"));
+  });
+}

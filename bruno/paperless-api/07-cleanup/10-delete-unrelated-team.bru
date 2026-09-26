@@ -1,0 +1,21 @@
+meta {
+  name: Delete unrelated team after document cleanup
+  type: http
+  seq: 10
+}
+
+delete {
+  url: {{baseUrl}}/teams/{{unrelatedTeamId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+tests {
+  test("the unrelated team's ADMIN deletes it during cleanup", function() {
+    expect(res.getStatus()).to.equal(204);
+  });
+}

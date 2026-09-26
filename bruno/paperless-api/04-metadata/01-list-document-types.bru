@@ -1,0 +1,24 @@
+meta {
+  name: List document types
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/document-types
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("admin can list document types", function() {
+    expect(res.getStatus()).to.equal(200);
+    res.getBody().items.forEach((documentType) => {
+      expect(documentType.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    });
+  });
+}

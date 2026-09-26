@@ -1,28 +1,31 @@
 meta {
-  name: Search documents
+  name: Removed uploader's document list excludes team document
   type: http
-  seq: 1
+  seq: 3
 }
 
 get {
-  url: {{baseUrl}}/search?query=invoice%20bruno&fuzzy=true&page=0&size=10
+  url: {{baseUrl}}/documents?page=0&size=100&sort=created_at,desc&document_type_id={{documentTypeId}}
   body: none
   auth: bearer
 }
 
 auth:bearer {
-  token: {{accessToken}}
+  token: {{memberAccessToken}}
 }
 
 tests {
-  test("authenticated admin search returns successfully", function() {
+  test("removed uploader's document list no longer includes the team document", function() {
     expect(res.getStatus()).to.equal(200);
-    res.getBody().items.forEach((item) => {
-      const document = item.document;
+    const documents = res.getBody().items;
+    documents.forEach((document) => {
       expect(document.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
       expect(document.owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
       if (document.team_id !== null) expect(document.team_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
       if (document.document_type) expect(document.document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     });
+    const visibleIds = documents.map((document) => document.id);
+    expect(visibleIds).to.not.include(bru.getVar("teamDocumentId"));
+    expect(visibleIds).to.include(bru.getVar("memberPrivateDocumentId"));
   });
 }

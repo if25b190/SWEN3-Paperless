@@ -1,0 +1,41 @@
+meta {
+  name: Upload second user's private document
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/documents
+  body: multipartForm
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+body:multipart-form {
+  document: @file(./fixtures/sample.pdf)
+  title: {{memberPrivateDocumentTitle}}
+  document_type_id: {{documentTypeId}}
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("memberPrivateDocumentId", res.getBody().id);
+  }
+}
+
+tests {
+  test("second user uploads a distinct private document", function() {
+    expect(res.getStatus()).to.equal(201);
+    expect(res.getBody().id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().id).to.not.equal(bru.getVar("privateDocumentId"));
+    expect(res.getBody().title).to.equal(bru.getVar("memberPrivateDocumentTitle"));
+    expect(res.getBody().owner_id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().owner_id).to.equal(bru.getVar("createdUserId"));
+    expect(res.getBody().document_type.id).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(res.getBody().document_type.id).to.equal(bru.getVar("documentTypeId"));
+    expect(res.getBody().team_id).to.be.null;
+  });
+}

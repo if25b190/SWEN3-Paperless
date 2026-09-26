@@ -1,0 +1,32 @@
+meta {
+  name: ADMIN of another team cannot update target team
+  type: http
+  seq: 11
+}
+
+put {
+  url: {{baseUrl}}/teams/{{teamId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{memberAccessToken}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "Unrelated administrator must not update this team",
+    "description": "Expected to be forbidden"
+  }
+}
+
+tests {
+  test("READ_WRITE member is not allowed to update the target team even when ADMIN elsewhere", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

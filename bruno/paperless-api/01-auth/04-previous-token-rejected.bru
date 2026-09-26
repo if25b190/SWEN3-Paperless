@@ -1,0 +1,21 @@
+meta {
+  name: Previous login token is rejected
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{initialAccessToken}}
+}
+
+tests {
+  test("a subsequent login invalidates the previous token", function() {
+    expect(res.getStatus()).to.equal(401);
+  });
+}
