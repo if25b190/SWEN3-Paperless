@@ -5,10 +5,30 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.multipart.MaxUploadSizeExceededException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import java.net.URI
 
 class GlobalExceptionHandlerTest {
+    @Test
+    fun oversized_uploads_return_payload_too_large_problem() {
+        val handler = GlobalExceptionHandler()
+
+        val response = handler.handleMaxUploadSizeExceeded()
+
+        assertThat(response.statusCode).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE)
+        assertThat(response.body?.type).isEqualTo(URI.create("urn:problem-type:413"))
+        assertThat(response.body?.title).isEqualTo("Payload Too Large")
+        assertThat(response.body?.status).isEqualTo(413)
+        assertThat(response.body?.detail).isEqualTo("The uploaded content exceeds the maximum allowed size.")
+        assertThat(response.body?.invalidParams).isNull()
+
+        val annotation = GlobalExceptionHandler::class.java.getMethod(
+            "handleMaxUploadSizeExceeded"
+        ).getAnnotation(ExceptionHandler::class.java)
+        assertThat(annotation.value).containsExactly(MaxUploadSizeExceededException::class)
+    }
+
     @Test
     fun missing_resources_return_generic_not_found_problem() {
         val handler = GlobalExceptionHandler()
