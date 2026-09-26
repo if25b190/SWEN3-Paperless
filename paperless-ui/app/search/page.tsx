@@ -247,9 +247,9 @@ function SearchContent() {
                         size="sm"
                         className="h-7 text-xs gap-1 text-slate-600 hover:text-slate-900"
                         onClick={() =>
-                          window.open(
-                            documentsApi.getDownloadUrl(item.document.id),
-                            "_blank"
+                          documentsApi.downloadDocument(
+                            item.document.id,
+                            item.document.original_filename || `${item.document.title}.pdf`
                           )
                         }
                       >

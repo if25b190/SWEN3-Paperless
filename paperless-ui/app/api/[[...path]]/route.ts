@@ -22,9 +22,17 @@ async function proxyRequest(
 ) {
   const { path } = await context.params;
   const pathSegment = path && path.length > 0 ? path.join("/") : "";
-  const search = request.nextUrl.search || "";
   const backendBase = getBackendBaseUrl().replace(/\/+$/, "");
-  const targetUrl = `${backendBase}/${pathSegment}${search}`;
+
+  const urlObj = new URL(request.url);
+  const tokenParam = urlObj.searchParams.get("token");
+  const isPreview = urlObj.searchParams.get("preview") === "true";
+
+  // Strip token and preview query params before forwarding to the backend
+  urlObj.searchParams.delete("token");
+  urlObj.searchParams.delete("preview");
+  const cleanSearch = urlObj.search || "";
+  const targetUrl = `${backendBase}/${pathSegment}${cleanSearch}`;
 
   const forwardHeaders = new Headers();
 
@@ -39,6 +47,11 @@ async function proxyRequest(
       forwardHeaders.set(key, value);
     }
   });
+
+  // Promote ?token= to Authorization header if not already present
+  if (!forwardHeaders.has("authorization") && tokenParam) {
+    forwardHeaders.set("authorization", `Bearer ${tokenParam}`);
+  }
 
   const method = request.method;
   let body: BodyInit | undefined;
@@ -75,6 +88,19 @@ async function proxyRequest(
         responseHeaders.set(key, value);
       }
     });
+
+    // If preview was requested, ensure content-disposition is inline so iframe displays it
+    if (isPreview) {
+      const cd = responseHeaders.get("content-disposition");
+      if (cd && cd.toLowerCase().startsWith("attachment")) {
+        responseHeaders.set(
+          "content-disposition",
+          cd.replace(/^attachment/i, "inline")
+        );
+      } else if (!cd) {
+        responseHeaders.set("content-disposition", "inline");
+      }
+    }
 
     if (response.status === 204) {
       return new NextResponse(null, {

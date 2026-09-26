@@ -272,7 +272,58 @@ export const documentsApi = {
   updateDocument: (id: string, data: UpdateDocumentRequest) =>
     api.put<DocumentResponse>(`/documents/${id}`, data),
   deleteDocument: (id: string) => api.delete<void>(`/documents/${id}`),
-  getDownloadUrl: (id: string) => `/api/documents/${id}/download`,
+  getDownloadUrl: (id: string, preview = false) => {
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (token) params.set("token", token);
+    if (preview) params.set("preview", "true");
+    const q = params.toString() ? `?${params.toString()}` : "";
+    return `/api/documents/${id}/download${q}`;
+  },
+  downloadDocument: async (id: string, filename?: string) => {
+    const token = getToken();
+    const headers = new Headers();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    try {
+      const response = await fetch(`/api/documents/${id}/download`, {
+        method: "GET",
+        headers,
+      });
+      if (!response.ok) {
+        toast.error("Failed to download document file.");
+        return;
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || "document.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Network error while downloading document.");
+    }
+  },
+  fetchDocumentBlobUrl: async (id: string): Promise<string> => {
+    const token = getToken();
+    const headers = new Headers();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    const response = await fetch(`/api/documents/${id}/download`, {
+      method: "GET",
+      headers,
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load document preview (HTTP ${response.status})`);
+    }
+    const blob = await response.blob();
+    return window.URL.createObjectURL(blob);
+  },
 };
 
 // ----------------- Search API -----------------

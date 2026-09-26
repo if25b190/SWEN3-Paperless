@@ -436,9 +436,9 @@ export default function DashboardPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => {
-                                  window.open(
-                                    documentsApi.getDownloadUrl(doc.id),
-                                    "_blank"
+                                  documentsApi.downloadDocument(
+                                    doc.id,
+                                    doc.original_filename || `${doc.title}.pdf`
                                   );
                                 }}
                                 className="gap-2 cursor-pointer"

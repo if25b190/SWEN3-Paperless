@@ -55,6 +55,9 @@ export default function DocumentDetailPage({
   const [copiedText, setCopiedText] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
 
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(true);
+
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -86,6 +89,43 @@ export default function DocumentDetailPage({
   useEffect(() => {
     fetchDocument(true);
   }, [fetchDocument]);
+
+  // Fetch document blob URL for preview with auth token
+  useEffect(() => {
+    let active = true;
+    let urlToRevoke: string | null = null;
+
+    if (docId) {
+      setPreviewLoading(true);
+      documentsApi
+        .fetchDocumentBlobUrl(docId)
+        .then((url) => {
+          if (!active) {
+            window.URL.revokeObjectURL(url);
+            return;
+          }
+          urlToRevoke = url;
+          setBlobUrl(url);
+        })
+        .catch(() => {
+          if (active) {
+            setBlobUrl(null);
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setPreviewLoading(false);
+          }
+        });
+    }
+
+    return () => {
+      active = false;
+      if (urlToRevoke) {
+        window.URL.revokeObjectURL(urlToRevoke);
+      }
+    };
+  }, [docId]);
 
   // Auto-polling if document is still processing
   useEffect(() => {
@@ -154,7 +194,8 @@ export default function DocumentDetailPage({
     }
   };
 
-  const downloadUrl = documentsApi.getDownloadUrl(docId);
+  const previewFallbackUrl = documentsApi.getDownloadUrl(docId, true);
+  const activePreviewUrl = blobUrl || previewFallbackUrl;
 
   return (
     <ProtectedRoute>
@@ -189,7 +230,12 @@ export default function DocumentDetailPage({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(downloadUrl, "_blank")}
+                onClick={() =>
+                  documentsApi.downloadDocument(
+                    document.id,
+                    document.original_filename || `${document.title}.pdf`
+                  )
+                }
                 className="gap-1.5"
               >
                 <Download className="h-4 w-4" />
@@ -253,15 +299,21 @@ export default function DocumentDetailPage({
                     variant="ghost"
                     size="sm"
                     className="text-xs h-7 gap-1 text-slate-500 hover:text-slate-900"
-                    onClick={() => window.open(downloadUrl, "_blank")}
+                    onClick={() => window.open(activePreviewUrl, "_blank")}
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     {t.common.details}
                   </Button>
                 </CardHeader>
                 <div className="h-[480px] bg-slate-100 relative">
+                  {previewLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 z-10">
+                      <Loader2 className="h-6 w-6 animate-spin text-blue-600 mr-2" />
+                      <span className="text-sm text-slate-500">{t.common.loading}</span>
+                    </div>
+                  )}
                   <iframe
-                    src={`${downloadUrl}#toolbar=0`}
+                    src={`${activePreviewUrl}#toolbar=0`}
                     className="w-full h-full border-none"
                     title={document.title}
                   />
