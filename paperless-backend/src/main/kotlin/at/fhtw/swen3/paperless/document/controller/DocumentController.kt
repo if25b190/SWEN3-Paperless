@@ -15,11 +15,12 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 import java.net.URI
+import java.util.UUID
 
 @RestController
 class DocumentController(private val documentService: DocumentService) : DocumentsApi {
 
-    override fun getDocumentById(id: Long): ResponseEntity<DocumentResponse> {
+    override fun getDocumentById(id: UUID): ResponseEntity<DocumentResponse> {
         val document = documentService.getDocument(id)
         val response = DocumentMapper.toDto(document)
         return ResponseEntity.ok(response)
@@ -29,10 +30,9 @@ class DocumentController(private val documentService: DocumentService) : Documen
         page: Int,
         size: Int,
         sort: String,
-        correspondentId: Long?,
-        documentTypeId: Long?
+        documentTypeId: UUID?
     ): ResponseEntity<DocumentPageResponse> {
-        val documents = documentService.searchDocuments(page, size, sort, correspondentId, documentTypeId)
+        val documents = documentService.searchDocuments(page, size, sort, documentTypeId)
         val items = documents.content.map(DocumentMapper::toDto)
         val pagination = PageMetadata(page, size, documents.totalElements, documents.totalPages)
         return ResponseEntity.ok(DocumentPageResponse(pagination, items))
@@ -41,16 +41,16 @@ class DocumentController(private val documentService: DocumentService) : Documen
     override fun uploadDocument(
         document: MultipartFile,
         title: String,
-        correspondentId: Long?,
-        documentTypeId: Long?
+        documentTypeId: UUID?,
+        teamId: UUID?
     ): ResponseEntity<DocumentResponse> {
         val upload = DocumentUpload(
             title = title,
             originalFilename = document.originalFilename ?: "document",
             contentType = document.contentType ?: MediaType.APPLICATION_OCTET_STREAM_VALUE,
             content = document.bytes,
-            correspondentId = correspondentId,
-            documentTypeId = documentTypeId
+            documentTypeId = documentTypeId,
+            teamId = teamId
         )
         val created = documentService.uploadDocument(upload)
         val response = DocumentMapper.toDto(created)
@@ -58,7 +58,7 @@ class DocumentController(private val documentService: DocumentService) : Documen
     }
 
     override fun updateDocumentMetadata(
-        id: Long,
+        id: UUID,
         updateDocumentRequest: UpdateDocumentRequest
     ): ResponseEntity<DocumentResponse> {
         val update = DocumentMapper.toUpdateModel(updateDocumentRequest)
@@ -67,12 +67,12 @@ class DocumentController(private val documentService: DocumentService) : Documen
         return ResponseEntity.ok(response)
     }
 
-    override fun deleteDocument(id: Long): ResponseEntity<Unit> {
+    override fun deleteDocument(id: UUID): ResponseEntity<Unit> {
         documentService.deleteDocument(id)
         return ResponseEntity.noContent().build()
     }
 
-    override fun downloadDocumentFile(id: Long): ResponseEntity<Resource> {
+    override fun downloadDocumentFile(id: UUID): ResponseEntity<Resource> {
         val resource = documentService.downloadDocument(id)
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"${resource.filename}\"")

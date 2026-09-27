@@ -10,6 +10,7 @@ import at.fhtw.swen3.paperless.dto.UpdateDocumentTypeRequest
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
+import java.util.UUID
 
 @RestController
 class DocumentTypeController(
@@ -31,14 +32,14 @@ class DocumentTypeController(
         return ResponseEntity.created(URI.create("/document-types/${created.id}")).body(response)
     }
 
-    override fun getDocumentTypeById(id: Long): ResponseEntity<DocumentTypeResponse> {
+    override fun getDocumentTypeById(id: UUID): ResponseEntity<DocumentTypeResponse> {
         val documentType = service.getDocumentTypeById(id)
         val response = DocumentTypeMapper.toDto(documentType)
         return ResponseEntity.ok(response)
     }
 
     override fun updateDocumentType(
-        id: Long,
+        id: UUID,
         updateDocumentTypeRequest: UpdateDocumentTypeRequest
     ): ResponseEntity<DocumentTypeResponse> {
         val current = service.getDocumentTypeById(id)
@@ -48,7 +49,7 @@ class DocumentTypeController(
         return ResponseEntity.ok(response)
     }
 
-    override fun deleteDocumentType(id: Long): ResponseEntity<Unit> {
+    override fun deleteDocumentType(id: UUID): ResponseEntity<Unit> {
         service.deleteDocumentType(id)
         return ResponseEntity.noContent().build()
     }

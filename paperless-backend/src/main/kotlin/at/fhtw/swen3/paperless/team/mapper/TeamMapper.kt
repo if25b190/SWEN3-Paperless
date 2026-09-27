@@ -11,20 +11,22 @@ object TeamMapper {
 
     fun toDto(team: Team): TeamResponse =
         TeamResponse(
-            id = team.id,
+            id = requireNotNull(team.id),
             name = team.name,
             description = team.description,
+            ownerId = requireNotNull(team.ownerId),
             createdAt = team.createdAt.atOffset(ZoneOffset.UTC),
             updatedAt = team.updatedAt?.atOffset(ZoneOffset.UTC)
         )
 
     fun fromCreateDto(dto: CreateTeamRequest, now: Instant): Team =
         Team(
-            id = 0,
+            id = null,
             name = dto.name,
             description = dto.description,
             createdAt = now,
-            updatedAt = null
+            updatedAt = null,
+            ownerId = null
         )
 
     fun applyUpdate(team: Team, dto: UpdateTeamRequest, now: Instant): Team =

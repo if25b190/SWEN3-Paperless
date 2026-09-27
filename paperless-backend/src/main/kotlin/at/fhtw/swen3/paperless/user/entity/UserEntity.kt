@@ -6,18 +6,22 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.time.Instant
+import java.util.UUID
 
 @Entity
 @Table(name = "users")
 class UserEntity(
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long = 0,
+    @GeneratedValue(strategy = GenerationType.UUID)
+    val id: UUID? = null,
+    @field:NotBlank
+    @field:Size(min = 4, max = 50)
     @Column(nullable = false, unique = true)
     val username: String = "",
-    @Column(nullable = false, unique = true)
-    val email: String = "",
+    @field:NotBlank
     @Column(nullable = false)
     val password: String = "",
     @Column(nullable = false, updatable = false)

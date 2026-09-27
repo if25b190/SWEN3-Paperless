@@ -1,8 +1,9 @@
 package at.fhtw.swen3.paperless.search.service
 
-import at.fhtw.swen3.paperless.document.mapper.DocumentEntityMapper
-import at.fhtw.swen3.paperless.document.repository.DocumentRepository
+import at.fhtw.swen3.paperless.document.model.Document
+import at.fhtw.swen3.paperless.document.service.DocumentService
 import at.fhtw.swen3.paperless.search.model.SearchResult
+import jakarta.validation.ConstraintViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
@@ -11,12 +12,14 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class SearchServiceImpl(private val repository: DocumentRepository) : SearchService {
+class SearchServiceImpl(private val documentService: DocumentService) : SearchService {
 
     override fun search(query: String, fuzzy: Boolean, page: Int, size: Int): Page<SearchResult> {
+        if (page < 0) throw ConstraintViolationException("page must be non-negative", emptySet())
+        if (size !in 1..100) throw ConstraintViolationException("size must be between 1 and 100", emptySet())
+
         val terms = query.trim().lowercase().split(Regex("\\s+")).filter(String::isNotBlank)
-        val results = repository.findAll().mapNotNull { entity ->
-            val document = DocumentEntityMapper.toModel(entity)
+        val results = documentService.visibleDocumentsForSearch().mapNotNull { document ->
             val searchable = listOfNotNull(document.title, document.ocrContent, document.summary)
                 .joinToString(" ").lowercase()
             val matched = terms.filter { term ->
@@ -26,8 +29,8 @@ class SearchServiceImpl(private val repository: DocumentRepository) : SearchServ
         }.sortedByDescending(SearchResult::score)
 
         val request = PageRequest.of(page, size)
-        val from = minOf(page * size, results.size)
-        val to = minOf(from + size, results.size)
+        val from = minOf(page.toLong() * size, results.size.toLong()).toInt()
+        val to = minOf(from.toLong() + size, results.size.toLong()).toInt()
         return PageImpl(results.subList(from, to), request, results.size.toLong())
     }
 
@@ -52,7 +55,7 @@ class SearchServiceImpl(private val repository: DocumentRepository) : SearchServ
     }
 
     private fun highlights(
-        document: at.fhtw.swen3.paperless.document.model.Document,
+        document: Document,
         terms: List<String>
     ): List<String> = listOfNotNull(document.title, document.ocrContent, document.summary)
         .flatMap { text ->

@@ -10,8 +10,8 @@ object TeamMemberEntityMapper {
 
     fun toEntity(member: TeamMember): TeamMemberEntity =
         TeamMemberEntity(
-            team = TeamEntity(id = member.team.id),
-            user = UserEntity(id = member.user.id),
+            team = TeamEntity(id = requireNotNull(member.team.id)),
+            user = UserEntity(id = requireNotNull(member.user.id)),
             role = member.role,
             joinedAt = member.joinedAt
         )

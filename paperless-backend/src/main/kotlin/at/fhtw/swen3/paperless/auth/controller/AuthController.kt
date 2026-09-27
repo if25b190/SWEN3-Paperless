@@ -2,15 +2,15 @@ package at.fhtw.swen3.paperless.auth.controller
 
 import at.fhtw.swen3.paperless.api.AuthApi
 import at.fhtw.swen3.paperless.auth.mapper.AuthMapper
+import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.auth.service.AuthService
 import at.fhtw.swen3.paperless.dto.LoginRequest
 import at.fhtw.swen3.paperless.dto.LoginResponse
 import at.fhtw.swen3.paperless.dto.UserResponse
 import at.fhtw.swen3.paperless.user.mapper.UserMapper
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.context.request.RequestContextHolder
-import org.springframework.web.context.request.ServletRequestAttributes
 
 @RestController
 class AuthController(
@@ -30,20 +30,10 @@ class AuthController(
     }
 
     override fun getCurrentUser(): ResponseEntity<UserResponse> {
-        val token = bearerToken()
-        val user = authService.getCurrentUser(token)
+        val userId = AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
+        val user = authService.getCurrentUser(userId)
         val response = UserMapper.toDto(user)
 
         return ResponseEntity.ok(response)
-    }
-
-    private fun bearerToken(): String? {
-        val attributes = RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes
-        val authorization = attributes?.request?.getHeader("Authorization") ?: return null
-
-        return authorization
-            .takeIf { it.startsWith("Bearer ", ignoreCase = true) }
-            ?.substringAfter(' ')
-            ?.takeIf { it.isNotBlank() }
     }
 }

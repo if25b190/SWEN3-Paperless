@@ -1,6 +1,5 @@
 package at.fhtw.swen3.paperless.document.mapper
 
-import at.fhtw.swen3.paperless.correspondent.mapper.CorrespondentMapper
 import at.fhtw.swen3.paperless.dto.DocumentResponse
 import at.fhtw.swen3.paperless.dto.ProcessingStatus as DtoProcessingStatus
 import at.fhtw.swen3.paperless.dto.UpdateDocumentRequest
@@ -19,18 +18,18 @@ object DocumentMapper {
             originalFilename = document.originalFilename,
             contentType = document.contentType,
             fileSize = document.fileSize,
+            ownerId = document.ownerId,
+            teamId = document.teamId,
             status = DtoProcessingStatus.valueOf(document.status.name),
             createdAt = document.createdAt.atOffset(ZoneOffset.UTC),
             updatedAt = document.updatedAt.atOffset(ZoneOffset.UTC),
             ocrContent = document.ocrContent,
             summary = document.summary,
             storageKey = document.storageKey,
-            correspondent = document.correspondent?.let(CorrespondentMapper::toDto),
             documentType = document.documentType?.let(DocumentTypeMapper::toDto)
         )
 
-    // Correspondent / document-type reassignment requires repository lookups and
-    // belongs to the service; this maps title and timestamp only.
+    // Document-type reassignment requires a repository lookup and belongs to the service.
     fun applyUpdate(document: Document, dto: UpdateDocumentRequest, now: Instant): Document =
         document.copy(
             title = dto.title ?: document.title,
@@ -39,8 +38,9 @@ object DocumentMapper {
 
     fun toUpdateModel(dto: UpdateDocumentRequest): DocumentUpdate =
         DocumentUpdate(
+            teamId = dto.teamId,
+            clearTeam = dto.clearTeam == true,
             title = dto.title,
-            correspondentId = dto.correspondentId,
             documentTypeId = dto.documentTypeId
         )
 }

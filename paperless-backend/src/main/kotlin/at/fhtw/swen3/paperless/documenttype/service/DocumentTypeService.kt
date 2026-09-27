@@ -1,6 +1,7 @@
 package at.fhtw.swen3.paperless.documenttype.service
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import java.util.UUID
 
 interface DocumentTypeService {
 
@@ -8,9 +9,9 @@ interface DocumentTypeService {
 
     fun createDocumentType(documentType: DocumentType): DocumentType
 
-    fun getDocumentTypeById(id: Long): DocumentType
+    fun getDocumentTypeById(id: UUID): DocumentType
 
-    fun updateDocumentType(id: Long, documentType: DocumentType): DocumentType
+    fun updateDocumentType(id: UUID, documentType: DocumentType): DocumentType
 
-    fun deleteDocumentType(id: Long)
+    fun deleteDocumentType(id: UUID)
 }

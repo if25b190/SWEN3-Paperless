@@ -59,6 +59,12 @@ Once all services are healthy and running:
 
 ---
 
+### Authentication
+
+Public registration (`POST /users`) does not grant access to other users' documents. Documents are private to their uploader unless assigned to a team, where access follows current membership. See [Team and document access](docs/team-document-access.md) for roles, sharing, and existing-database compatibility. Login returns an opaque bearer token and replaces the account's previous session. Existing development accounts with plaintext passwords must be recreated before they can log in.
+
+---
+
 ### 4. Viewing Logs & Status
 
 Check running container status:

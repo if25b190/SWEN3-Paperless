@@ -9,7 +9,6 @@ object UserEntityMapper {
         UserEntity(
             id = user.id,
             username = user.username,
-            email = user.email,
             password = user.password,
             createdAt = user.createdAt,
             updatedAt = user.updatedAt
@@ -17,9 +16,8 @@ object UserEntityMapper {
 
     fun toModel(entity: UserEntity): User =
         User(
-            id = entity.id,
+            id = requireNotNull(entity.id),
             username = entity.username,
-            email = entity.email,
             password = entity.password,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt

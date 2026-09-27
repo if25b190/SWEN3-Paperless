@@ -6,14 +6,13 @@ info:
     Provides endpoints for:
     - Document Upload: file storage, automated OCR processing, Elasticsearch full-text indexing, and GenAI summarization.
     - Document Search: full-text and fuzzy search powered by Elasticsearch.
-    - Document Management: document lifecycle (details, metadata update, deletion, download) and metadata (correspondents, document types).
-    - User and Team Management: authentication (login, me), user management (User-MM), teams, and role-based memberships (User <-- m:n (role) --> Team; roles: ADMIN, READONLY, MEMBER).
+    - Document Management: document lifecycle (details, metadata update, deletion, download) and metadata (document types).
+    - User and Team Management: authentication (login, me), user management (User-MM), teams, and role-based memberships (User <-- m:n (role) --> Team; roles: ADMIN, READONLY, READ_WRITE).
   version: 1.0.0
   x-api-id: d0184f38-b98d-11e7-9c56-68f728c1ba70
   x-audience: company-internal
   contact:
     name: Philip Duong & Patrick Hornek
-    email: contact@paperless.local
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -33,11 +32,10 @@ tags:
   - name: Teams
     description: Team management and role assignments (User <-- m:n (role) --> Team).
   - name: Documents
-    description: Core document uploading, lifecycle management, metadata, and file downloads.
+    description: |
+      Private documents are visible only to their uploader. Team-shared documents are visible only to current team members; an uploader who is removed from the team loses access. READONLY members can read, search, and download; READ_WRITE and ADMIN members can also upload, edit, and delete team documents.
   - name: Search
     description: Full-text and fuzzy search powered by Elasticsearch.
-  - name: Correspondents
-    description: Senders and recipients of documents (e.g., companies, authorities, individuals).
   - name: Document Types
     description: Document classifications (e.g., Invoice, Contract, Receipt, Bank Statement).
 
@@ -50,7 +48,7 @@ paths:
       tags:
         - Auth
       summary: User login
-      description: Authenticates a user with login credentials and returns a JWT access token and user profile.
+      description: Authenticates a user with login credentials and returns an opaque bearer token and user profile.
       operationId: login
       security: []
       requestBody:
@@ -109,6 +107,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -116,8 +116,9 @@ paths:
       tags:
         - Users
       summary: Create a new user
-      description: Creates/registers a new user account (User-MM).
+      description: Public endpoint to create/register a new user account (User-MM). Usernames must be unique; registration with an existing username returns 409.
       operationId: createUser
+      security: []
       requestBody:
         required: true
         content:
@@ -133,7 +134,7 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/users/1"
+                example: "/users/550e8400-e29b-41d4-a716-446655440000"
           content:
             application/json:
               schema:
@@ -161,6 +162,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -170,7 +173,7 @@ paths:
       tags:
         - Users
       summary: Update user
-      description: Updates user profile details (User-MM).
+      description: Updates only the authenticated user's own profile; updating another user's account is forbidden. A supplied username must be unique across accounts; an already-used username returns 409 Conflict.
       operationId: updateUser
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -189,6 +192,10 @@ paths:
                 $ref: '#/components/schemas/UserResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '409':
@@ -200,15 +207,21 @@ paths:
       tags:
         - Users
       summary: Delete user
-      description: Deletes a user account.
+      description: Deletes only the authenticated user's own account; deleting another user's account is forbidden.
       operationId: deleteUser
       parameters:
         - $ref: '#/components/parameters/PathId'
       responses:
         '204':
           description: User deleted successfully.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -217,7 +230,7 @@ paths:
       tags:
         - Users
       summary: Get teams and roles for user
-      description: Returns all teams the user belongs to and their assigned roles in each team (User <-- m:n (role) --> Team).
+      description: Returns the authenticated user's teams and roles; requesting memberships for another user is forbidden.
       operationId: getUserTeams
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -228,6 +241,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserTeamMembershipListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -241,15 +258,17 @@ paths:
       tags:
         - Teams
       summary: List all teams
-      description: Returns all teams in the organization.
+      description: Returns only teams the authenticated user belongs to; the list is empty when the user has no team memberships.
       operationId: getTeams
       responses:
         '200':
-          description: List of teams retrieved successfully.
+          description: List of teams retrieved successfully; may be empty when the user has no memberships.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -257,7 +276,7 @@ paths:
       tags:
         - Teams
       summary: Create a new team
-      description: Creates a new team.
+      description: Creates a new team; the authenticated creator becomes its immutable owner.
       operationId: createTeam
       requestBody:
         required: true
@@ -274,13 +293,15 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/teams/1"
+                example: "/teams/550e8400-e29b-41d4-a716-446655440001"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '409':
           $ref: '#/components/responses/ConflictError'
         '500':
@@ -291,7 +312,7 @@ paths:
       tags:
         - Teams
       summary: Get team by ID
-      description: Returns details of a specific team.
+      description: Returns details of a specific team; the authenticated user must be a member of the team.
       operationId: getTeamById
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -302,6 +323,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -311,7 +336,7 @@ paths:
       tags:
         - Teams
       summary: Update a team
-      description: Updates a team's name and description.
+      description: Updates a team's name and description only when the authenticated user is an ADMIN member of that team.
       operationId: updateTeam
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -330,6 +355,10 @@ paths:
                 $ref: '#/components/schemas/TeamResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '409':
@@ -341,15 +370,21 @@ paths:
       tags:
         - Teams
       summary: Delete a team
-      description: Deletes a team and associated memberships.
+      description: Deletes a team and its memberships only when the authenticated user is the team owner; the owner cannot be removed from the team.
       operationId: deleteTeam
       parameters:
         - $ref: '#/components/parameters/PathId'
       responses:
         '204':
           description: Team deleted successfully.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -358,7 +393,7 @@ paths:
       tags:
         - Teams
       summary: List team members and their roles
-      description: Returns all users belonging to this team with their assigned roles (admin, readonly, member).
+      description: Returns all users belonging to this team and their roles (ADMIN, READONLY, READ_WRITE); the authenticated user must be a member of the team.
       operationId: getTeamMembers
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -369,6 +404,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMemberListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -378,7 +417,7 @@ paths:
       tags:
         - Teams
       summary: Add a member to a team with a role
-      description: "Assigns a user to a team with an explicit role (Entities: User <-- m:n (role) --> Team; e.g. ADMIN, READONLY)."
+      description: "Assigns a user to the specified team with an explicit role (ADMIN, READONLY, or READ_WRITE); the caller must be an ADMIN member of that team."
       operationId: addTeamMember
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -397,6 +436,10 @@ paths:
                 $ref: '#/components/schemas/TeamMemberResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '409':
@@ -409,7 +452,7 @@ paths:
       tags:
         - Teams
       summary: Update a team member's role
-      description: Updates the role of a user within a team (e.g. promoting from READONLY to ADMIN).
+      description: Updates a user's role in the specified team (ADMIN, READONLY, or READ_WRITE); the caller must be an ADMIN member of that team and cannot change the owner's membership.
       operationId: updateTeamMemberRole
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -418,8 +461,9 @@ paths:
           description: Unique identifier of the user.
           required: true
           schema:
-            type: integer
-            format: int64
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       requestBody:
         required: true
         content:
@@ -435,6 +479,10 @@ paths:
                 $ref: '#/components/schemas/TeamMemberResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -444,7 +492,7 @@ paths:
       tags:
         - Teams
       summary: Remove a member from a team
-      description: Removes a user's membership from the team.
+      description: Removes a user's membership from the specified team; the caller must be an ADMIN member of that team and cannot remove the owner.
       operationId: removeTeamMember
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -453,11 +501,16 @@ paths:
           description: Unique identifier of the user to remove.
           required: true
           schema:
-            type: integer
-            format: int64
+            type: string
+            format: uuid
+            example: "550e8400-e29b-41d4-a716-446655440000"
       responses:
         '204':
           description: Member removed from team successfully.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -471,7 +524,7 @@ paths:
       tags:
         - Documents
       summary: Search and list documents
-      description: Returns a paginated list of archived documents with optional metadata filtering.
+      description: Returns a paginated list of documents visible to the authenticated user, with optional metadata filtering.
       operationId: searchDocuments
       parameters:
         - name: page
@@ -498,20 +551,13 @@ paths:
           schema:
             type: string
             default: created_at,desc
-        - name: correspondent_id
-          in: query
-          description: Filter by Correspondent ID.
-          required: false
-          schema:
-            type: integer
-            format: int64
         - name: document_type_id
           in: query
           description: Filter by Document Type ID.
           required: false
           schema:
-            type: integer
-            format: int64
+            type: string
+            format: uuid
       responses:
         '200':
           description: Successfully retrieved paged documents.
@@ -521,6 +567,8 @@ paths:
                 $ref: '#/components/schemas/DocumentPageResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -529,7 +577,7 @@ paths:
         - Documents
       summary: Upload a new document
       description: |
-        Uploads a PDF document to file storage (MinIO).
+        Uploads a PDF document to file storage (MinIO). If team_id is absent, the document is private and visible only to its uploader. Sharing with a team requires current READ_WRITE or ADMIN membership in that team; insufficient access returns 403 and a nonexistent team returns 404.
         Automatically triggers asynchronous processing:
         - Performs OCR recognition to extract document text.
         - Automatically indexes extracted text for full-text search in Elasticsearch.
@@ -551,18 +599,20 @@ paths:
                   description: The binary PDF document file.
                 title:
                   type: string
+                  description: Required nonblank title for the uploaded document.
                   example: Electricity Invoice October 2026
+                  minLength: 1
                   maxLength: 255
-                correspondent_id:
-                  type: integer
-                  format: int64
-                  nullable: true
-                  example: 1
                 document_type_id:
-                  type: integer
-                  format: int64
+                  type: string
+                  format: uuid
                   nullable: true
-                  example: 2
+                  example: "550e8400-e29b-41d4-a716-446655440004"
+                team_id:
+                  type: string
+                  format: uuid
+                  description: Optional team to share the document with; omit to keep it private. The uploader must have READ_WRITE or ADMIN access to the team.
+                  example: "550e8400-e29b-41d4-a716-446655440001"
       responses:
         '201':
           description: Document successfully uploaded and queued for processing.
@@ -572,13 +622,19 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/documents/1"
+                example: "/documents/550e8400-e29b-41d4-a716-446655440002"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -587,7 +643,7 @@ paths:
       tags:
         - Documents
       summary: Get document details by ID
-      description: Returns full document metadata, including OCR content, AI summary, and processing status.
+      description: Returns full document metadata only when the authenticated user can access it; private documents are uploader-only and team documents are visible only to current members. A removed uploader loses access and receives 404.
       operationId: getDocumentById
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -598,6 +654,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -607,7 +665,8 @@ paths:
       tags:
         - Documents
       summary: Update document metadata
-      description: Updates editable metadata fields of a document (title, correspondent, document type).
+      description: |
+        Any current writer may update document metadata (title and document type). Changing team_id or clearing team sharing is restricted to the uploader. Moving to another team requires write access to both the current source and destination teams; making the document private requires write access to the current source team. Omitting team_id or setting it to null does not clear sharing; set clear_team to true without team_id to make the document private. Supplying team_id together with clear_team: true is invalid and returns 400. A missing or inaccessible document, or a nonexistent destination team, returns 404; insufficient permission returns 403. A team-sharing transition that conflicts with the document's current sharing state returns 409.
       operationId: updateDocumentMetadata
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -626,8 +685,14 @@ paths:
                 $ref: '#/components/schemas/DocumentResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -635,15 +700,21 @@ paths:
       tags:
         - Documents
       summary: Delete a document
-      description: Deletes document record, file from MinIO, and Elasticsearch search index entry.
+      description: Deletes a document record, file from MinIO, and Elasticsearch search index entry; only the private uploader or a current READ_WRITE/ADMIN team member may delete it. Insufficient write access returns 403; a missing or inaccessible document returns 404.
       operationId: deleteDocument
       parameters:
         - $ref: '#/components/parameters/PathId'
       responses:
         '204':
           description: Document successfully deleted.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
         '404':
           $ref: '#/components/responses/NotFoundError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -652,7 +723,7 @@ paths:
       tags:
         - Documents
       summary: Download original document file
-      description: Streams the original uploaded PDF file from object storage (MinIO).
+      description: Streams the original uploaded PDF file from object storage (MinIO) when the authenticated user can access the document; private documents are uploader-only and team documents are visible only to current members. A missing or inaccessible document returns 404.
       operationId: downloadDocumentFile
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -668,6 +739,8 @@ paths:
               schema:
                 type: string
                 format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -681,7 +754,7 @@ paths:
       tags:
         - Search
       summary: Full-text and fuzzy search across documents
-      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries using Elasticsearch.
+      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries using Elasticsearch; results include only documents visible to the authenticated user. READONLY, READ_WRITE, and ADMIN members can search team documents.
       operationId: searchDocumentsFullText
       parameters:
         - name: query
@@ -705,6 +778,7 @@ paths:
           schema:
             type: integer
             default: 0
+            minimum: 0
         - name: size
           in: query
           description: Page size.
@@ -712,6 +786,8 @@ paths:
           schema:
             type: integer
             default: 10
+            minimum: 1
+            maximum: 100
       responses:
         '200':
           description: Search results returned successfully with highlights and relevance scores.
@@ -721,119 +797,8 @@ paths:
                 $ref: '#/components/schemas/SearchResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  # ============================================================================
-  # CORRESPONDENTS (DOCUMENT METADATA)
-  # ============================================================================
-  /correspondents:
-    get:
-      tags:
-        - Correspondents
-      summary: List all correspondents
-      operationId: searchCorrespondents
-      responses:
-        '200':
-          description: List of correspondents.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CorrespondentListResponse'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    post:
-      tags:
-        - Correspondents
-      summary: Create a new correspondent
-      operationId: createCorrespondent
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateCorrespondentRequest'
-      responses:
-        '201':
-          description: Correspondent created successfully.
-          headers:
-            Location:
-              description: URI of the newly created correspondent resource.
-              schema:
-                type: string
-                format: uri
-                example: "/correspondents/1"
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CorrespondentResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '409':
-          $ref: '#/components/responses/ConflictError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /correspondents/{id}:
-    get:
-      tags:
-        - Correspondents
-      summary: Get correspondent by ID
-      operationId: getCorrespondentById
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      responses:
-        '200':
-          description: Correspondent retrieved successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CorrespondentResponse'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    put:
-      tags:
-        - Correspondents
-      summary: Update a correspondent
-      operationId: updateCorrespondent
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateCorrespondentRequest'
-      responses:
-        '200':
-          description: Correspondent updated successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CorrespondentResponse'
-        '400':
-          $ref: '#/components/responses/BadRequestError'
-        '404':
-          $ref: '#/components/responses/NotFoundError'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    delete:
-      tags:
-        - Correspondents
-      summary: Delete a correspondent
-      operationId: deleteCorrespondent
-      parameters:
-        - $ref: '#/components/parameters/PathId'
-      responses:
-        '204':
-          description: Correspondent deleted successfully.
-        '404':
-          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -853,6 +818,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentTypeListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -876,13 +843,15 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/document-types/1"
+                example: "/document-types/550e8400-e29b-41d4-a716-446655440004"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentTypeResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '409':
           $ref: '#/components/responses/ConflictError'
         '500':
@@ -903,6 +872,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentTypeResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -930,6 +901,8 @@ paths:
                 $ref: '#/components/schemas/DocumentTypeResponse'
         '400':
           $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -945,6 +918,8 @@ paths:
       responses:
         '204':
           description: Document type deleted successfully.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
         '404':
           $ref: '#/components/responses/NotFoundError'
         '500':
@@ -958,8 +933,8 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
-      description: Standard Bearer Token authorization header using a JWT.
+      bearerFormat: opaque
+      description: Standard Authorization Bearer header using an opaque access token.
 
   parameters:
     PathId:
@@ -968,8 +943,8 @@ components:
       description: Unique identifier of the resource.
       required: true
       schema:
-        type: integer
-        format: int64
+        type: string
+        format: uuid
 
   schemas:
     # --- Page Metadata Envelope ---
@@ -998,10 +973,14 @@ components:
     # --- Role Enum ---
     Role:
       type: string
+      description: |-
+        READONLY can read, search, view, and download team documents.
+        READ_WRITE can also upload, edit, and delete team documents.
+        ADMIN has READ_WRITE permissions and additionally manages team memberships; the owner cannot be removed.
       enum:
         - ADMIN
         - READONLY
-        - MEMBER
+        - READ_WRITE
       example: ADMIN
 
     # --- User Schemas (User-MM & Login) ---
@@ -1010,20 +989,16 @@ components:
       required:
         - id
         - username
-        - email
         - created_at
       properties:
         id:
-          type: integer
-          format: int64
-          example: 1
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
         username:
           type: string
+          description: Unique username that the account owner may change to another unused username.
           example: john_doe
-        email:
-          type: string
-          format: email
-          example: john.doe@example.com
         created_at:
           type: string
           format: date-time
@@ -1047,22 +1022,19 @@ components:
       type: object
       required:
         - username
-        - email
         - password
       properties:
         username:
           type: string
-          minLength: 3
+          description: Required unique username of at least 4 characters; usernames may later be changed by the account owner to another unused username.
+          minLength: 4
           maxLength: 50
           example: john_doe
-        email:
-          type: string
-          format: email
-          example: john.doe@example.com
         password:
           type: string
+          description: Raw password of at least 8 characters.
           format: password
-          minLength: 6
+          minLength: 8
           maxLength: 100
           example: "SecretP@ss123"
 
@@ -1071,17 +1043,15 @@ components:
       properties:
         username:
           type: string
-          minLength: 3
+          description: Optional new username of at least 4 characters; it must be unique across accounts or the update returns 409 Conflict.
+          minLength: 4
           maxLength: 50
           example: john_doe
-        email:
-          type: string
-          format: email
-          example: john.doe@example.com
         password:
           type: string
+          description: Optional new raw password of at least 8 characters; omit to leave the current password unchanged.
           format: password
-          minLength: 6
+          minLength: 8
           maxLength: 100
           example: "NewSecretP@ss123"
 
@@ -1108,7 +1078,8 @@ components:
       properties:
         token:
           type: string
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          description: Opaque access token used as the bearer credential.
+          example: "opaque-access-token"
         token_type:
           type: string
           example: Bearer
@@ -1121,15 +1092,21 @@ components:
       required:
         - id
         - name
+        - owner_id
         - created_at
       properties:
         id:
-          type: integer
-          format: int64
-          example: 1
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440001"
         name:
           type: string
           example: Accounting
+        owner_id:
+          type: string
+          format: uuid
+          description: User ID of the team creator and immutable owner.
+          example: "550e8400-e29b-41d4-a716-446655440000"
         description:
           type: string
           nullable: true
@@ -1160,6 +1137,7 @@ components:
       properties:
         name:
           type: string
+          description: Required nonblank team name.
           minLength: 1
           maxLength: 100
           example: Accounting
@@ -1174,6 +1152,7 @@ components:
       properties:
         name:
           type: string
+          description: Optional nonblank replacement team name.
           minLength: 1
           maxLength: 100
           example: Finance & Accounting
@@ -1215,9 +1194,9 @@ components:
         - role
       properties:
         user_id:
-          type: integer
-          format: int64
-          example: 1
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
         role:
           $ref: '#/components/schemas/Role'
 
@@ -1265,6 +1244,7 @@ components:
       type: object
       required:
         - id
+        - owner_id
         - title
         - original_filename
         - content_type
@@ -1274,9 +1254,21 @@ components:
         - updated_at
       properties:
         id:
-          type: integer
-          format: int64
-          example: 1
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440002"
+        owner_id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: User ID of the document uploader and owner.
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        team_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the team currently sharing this document; null when private.
+          example: "550e8400-e29b-41d4-a716-446655440001"
         title:
           type: string
           example: Electricity Invoice October 2026
@@ -1307,9 +1299,6 @@ components:
           type: string
           description: Object key in MinIO.
           example: "documents/2026/10/1_invoice_oct_2026.pdf"
-        correspondent:
-          $ref: '#/components/schemas/CorrespondentResponse'
-          nullable: true
         document_type:
           $ref: '#/components/schemas/DocumentTypeResponse'
           nullable: true
@@ -1338,20 +1327,27 @@ components:
     UpdateDocumentRequest:
       type: object
       properties:
+        team_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Destination team ID. Omitting this field or setting it to null leaves current sharing unchanged; null alone does not make the document private.
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        clear_team:
+          type: boolean
+          default: false
+          description: Set true without team_id to remove team sharing and make the document private.
         title:
           type: string
+          description: Optional nonblank replacement document title.
+          minLength: 1
           maxLength: 255
           example: "Updated Invoice Title"
-        correspondent_id:
-          type: integer
-          format: int64
-          nullable: true
-          example: 1
         document_type_id:
-          type: integer
-          format: int64
+          type: string
+          format: uuid
           nullable: true
-          example: 2
+          example: "550e8400-e29b-41d4-a716-446655440004"
 
     # --- Search Result Schemas ---
     SearchResultItem:
@@ -1389,63 +1385,6 @@ components:
           items:
             $ref: '#/components/schemas/SearchResultItem'
 
-    # --- Correspondent Schemas ---
-    CorrespondentResponse:
-      type: object
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: integer
-          format: int64
-          example: 1
-        name:
-          type: string
-          example: "Wien Energie GmbH"
-        notes:
-          type: string
-          nullable: true
-          example: "Austrian energy provider"
-
-    CorrespondentListResponse:
-      type: object
-      required:
-        - items
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/CorrespondentResponse'
-
-    CreateCorrespondentRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 100
-          example: "A1 Telekom"
-        notes:
-          type: string
-          nullable: true
-          example: "Internet and mobile provider"
-
-    UpdateCorrespondentRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          maxLength: 100
-          example: "A1 Telekom Austria AG"
-        notes:
-          type: string
-          nullable: true
-          example: "Updated company profile"
-
     # --- Document Type Schemas ---
     DocumentTypeResponse:
       type: object
@@ -1454,9 +1393,9 @@ components:
         - name
       properties:
         id:
-          type: integer
-          format: int64
-          example: 1
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440004"
         name:
           type: string
           example: Invoice
@@ -1482,6 +1421,7 @@ components:
       properties:
         name:
           type: string
+          description: Required nonblank document type name.
           minLength: 1
           maxLength: 100
           example: Contract
@@ -1495,6 +1435,7 @@ components:
       properties:
         name:
           type: string
+          description: Optional nonblank replacement document type name.
           minLength: 1
           maxLength: 100
           example: Legal Contract
@@ -1527,12 +1468,12 @@ components:
         detail:
           type: string
           description: A human-readable explanation specific to this occurrence of the problem.
-          example: "Document with id 42 was not found."
+          example: "Document with id 550e8400-e29b-41d4-a716-446655440002 was not found."
         instance:
           type: string
           format: uri
           description: A URI reference that identifies the specific occurrence of the problem.
-          example: "/documents/42"
+          example: "/documents/550e8400-e29b-41d4-a716-446655440002"
         invalid_params:
           type: array
           description: An array of invalid parameter errors (RFC 7807 extension).
@@ -1570,6 +1511,16 @@ components:
 
     UnauthorizedError:
       description: Unauthorized - Authentication is required or credentials are invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    ForbiddenError:
+      description: Forbidden - The authenticated user is not authorized to perform this operation.
       content:
         application/problem+json:
           schema:
