@@ -7,8 +7,6 @@ import {
   Button,
   DialogActions,
   Stack,
-  Tab,
-  Tabs,
   TextField,
 } from "@mui/material";
 import { api, ApiError, invalidParamFor, type User } from "../../lib/api";
@@ -94,14 +92,6 @@ export function LoginDialog({
       title={mode === "login" ? t("auth.welcome_back") : t("auth.create_account")}
       onClose={onClose}
     >
-      <Tabs
-        value={mode}
-        onChange={(_, value) => switchMode(value)}
-        aria-label={t("auth.account")}
-      >
-        <Tab label={t("auth.sign_in")} value="login" />
-        <Tab label={t("auth.register")} value="register" />
-      </Tabs>
       <Box component="form" onSubmit={submit} noValidate>
         {notice && <Alert severity="success" sx={{ mb: 2 }}>{notice}</Alert>}
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
