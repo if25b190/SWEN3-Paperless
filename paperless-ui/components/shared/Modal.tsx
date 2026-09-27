@@ -14,10 +14,12 @@ export function Modal({
   title,
   children,
   onClose,
+  maxWidth = "sm",
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  maxWidth?: "sm" | "md";
 }) {
   return (
     <Dialog
@@ -25,7 +27,7 @@ export function Modal({
       onClose={onClose}
       aria-labelledby="modal-title"
       fullWidth
-      maxWidth="sm"
+      maxWidth={maxWidth}
       scroll="paper"
       slotProps={{ paper: { sx: { p: { xs: 1, sm: 2 } } } }}
     >

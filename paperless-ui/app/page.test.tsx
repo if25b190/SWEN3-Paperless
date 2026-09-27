@@ -1,27 +1,36 @@
 import { act, render as rtlRender, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { ThemeProvider } from "@mui/material/styles";
 import Home from "./page";
+import { I18nProvider } from "../lib/i18n/I18nProvider";
+import { ToastProvider } from "../lib/toast/ToastProvider";
 import { theme } from "./providers";
 
 Object.defineProperty(window, "matchMedia", { writable: true, value: (query: string) => ({ matches: false, media: query, onchange: null, addListener: jest.fn(), removeListener: jest.fn(), addEventListener: jest.fn(), removeEventListener: jest.fn(), dispatchEvent: jest.fn() }) });
-const render = (ui: React.ReactNode) => rtlRender(<ThemeProvider theme={theme} defaultMode="system" modeStorageKey="paperless_theme">{ui}</ThemeProvider>);
+const render = (ui: React.ReactNode) =>
+  rtlRender(
+    <ThemeProvider theme={theme} defaultMode="system" modeStorageKey="paperless_theme">
+      <I18nProvider>
+        <ToastProvider>{ui}</ToastProvider>
+      </I18nProvider>
+    </ThemeProvider>,
+  );
 
 describe("Paperless workspace", () => {
   const json = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, statusText: "Request failed", json: async () => body });
   beforeEach(() => { localStorage.clear(); document.documentElement.classList.remove("dark"); });
-  const openNavigation = async (user: ReturnType<typeof userEvent.setup>) => {
+  const openNavigation = async (user: UserEvent) => {
     await user.click(screen.getByRole("button", { name: "Open navigation" }));
     return screen.getByRole("navigation", { name: "Main navigation" });
   };
-  const choose = async (user: ReturnType<typeof userEvent.setup>, field: HTMLElement, option: string) => {
+  const choose = async (user: UserEvent, field: HTMLElement, option: string) => {
     await user.click(field);
     await user.click(await screen.findByRole("option", { name: option }));
   };
-  const sampleDocument = (filename = "sample.png", contentType = "image/png") => ({ id: 8, title: "Sample document", original_filename: filename, content_type: contentType, file_size: 128, status: "DONE", created_at: "today" });
+  const sampleDocument = (filename = "sample.png", contentType = "image/png") => ({ id: 8, title: "Sample document", owner_id: 1, original_filename: filename, content_type: contentType, file_size: 128, status: "COMPLETED", created_at: "today" });
   const mockWorkspace = (document = sampleDocument(), content = "# Notes\n<script>unsafe</script>") => {
     localStorage.setItem("paperless_token", "token");
-    const blob = new Blob([content], { type: "application/octet-stream" });
+    const blob = new Blob([content], { type: document.content_type });
     Object.defineProperty(blob, "text", { value: async () => content });
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
@@ -29,14 +38,14 @@ describe("Paperless workspace", () => {
       if (url.endsWith("/documents/8/download")) return Promise.resolve({ ok: true, status: 200, blob: async () => blob });
       if (url.endsWith("/documents/8") && options?.method === "PUT") return Promise.resolve(json({ ...document, ...JSON.parse(options.body as string) }));
       if (url.endsWith("/documents/8")) return Promise.resolve(json(document));
-      if (url.endsWith("/correspondents/3")) return Promise.resolve(json({ id: 3, name: "Acme" }));
-      if (url.endsWith("/document-types/4")) return Promise.resolve(json({ id: 4, name: "Invoice" }));
-      if (url.endsWith("/correspondents")) return Promise.resolve(json({ items: [{ id: 3, name: "Acme" }] }));
+      if (url.endsWith("/users/1")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
       if (url.endsWith("/document-types")) return Promise.resolve(json({ items: [{ id: 4, name: "Invoice" }] }));
+      if (url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [{ team: { id: 7, name: "Design" }, role: "READ_WRITE" }] }));
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 7, name: "Design", owner_id: 1 }] }));
       return Promise.resolve(json({ items: [] }));
     });
   };
-  const openSample = async (user: ReturnType<typeof userEvent.setup>) => {
+  const openSample = async (user: UserEvent) => {
     render(<Home />);
     await user.click((await screen.findByRole("heading", { name: "Sample document" })).closest("button") as HTMLElement);
     return screen.getByRole("dialog", { name: /document details/i });
@@ -45,7 +54,7 @@ describe("Paperless workspace", () => {
   it("persists the theme choice and reflects the initial document theme", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<Home />);
-    const toggle = await screen.findByRole("button", { name: "Dark mode" });
+    const toggle = await screen.findByRole("button", { name: /toggle color mode/i });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     await user.click(toggle);
     expect(document.documentElement).toHaveClass("dark");
@@ -53,8 +62,8 @@ describe("Paperless workspace", () => {
     expect(localStorage.getItem("paperless_theme")).toBe("dark");
     unmount();
     render(<Home />);
-    expect(await screen.findByRole("button", { name: "Dark mode" })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Dark mode" }));
+    expect(await screen.findByRole("button", { name: /toggle color mode/i })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: /toggle color mode/i }));
     expect(localStorage.getItem("paperless_theme")).toBe("light");
   });
 
@@ -62,7 +71,7 @@ describe("Paperless workspace", () => {
     const matchMedia = jest.spyOn(window, "matchMedia").mockImplementation((query) => ({ matches: query === "(prefers-color-scheme: dark)", media: query, onchange: null, addListener: jest.fn(), removeListener: jest.fn(), addEventListener: jest.fn(), removeEventListener: jest.fn(), dispatchEvent: jest.fn() }));
     try {
       render(<Home />);
-      expect(await screen.findByRole("button", { name: "Dark mode" })).toHaveAttribute("aria-pressed", "true");
+      expect(await screen.findByRole("button", { name: /toggle color mode/i })).toHaveAttribute("aria-pressed", "true");
       expect(localStorage.getItem("paperless_theme")).toBeNull();
     } finally { matchMedia.mockRestore(); }
   });
@@ -129,20 +138,19 @@ describe("Paperless workspace", () => {
     await user.type(screen.getByLabelText(/password/i), "secret");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^sign in$/i }));
     expect(await screen.findByText(/your desk is ready/i)).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith("/api/correspondents", expect.anything());
     expect(fetch).toHaveBeenCalledWith("/api/document-types", expect.anything());
     expect(fetch).toHaveBeenCalledWith("/api/teams", expect.anything());
-    expect(fetch).toHaveBeenCalledWith("/api/users", expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/users/1/teams", expect.anything());
   });
 
   it("freezes the submitted search query while paginating", async () => {
     const user = userEvent.setup();
     global.fetch = jest.fn().mockImplementation((url: string) => {
-      if (url.includes("page=0")) return Promise.resolve(json({ items: [{ document: { id: 1, title: "First result", original_filename: "first.txt", content_type: "text/plain", file_size: 100, status: "DONE", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 13, total_pages: 2 } }));
-      return Promise.resolve(json({ items: [{ document: { id: 2, title: "Second result", original_filename: "second.txt", content_type: "text/plain", file_size: 100, status: "DONE", created_at: "today" } }], pagination: { page: 1, size: 12, total_elements: 13, total_pages: 2 } }));
+      if (url.includes("page=0")) return Promise.resolve(json({ items: [{ document: { id: 1, title: "First result", original_filename: "first.txt", content_type: "text/plain", file_size: 100, status: "COMPLETED", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 13, total_pages: 2 } }));
+      return Promise.resolve(json({ items: [{ document: { id: 2, title: "Second result", original_filename: "second.txt", content_type: "text/plain", file_size: 100, status: "COMPLETED", created_at: "today" } }], pagination: { page: 1, size: 12, total_elements: 13, total_pages: 2 } }));
     });
     render(<Home />);
-    const input = screen.getByRole("textbox", { name: /search documents/i });
+    const input = screen.getByRole("textbox", { name: /search by title/i });
     await user.type(input, "first query");
     await user.click(within(input.closest("form") as HTMLElement).getByRole("button", { name: /^search$/i }));
     expect(await screen.findByText("First result")).toBeInTheDocument();
@@ -157,10 +165,10 @@ describe("Paperless workspace", () => {
   it("reports search pagination failures", async () => {
     const user = userEvent.setup();
     global.fetch = jest.fn().mockImplementation((url: string) => url.includes("page=0")
-      ? Promise.resolve(json({ items: [{ document: { id: 1, title: "First result", original_filename: "first.txt", content_type: "text/plain", file_size: 100, status: "DONE", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 13, total_pages: 2 } }))
+      ? Promise.resolve(json({ items: [{ document: { id: 1, title: "First result", original_filename: "first.txt", content_type: "text/plain", file_size: 100, status: "COMPLETED", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 13, total_pages: 2 } }))
       : Promise.resolve(json({ detail: "Search page failed" }, 500)));
     render(<Home />);
-    const input = screen.getByRole("textbox", { name: /search documents/i });
+    const input = screen.getByRole("textbox", { name: /search by title/i });
     await user.type(input, "query");
     await user.click(within(input.closest("form") as HTMLElement).getByRole("button", { name: /^search$/i }));
     await screen.findByText("First result");
@@ -172,20 +180,19 @@ describe("Paperless workspace", () => {
     const user = userEvent.setup();
     mockWorkspace();
     render(<Home />);
-    await choose(user, await screen.findByRole("combobox", { name: "Correspondent" }), "Acme");
-    await choose(user, screen.getByRole("combobox", { name: "Document type" }), "Invoice");
+    await choose(user, await screen.findByRole("combobox", { name: "Document type" }), "Invoice");
     await user.click(screen.getByRole("button", { name: "Apply filters" }));
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("correspondent_id=3&document_type_id=4"), expect.anything());
+    expect(fetch).toHaveBeenCalledWith("/api/documents?page=0&size=12&sort=created_at%2Cdesc&document_type_id=4", expect.anything());
   });
 
   it("updates document metadata through the styled detail menus", async () => {
     const user = userEvent.setup();
     mockWorkspace();
     const dialog = await openSample(user);
-    await choose(user, within(dialog).getByRole("combobox", { name: "Document correspondent" }), "Acme");
     await choose(user, within(dialog).getByRole("combobox", { name: "Document type" }), "Invoice");
-    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
-    expect(fetch).toHaveBeenCalledWith("/api/documents/8", expect.objectContaining({ method: "PUT", body: JSON.stringify({ title: "Sample document", correspondent_id: 3, document_type_id: 4 }) }));
+    await choose(user, within(dialog).getByRole("combobox", { name: "Share with team" }), "Design");
+    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/documents/8", expect.objectContaining({ method: "PUT", body: JSON.stringify({ title: "Sample document", document_type_id: 4, team_id: 7, clear_team: false }) }));
   });
 
   it.each([
@@ -193,17 +200,15 @@ describe("Paperless workspace", () => {
     ["sample.pdf", "application/pdf", "pdf"],
     ["sample.txt", "text/plain", "text"],
     ["sample.md", "text/markdown", "text"],
-  ])("previews %s only when requested", async (filename, mime, kind) => {
+  ])("previews %s as soon as the details open", async (filename, mime, kind) => {
     const user = userEvent.setup();
     mockWorkspace(sampleDocument(filename, mime));
     jest.mocked(URL.createObjectURL).mockClear();
     jest.mocked(URL.revokeObjectURL).mockClear();
     const dialog = await openSample(user);
-    expect(fetch).not.toHaveBeenCalledWith("/api/documents/8/download", expect.anything());
-    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
     expect(fetch).toHaveBeenCalledWith("/api/documents/8/download", expect.anything());
-    if (kind === "image") expect(await within(dialog).findByRole("img", { name: "Preview of Sample document" })).toHaveAttribute("src", "blob:test");
-    if (kind === "pdf") expect(await within(dialog).findByTitle("Preview of Sample document")).toHaveAttribute("sandbox", "allow-scripts");
+    if (kind === "image") expect(await within(dialog).findByRole("img", { name: "Sample document" })).toHaveAttribute("src", "blob:test");
+    if (kind === "pdf") expect(await within(dialog).findByTitle("Sample document")).toHaveAttribute("sandbox", "allow-scripts");
     if (kind === "text") {
       const preview = await within(dialog).findByText(/# Notes/);
       expect(preview).toHaveTextContent("<script>unsafe</script>");
@@ -235,9 +240,8 @@ describe("Paperless workspace", () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => url.endsWith("/download") ? Promise.resolve({ ok: false, status: 503 }) : originalFetch(url, options));
     const dialog = await openSample(user);
-    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Download failed");
-    expect(within(dialog).getByRole("button", { name: "Preview" })).toBeEnabled();
+    expect(within(dialog).queryByRole("button", { name: "Preview" })).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Download" })).toBeInTheDocument();
   });
 
@@ -245,72 +249,83 @@ describe("Paperless workspace", () => {
     const user = userEvent.setup();
     mockWorkspace();
     const originalFetch = global.fetch;
-    let resolveDownload!: (value: unknown) => void;
-    const pending = new Promise((resolve) => { resolveDownload = resolve; });
-    global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => url.endsWith("/download") ? pending : originalFetch(url, options));
+    const pending = Promise.withResolvers<unknown>();
+    global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => url.endsWith("/download") ? pending.promise : originalFetch(url, options));
     jest.mocked(URL.createObjectURL).mockClear();
     const dialog = await openSample(user);
-    await user.click(within(dialog).getByRole("button", { name: "Preview" }));
     expect(within(dialog).getByText("Loading preview…")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Close Document details" }));
-    await act(async () => { resolveDownload({ ok: true, status: 200, blob: async () => new Blob(["late"]) }); });
+    await act(async () => { pending.resolve({ ok: true, status: 200, blob: async () => new Blob(["late"]) }); });
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 
-  it("loads users before assigning and keeps members scoped to their team", async () => {
+  it("manages team members from the team detail view", async () => {
     const user = userEvent.setup();
     localStorage.setItem("paperless_token", "token");
-    const ada = { id: 2, username: "ada", email: "ada@example.com", created_at: "today" };
-    const member = { user: ada, role: "MEMBER" as const };
+    const candidate = { id: 2, username: "ada" };
+    const team = { id: 3, name: "Editors", description: "Write access", owner_id: 1 };
+    const member = { user: candidate, role: "READ_WRITE", joined_at: "today" };
+    const memberState = { items: [] as unknown[] };
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/auth/me")) return Promise.resolve(json(ada));
+      if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "owner", email: "owner@example.com" }));
       if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
-      if (url.endsWith("/correspondents") || url.endsWith("/document-types")) return Promise.resolve(json({ items: [] }));
-      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 3, name: "Editors" }, { id: 4, name: "Reviewers" }] }));
-      if (url.endsWith("/users")) return Promise.resolve(json({ items: [ada] }));
-      if (url.endsWith("/teams/3/members") && options?.method === "POST") return Promise.resolve(json(member));
-      if (url.endsWith("/teams/3/members")) return Promise.resolve(json({ items: [] }));
-      if (url.endsWith("/teams/3/members/2") && options?.method === "PUT") return Promise.resolve(json({ ...member, role: "READONLY" }));
-      if (url.endsWith("/teams/4/members")) return Promise.resolve(json({ items: [] }));
+      if (url.endsWith("/document-types")) return Promise.resolve(json({ items: [] }));
+      if (url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [] }));
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [team] }));
+      if (url.endsWith("/users")) return Promise.resolve(json({ items: [candidate] }));
+      if (url.endsWith("/teams/3/members") && options?.method === "POST") { memberState.items = [member]; return Promise.resolve(json(member)); }
+      if (url.endsWith("/teams/3/members/2") && options?.method === "PUT") { memberState.items = [{ ...member, role: "READONLY" }]; return Promise.resolve(json({ ...member, role: "READONLY" })); }
+      if (url.endsWith("/teams/3/members/2")) { memberState.items = []; return Promise.resolve(json(undefined, 204)); }
+      if (url.endsWith("/teams/3/members")) return Promise.resolve(json(memberState));
+      if (url.endsWith("/teams/3")) return Promise.resolve(json(team));
       return Promise.resolve(json(undefined, 204));
     });
     render(<Home />);
-    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
-    await screen.findByRole("heading", { name: /your people/i });
-    expect(fetch).toHaveBeenCalledWith("/api/users", expect.anything());
-    const team = screen.getByText("Editors").closest("[data-team-id]") as HTMLElement;
-    await user.click(within(team).getByRole("button", { name: "Members" }));
-    const otherTeam = screen.getByText("Reviewers").closest("[data-team-id]") as HTMLElement;
-    await user.click(within(otherTeam).getByRole("button", { name: "Members" }));
-    await choose(user, within(team).getByRole("combobox", { name: /new member role/i }), "ADMIN");
-    expect(within(otherTeam).getByRole("combobox", { name: /new member role/i })).toHaveTextContent("MEMBER");
-    await choose(user, within(team).getByRole("combobox", { name: /member user/i }), "ada");
-    await user.click(within(team).getByRole("button", { name: "Add" }));
-    expect(fetch).toHaveBeenCalledWith("/api/teams/3/members", expect.objectContaining({ method: "POST" }));
-    expect(within(team).getAllByText("ada")[0]).toBeInTheDocument();
-    await choose(user, within(team).getByRole("combobox", { name: /role for ada/i }), "READONLY");
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /teams/i }));
+    await screen.findByRole("heading", { name: /your teams/i });
+    await user.click(screen.getByText("Editors"));
+    await screen.findByText("Members");
+    await user.click(screen.getByRole("button", { name: /add member/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add member to editors/i });
+    await user.click(within(dialog).getByText("ada"));
+    await user.click(within(dialog).getByRole("button", { name: /^create$/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/teams/3/members", expect.objectContaining({ method: "POST", body: JSON.stringify({ user_id: 2, role: "READ_WRITE" }) }));
+    expect(await screen.findByText("ada")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /change role/i }));
+    const roleDialog = await screen.findByRole("dialog", { name: /change role for ada/i });
+    await choose(user, within(roleDialog).getByRole("combobox", { name: "Role" }), "Read Only");
+    await user.click(within(roleDialog).getByRole("button", { name: /save changes/i }));
     expect(fetch).toHaveBeenCalledWith("/api/teams/3/members/2", expect.objectContaining({ method: "PUT" }));
-    await user.click(within(team).getByRole("button", { name: "Remove" }));
-    expect(within(team).queryByRole("combobox", { name: /role for ada/i })).not.toBeInTheDocument();
+    expect(await screen.findByText("Read Only")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /remove member/i }));
+    const removeDialog = await screen.findByRole("dialog", { name: /remove ada from editors/i });
+    await user.click(within(removeDialog).getByRole("button", { name: /^delete$/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/teams/3/members/2", expect.objectContaining({ method: "DELETE" }));
+    expect(await screen.findByText(/no members yet/i)).toBeInTheDocument();
   });
 
-  it("loads metadata details before editing correspondent notes", async () => {
+  it("edits a document type through the settings dialog", async () => {
     const user = userEvent.setup();
     localStorage.setItem("paperless_token", "token");
+    const docType = { id: 8, name: "Acme", description: "Old notes" };
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
       if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
-      if (url.endsWith("/correspondents")) return Promise.resolve(json({ items: [{ id: 8, name: "Acme", notes: "Old notes" }] }));
-      if (url.endsWith("/document-types") || url.endsWith("/teams") || url.endsWith("/users")) return Promise.resolve(json({ items: [] }));
-      if (url.endsWith("/correspondents/8") && options?.method === "PUT") return Promise.resolve(json({ id: 8, name: "Acme updated", notes: "New notes" }));
-      if (url.endsWith("/correspondents/8")) return Promise.resolve(json({ id: 8, name: "Acme", notes: "Server notes" }));
+      if (url.endsWith("/document-types") && !options?.method) return Promise.resolve(json({ items: [docType] }));
+      if (url.endsWith("/document-types/8") && options?.method === "PUT") {
+        const body = JSON.parse(options.body as string);
+        docType.name = body.name;
+        docType.description = body.description;
+        return Promise.resolve(json(docType));
+      }
+      if (url.endsWith("/teams") || url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [] }));
       return Promise.resolve(json(undefined, 204));
     });
     render(<Home />);
     await user.click(within(await openNavigation(user)).getByRole("button", { name: /settings/i }));
     await screen.findByRole("heading", { name: /workspace settings/i });
-    await user.click(await screen.findByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog", { name: /edit correspondent/i });
+    await user.click(screen.getByRole("button", { name: /^edit$/i }));
+    const dialog = await screen.findByRole("dialog", { name: /edit document type/i });
     const nameInput = within(dialog).getByLabelText(/name/i);
     const descInput = within(dialog).getByLabelText(/description/i);
     await user.clear(nameInput);
@@ -318,10 +333,8 @@ describe("Paperless workspace", () => {
     await user.clear(descInput);
     await user.type(descInput, "New notes");
     await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
-    const calls = (fetch as jest.Mock).mock.calls.filter(([url]) => url === "/api/correspondents/8");
-    expect(calls[0][1].method).toBeUndefined();
-    expect(calls[1][1].method).toBe("PUT");
-    expect(JSON.parse(calls[1][1].body)).toEqual({ name: "Acme updated", notes: "New notes" });
+    expect(fetch).toHaveBeenCalledWith("/api/document-types/8", expect.objectContaining({ method: "PUT", body: JSON.stringify({ name: "Acme updated", description: "New notes" }) }));
+    expect(await screen.findByText("Acme updated")).toBeInTheDocument();
   });
 
   it("keeps focus inside an open dialog and closes with Escape", async () => {
@@ -341,24 +354,24 @@ describe("Paperless workspace", () => {
     const user = userEvent.setup();
     render(<Home />);
     await user.click(within(await openNavigation(user)).getByRole("button", { name: /search/i }));
-    expect(await screen.findByRole("textbox", { name: /search documents/i })).toHaveValue("");
+    expect(await screen.findByRole("textbox", { name: /search by title/i })).toHaveValue("");
     expect(screen.getAllByRole("heading", { name: /search your archive/i })[0]).toBeInTheDocument();
   });
 
   it("clears completed search state when re-entering Search", async () => {
     const user = userEvent.setup();
     global.fetch = jest.fn().mockImplementation((url: string) => url.startsWith("/api/search?")
-      ? Promise.resolve(json({ items: [{ document: { id: 1, title: "Completed result", original_filename: "result.txt", content_type: "text/plain", file_size: 100, status: "DONE", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 1, total_pages: 1 } }))
+      ? Promise.resolve(json({ items: [{ document: { id: 1, title: "Completed result", original_filename: "result.txt", content_type: "text/plain", file_size: 100, status: "COMPLETED", created_at: "today" } }], pagination: { page: 0, size: 12, total_elements: 1, total_pages: 1 } }))
       : Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } })));
     render(<Home />);
-    const input = screen.getByRole("textbox", { name: /search documents/i });
+    const input = screen.getByRole("textbox", { name: /search by title/i });
     await user.type(input, "completed query");
     await user.click(within(input.closest("form") as HTMLElement).getByRole("button", { name: /^search$/i }));
     expect(await screen.findByText("Completed result")).toBeInTheDocument();
     await user.click(within(await openNavigation(user)).getByRole("button", { name: /library/i }));
     await screen.findByRole("heading", { name: /good documents/i });
     await user.click(within(await openNavigation(user)).getByRole("button", { name: /search/i }));
-    expect(await screen.findByRole("textbox", { name: /search documents/i })).toHaveValue("");
+    expect(await screen.findByRole("textbox", { name: /search by title/i })).toHaveValue("");
     expect(screen.getAllByRole("heading", { name: /search your archive/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("heading", { name: /results for/i })).not.toBeInTheDocument();
   });
@@ -375,18 +388,12 @@ describe("Paperless workspace", () => {
     expect(document.getElementById("workspace-shell")?.parentElement).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("allows a user to register and automatically logs them in", async () => {
+  it("registers a new account and signs the user in", async () => {
     const user = userEvent.setup();
-    global.fetch = jest.fn().mockImplementation((url: string) => {
-      if (url.endsWith("/users") && !url.includes("?")) {
-        return Promise.resolve(json({ id: 2, username: "newbie", email: "newbie@example.com" }, 201));
-      }
-      if (url.endsWith("/auth/login")) {
-        return Promise.resolve(json({ token: "reg_token", user: { id: 2, username: "newbie", email: "newbie@example.com" } }));
-      }
-      if (url.endsWith("/documents?page=0&size=12&sort=created_at%2Cdesc")) {
-        return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
-      }
+    global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/users") && options?.method === "POST") return Promise.resolve(json({ id: 2, username: "newbie", email: "newbie@example.com" }, 201));
+      if (url.endsWith("/auth/login")) return Promise.resolve(json({ token: "reg_token", user: { id: 2, username: "newbie", email: "newbie@example.com" } }));
+      if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
       return Promise.resolve(json({ items: [] }));
     });
     render(<Home />);
@@ -394,9 +401,11 @@ describe("Paperless workspace", () => {
     await user.click(screen.getByRole("tab", { name: /register/i }));
     expect(screen.getByRole("dialog", { name: /create an account/i })).toBeInTheDocument();
     await user.type(screen.getByLabelText(/username/i), "newbie");
-    await user.type(screen.getByLabelText(/email/i), "newbie@example.com");
     await user.type(screen.getByLabelText(/password/i), "secret123");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^register$/i }));
+    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("Registration successful. Please sign in.");
+    await user.type(screen.getByLabelText(/password/i), "secret123");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^sign in$/i }));
     expect(await screen.findByText(/your desk is ready/i)).toBeInTheDocument();
     expect(localStorage.getItem("paperless_token")).toBe("reg_token");
   });
@@ -413,7 +422,6 @@ describe("Paperless workspace", () => {
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
     await user.click(screen.getByRole("tab", { name: /register/i }));
     await user.type(screen.getByLabelText(/username/i), "existing");
-    await user.type(screen.getByLabelText(/email/i), "existing@example.com");
     await user.type(screen.getByLabelText(/password/i), "secret123");
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^register$/i }));
     const dialog = screen.getByRole("dialog");
@@ -439,64 +447,66 @@ describe("Paperless workspace", () => {
     expect(await screen.findByText(/your desk is ready/i)).toBeInTheDocument();
   });
 
-  it("edits user with a modal instead of prompt", async () => {
+  it("updates the profile from workspace settings", async () => {
     const user = userEvent.setup();
     localStorage.setItem("paperless_token", "token");
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
-      if (url.endsWith("/users")) return Promise.resolve(json({ items: [{ id: 1, username: "ada", email: "ada@example.com" }] }));
       if (url.endsWith("/users/1") && options?.method === "PUT") return Promise.resolve(json({ id: 1, username: "ada_updated", email: "ada@example.com" }));
       if (url.endsWith("/users/1")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
-      return Promise.resolve(json({ items: [] }));
+      if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
+      if (url.endsWith("/document-types") || url.endsWith("/teams") || url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [] }));
+      return Promise.resolve(json(undefined, 204));
     });
     render(<Home />);
-    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
-    await screen.findByRole("heading", { name: /your people/i });
-    await user.click(screen.getByRole("button", { name: "Edit" }));
-    const dialog = await screen.findByRole("dialog", { name: /edit user/i });
-    const input = within(dialog).getByLabelText(/username/i);
-    await user.clear(input);
-    await user.type(input, "ada_updated");
-    await user.click(within(dialog).getByRole("button", { name: /save changes/i }));
-    expect(fetch).toHaveBeenCalledWith("/api/users/1", expect.objectContaining({ method: "PUT" }));
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /settings/i }));
+    await screen.findByRole("heading", { name: /workspace settings/i });
+    await user.type(screen.getByLabelText(/username/i), "ada_updated");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(fetch).toHaveBeenCalledWith("/api/users/1", expect.objectContaining({ method: "PUT", body: JSON.stringify({ username: "ada_updated" }) }));
+    await openNavigation(user);
     expect(await screen.findByText("ada_updated")).toBeInTheDocument();
   });
 
-  it("shows memberships in a modal instead of alert", async () => {
+  it("shows each team role on the team cards", async () => {
     const user = userEvent.setup();
     localStorage.setItem("paperless_token", "token");
     global.fetch = jest.fn().mockImplementation((url: string) => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
-      if (url.endsWith("/users")) return Promise.resolve(json({ items: [{ id: 1, username: "ada", email: "ada@example.com" }] }));
       if (url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [{ team: { id: 5, name: "Core Team" }, role: "ADMIN" }] }));
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 5, name: "Core Team", description: "", owner_id: 99 }] }));
+      if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
+      if (url.endsWith("/document-types")) return Promise.resolve(json({ items: [] }));
       return Promise.resolve(json({ items: [] }));
     });
     render(<Home />);
-    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
-    await screen.findByRole("heading", { name: /your people/i });
-    await user.click(screen.getByRole("button", { name: "Memberships" }));
-    const dialog = await screen.findByRole("dialog", { name: /memberships for ada/i });
-    expect(within(dialog).getByText("Core Team")).toBeInTheDocument();
-    expect(within(dialog).getByText("ADMIN")).toBeInTheDocument();
-    await user.click(within(dialog).getByRole("button", { name: /^close$/i }));
-    expect(screen.queryByRole("dialog", { name: /memberships for ada/i })).not.toBeInTheDocument();
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /teams/i }));
+    await screen.findByRole("heading", { name: /your teams/i });
+    expect(await screen.findByText("Core Team")).toBeInTheDocument();
+    expect(screen.getByText("Administrator")).toBeInTheDocument();
   });
 
-  it("edits team with a modal instead of prompt", async () => {
+  it("edits a team with a modal instead of prompt", async () => {
     const user = userEvent.setup();
     localStorage.setItem("paperless_token", "token");
+    const team = { id: 3, name: "DevOps", description: "Infra", owner_id: 1 };
     global.fetch = jest.fn().mockImplementation((url: string, options?: RequestInit) => {
       if (url.endsWith("/auth/me")) return Promise.resolve(json({ id: 1, username: "ada", email: "ada@example.com" }));
-      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [{ id: 3, name: "DevOps", description: "Infra" }] }));
-      if (url.endsWith("/teams/3") && options?.method === "PUT") return Promise.resolve(json({ id: 3, name: "Platform", description: "Infra" }));
-      if (url.endsWith("/teams/3")) return Promise.resolve(json({ id: 3, name: "DevOps", description: "Infra" }));
-      return Promise.resolve(json({ items: [] }));
+      if (url.endsWith("/users/1/teams")) return Promise.resolve(json({ items: [] }));
+      if (url.endsWith("/teams/3") && options?.method === "PUT") { const body = JSON.parse(options.body as string); team.name = body.name; team.description = body.description; return Promise.resolve(json(team)); }
+      if (url.endsWith("/teams")) return Promise.resolve(json({ items: [team] }));
+      if (url.endsWith("/teams/3")) return Promise.resolve(json(team));
+      if (url.endsWith("/teams/3/members")) return Promise.resolve(json({ items: [] }));
+      if (url.includes("/documents?")) return Promise.resolve(json({ items: [], pagination: { page: 0, size: 12, total_elements: 0, total_pages: 0 } }));
+      if (url.endsWith("/document-types")) return Promise.resolve(json({ items: [] }));
+      return Promise.resolve(json(undefined, 204));
     });
     render(<Home />);
-    await user.click(within(await openNavigation(user)).getByRole("button", { name: /people/i }));
-    await screen.findByRole("heading", { name: /your people/i });
-    const teamCard = screen.getByText("DevOps").closest(".MuiPaper-root") as HTMLElement;
-    await user.click(within(teamCard).getByRole("button", { name: "Edit" }));
+    await user.click(within(await openNavigation(user)).getByRole("button", { name: /teams/i }));
+    await screen.findByRole("heading", { name: /your teams/i });
+    await user.click(screen.getByText("DevOps"));
+    await screen.findByText("Members");
+    await user.click(screen.getByRole("button", { name: /edit team/i }));
     const dialog = await screen.findByRole("dialog", { name: /edit team/i });
     const input = within(dialog).getByLabelText(/team name/i);
     await user.clear(input);

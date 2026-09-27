@@ -1,4 +1,4 @@
-import { api, apiFetch, apiUpload, apiDelete, apiGetFile, apiGetFileBlob, apiUpdateDocument, normalizeApiError, ApiError } from "./api";
+import { api, apiFetch, apiUpload, apiDelete, apiGetFile, apiGetFileBlob, apiUpdateDocument, normalizeApiError, invalidParamFor, ApiError } from "./api";
 
 describe("api client", () => {
   const response = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, statusText: "Nope", json: async () => body });
@@ -8,8 +8,8 @@ describe("api client", () => {
   });
 
   it("attaches the stored bearer token and parses JSON", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 4 }));
-    await expect(apiFetch<{ id: number }>("/documents")).resolves.toEqual({ id: 4 });
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "4" }));
+    await expect(apiFetch<{ id: string }>("/documents")).resolves.toEqual({ id: "4" });
     const request = (fetch as jest.Mock).mock.calls[0][1];
     expect(request.headers.get("Authorization")).toBe("Bearer abc");
   });
@@ -25,6 +25,14 @@ describe("api client", () => {
     expect(normalizeApiError({ title: "Fallback" })).toBe("Fallback");
   });
 
+  it("exposes invalid parameter reasons from the problem body", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ detail: "Validation failed", invalid_params: [{ name: "username", reason: "Too long" }] }, 422));
+    const error = await apiFetch("/users").catch((err: unknown) => err);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(invalidParamFor(error, "username")).toBe("Too long");
+    expect(invalidParamFor(error, "password")).toBeNull();
+  });
+
   it("removes the token only for unauthorized responses", async () => {
     global.fetch = jest.fn().mockResolvedValue(response({ detail: "Expired" }, 401));
     await expect(apiFetch("/auth/me")).rejects.toMatchObject({ status: 401 });
@@ -37,46 +45,50 @@ describe("api client", () => {
     expect(localStorage.getItem("paperless_token")).toBe("abc");
   });
 
-  it("sends a required non-empty password for user creation", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 2 }));
-    await api.createUser({ username: "ada", email: "ada@example.com", password: "secret123" });
-    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toMatchObject({ password: "secret123" });
+  it("sends registration credentials without authentication", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "2" }));
+    await api.register({ username: "ada", password: "secret123" });
+    expect((fetch as jest.Mock).mock.calls[0][0]).toBe("/api/users");
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toEqual({ username: "ada", password: "secret123" });
   });
 
   it("exposes detail and membership endpoint callers", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 1, name: "Item" }));
-    await api.document(1); await api.user(2); await api.userTeams(2); await api.team(3); await api.members(3); await api.users();
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "1", name: "Item" }));
+    await api.document("1"); await api.user("2"); await api.userTeams("2"); await api.team("3"); await api.members("3"); await api.users();
     expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
       "/api/documents/1", "/api/users/2", "/api/users/2/teams", "/api/teams/3", "/api/teams/3/members", "/api/users",
     ]);
   });
 
-  it("uses correspondent notes and exposes metadata detail callers", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 8, name: "Acme", notes: "Preferred" }));
-    await api.correspondent(8);
-    await api.documentType(9);
-    await api.createLabel("correspondents", { name: "Acme", notes: "Preferred" });
-    await api.updateLabel("correspondents", 8, { notes: "Updated" });
+  it("exposes document type and team CRUD callers", async () => {
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "9", name: "Invoice" }));
+    await api.documentType("9");
+    await api.createTeam({ name: "Finance", description: null });
+    await api.updateTeam("9", { name: "Finance" });
+    await api.deleteTeam("9");
     expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
-      "/api/correspondents/8", "/api/document-types/9", "/api/correspondents", "/api/correspondents/8",
+      "/api/document-types/9", "/api/teams", "/api/teams/9", "/api/teams/9",
     ]);
-    expect(JSON.parse((fetch as jest.Mock).mock.calls[2][1].body)).toEqual({ name: "Acme", notes: "Preferred" });
-    expect(JSON.parse((fetch as jest.Mock).mock.calls[3][1].body)).toEqual({ notes: "Updated" });
+    expect((fetch as jest.Mock).mock.calls[1][1].method).toBe("POST");
+    expect((fetch as jest.Mock).mock.calls[2][1].method).toBe("PUT");
+    expect((fetch as jest.Mock).mock.calls[3][1].method).toBe("DELETE");
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[2][1].body)).toEqual({ name: "Finance" });
   });
 
   it("exposes team member assignment mutations", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ user: { id: 2 }, role: "MEMBER" }));
-    await api.addMember(3, { user_id: 2, role: "MEMBER" });
-    await api.updateMember(3, 2, "ADMIN");
-    await api.removeMember(3, 2);
+    global.fetch = jest.fn().mockResolvedValue(response({ user: { id: "2" }, role: "READ_WRITE" }));
+    await api.addMember("3", { user_id: "2", role: "READ_WRITE" });
+    await api.updateMember("3", "2", "ADMIN");
+    await api.removeMember("3", "2");
     expect((fetch as jest.Mock).mock.calls.map(([url]) => url)).toEqual([
       "/api/teams/3/members", "/api/teams/3/members/2", "/api/teams/3/members/2",
     ]);
-    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toEqual({ user_id: 2, role: "MEMBER" });
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[0][1].body)).toEqual({ user_id: "2", role: "READ_WRITE" });
+    expect(JSON.parse((fetch as jest.Mock).mock.calls[1][1].body)).toEqual({ role: "ADMIN" });
   });
 
   it("sends multipart uploads without overriding the content type", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 1 }, 201));
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "1" }, 201));
     const file = new File(["hello"], "hello.txt", { type: "text/plain" });
     await apiUpload("/documents", { document: file, title: "Hello" });
     expect(fetch).toHaveBeenCalledWith("/api/documents", expect.objectContaining({ method: "POST", body: expect.any(FormData) }));
@@ -84,27 +96,27 @@ describe("api client", () => {
   });
 
   it("uses real Headers for mutations and file downloads", async () => {
-    global.fetch = jest.fn().mockResolvedValue(response({ id: 8 }));
-    await apiUpdateDocument(8, { title: "Renamed" });
+    global.fetch = jest.fn().mockResolvedValue(response({ id: "8" }));
+    await apiUpdateDocument("8", { title: "Renamed" });
     await apiDelete("/document-types/8");
     expect((fetch as jest.Mock).mock.calls[0][0]).toBe("/api/documents/8");
     expect((fetch as jest.Mock).mock.calls[0][1].headers).toBeInstanceOf(Headers);
     global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["file"]) });
-    await apiGetFile(8, "receipt.pdf");
+    await apiGetFile("8", "receipt.pdf");
     expect((fetch as jest.Mock).mock.calls[0][0]).toBe("/api/documents/8/download");
   });
 
   it("returns authenticated document blobs and handles unauthorized responses", async () => {
     const blob = new Blob(["file"]);
     global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => blob });
-    await expect(apiGetFileBlob(8)).resolves.toBe(blob);
+    await expect(apiGetFileBlob("8")).resolves.toBe(blob);
     expect(fetch).toHaveBeenCalledWith("/api/documents/8/download", { headers: expect.any(Headers) });
     expect((fetch as jest.Mock).mock.calls[0][1].headers.get("Authorization")).toBe("Bearer abc");
 
     const unauthorized = jest.fn();
     window.addEventListener("paperless:unauthorized", unauthorized);
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
-    await expect(apiGetFileBlob(8)).rejects.toMatchObject({ status: 401, message: "Download failed" });
+    await expect(apiGetFileBlob("8")).rejects.toMatchObject({ status: 401, message: "Download failed" });
     window.removeEventListener("paperless:unauthorized", unauthorized);
     expect(localStorage.getItem("paperless_token")).toBeNull();
     expect(unauthorized).toHaveBeenCalled();

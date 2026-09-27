@@ -1,46 +1,36 @@
-import type { Document } from "../../lib/api";
+ import type { DocumentStatus } from "../../lib/api";
+
+export const statusTone: Record<DocumentStatus, "default" | "info" | "warning" | "success" | "error"> = {
+  PENDING: "default",
+  OCR_IN_PROGRESS: "info",
+  GENAI_IN_PROGRESS: "warning",
+  COMPLETED: "success",
+  FAILED: "error",
+};
 
 export const bytes = (n: number) =>
   n > 1_000_000
     ? `${(n / 1_000_000).toFixed(1)} MB`
     : `${Math.max(1, Math.round(n / 1000))} KB`;
-const previewMimeByExtension: Record<string, string> = {
-  pdf: "application/pdf",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  webp: "image/webp",
-  avif: "image/avif",
-  txt: "text/plain",
-  md: "text/plain",
-  markdown: "text/plain",
-};
 
-export function previewMime(document: Document): string | null {
-  const extension =
-    document.original_filename.toLowerCase().match(/\.([^.]+)$/)?.[1] || "";
-  const safeMime = previewMimeByExtension[extension];
-  if (!safeMime) return null;
-  const declared = document.content_type.split(";")[0].trim().toLowerCase();
-  if (
-    declared === safeMime ||
-    declared === "application/octet-stream" ||
-    declared === ""
-  )
-    return safeMime;
-  if (
-    (extension === "md" || extension === "markdown") &&
-    (declared === "text/markdown" || declared === "text/x-markdown")
-  )
-    return safeMime;
-  return null;
+export type HighlightSegment = { text: string; emphasized: boolean };
+
+export function parseHighlights(text: string): HighlightSegment[] {
+  const segments: HighlightSegment[] = [];
+  const push = (chunk: string, emphasized: boolean) => {
+    if (!chunk) return;
+    const last = segments[segments.length - 1];
+    if (last && last.emphasized === emphasized) last.text += chunk;
+    else segments.push({ text: chunk, emphasized });
+  };
+  const pattern = /<em>([\s\S]*?)<\/em>/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(text))) {
+    push(text.slice(last, match.index), false);
+    push(match[1], true);
+    last = pattern.lastIndex;
+  }
+  push(text.slice(last), false);
+  return segments;
 }
-
-export type PreviewState = {
-  key: string;
-  stage: "loading" | "ready" | "error";
-  url?: string;
-  text?: string;
-  message?: string;
-};

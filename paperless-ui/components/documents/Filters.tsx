@@ -1,82 +1,88 @@
+"use client";
+
 import {
   Button,
-  FormControl,
-  InputLabel,
   MenuItem,
-  Select,
+  TextField,
   Stack,
   Typography,
 } from "@mui/material";
-import type { Correspondent, DocumentType } from "../../lib/api";
+import type { DocumentType, Team } from "../../lib/api";
+import { useI18n } from "../../lib/i18n/I18nProvider";
 import { smallLabel } from "../shared/styles";
 
-type FilterDraft = { correspondent_id: string; document_type_id: string };
+export type FilterDraft = { document_type_id: string; team: string; sort: string };
 
 export function Filters({
   draft,
-  correspondents,
   types,
+  teams,
   onChange,
   onApply,
 }: {
   draft: FilterDraft;
-  correspondents: Correspondent[];
   types: DocumentType[];
+  teams: Team[];
   onChange: (v: FilterDraft) => void;
   onApply: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <Stack
       direction="row"
       sx={{ gap: 1.5, alignItems: "center", flexWrap: "wrap", mb: 3 }}
     >
       <Typography color="text.secondary" sx={{ ...smallLabel, mr: 1 }}>
-        Filter by
+        {t("filters.filter_by")}
       </Typography>
-      <FormControl size="small" sx={{ minWidth: 190 }}>
-        <InputLabel id="filter-correspondent-label" shrink>
-          Correspondent
-        </InputLabel>
-        <Select
-          labelId="filter-correspondent-label"
-          label="Correspondent"
-          displayEmpty
-          value={draft.correspondent_id}
-          onChange={(e) =>
-            onChange({ ...draft, correspondent_id: e.target.value })
-          }
-        >
-          <MenuItem value="">All correspondents</MenuItem>
-          {correspondents.map((x) => (
-            <MenuItem key={x.id} value={String(x.id)}>
-              {x.name}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <FormControl size="small" sx={{ minWidth: 170 }}>
-        <InputLabel id="filter-document-type-label" shrink>
-          Document type
-        </InputLabel>
-        <Select
-          labelId="filter-document-type-label"
-          label="Document type"
-          displayEmpty
-          value={draft.document_type_id}
-          onChange={(e) =>
-            onChange({ ...draft, document_type_id: e.target.value })
-          }
-        >
-          <MenuItem value="">All types</MenuItem>
-          {types.map((x) => (
-            <MenuItem key={x.id} value={String(x.id)}>
-              {x.name}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      <TextField
+        select
+        size="small"
+        sx={{ minWidth: 180 }}
+        label={t("filters.document_type")}
+        value={draft.document_type_id}
+        onChange={(e) => onChange({ ...draft, document_type_id: e.target.value })}
+      >
+        <MenuItem value="">{t("filters.all_types")}</MenuItem>
+        {types.map((x) => (
+          <MenuItem key={x.id} value={x.id}>
+            {x.name}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        select
+        size="small"
+        sx={{ minWidth: 170 }}
+        label={t("filters.team")}
+        value={draft.team}
+        onChange={(e) => onChange({ ...draft, team: e.target.value })}
+      >
+        <MenuItem value="">{t("filters.all_teams")}</MenuItem>
+        <MenuItem value="private">{t("filters.private")}</MenuItem>
+        {teams.map((x) => (
+          <MenuItem key={x.id} value={x.id}>
+            {x.name}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        select
+        size="small"
+        sx={{ minWidth: 170 }}
+        label={t("filters.sort")}
+        value={draft.sort}
+        onChange={(e) => onChange({ ...draft, sort: e.target.value })}
+      >
+        <MenuItem value="created_at,desc">{t("sort.created_desc")}</MenuItem>
+        <MenuItem value="created_at,asc">{t("sort.created_asc")}</MenuItem>
+        <MenuItem value="title,asc">{t("sort.title_asc")}</MenuItem>
+        <MenuItem value="title,desc">{t("sort.title_desc")}</MenuItem>
+        <MenuItem value="file_size,desc">{t("sort.size_desc")}</MenuItem>
+        <MenuItem value="file_size,asc">{t("sort.size_asc")}</MenuItem>
+      </TextField>
       <Button variant="outlined" onClick={onApply}>
-        Apply filters
+        {t("common.apply")}
       </Button>
     </Stack>
   );

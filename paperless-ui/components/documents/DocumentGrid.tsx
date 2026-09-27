@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Avatar,
   Box,
@@ -14,31 +16,48 @@ import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DescriptionOutlined from "@mui/icons-material/DescriptionOutlined";
 import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined";
 import PictureAsPdfOutlined from "@mui/icons-material/PictureAsPdfOutlined";
-import type { Document } from "../../lib/api";
-import { bytes } from "./document-utils";
+import type { Document, Team } from "../../lib/api";
+import { useI18n } from "../../lib/i18n/I18nProvider";
+import { bytes, parseHighlights, statusTone } from "./document-utils";
+
+export type DocumentGridItem = {
+  document: Document;
+  score?: number;
+  highlights?: string[];
+};
 
 export function DocumentGrid({
-  documents,
+  items,
   loading,
+  loadingLabel,
+  teams,
+  emptyState,
   onDelete,
   onOpen,
   onUpload,
-  ready,
 }: {
-  documents: Document[];
+  items: DocumentGridItem[];
   loading: boolean;
-  onDelete: (id: number) => void;
+  loadingLabel: string;
+  teams: Team[];
+  emptyState: "library" | "search";
+  onDelete: (id: string) => void;
   onOpen: (doc: Document) => void;
   onUpload: () => void;
-  ready: boolean;
 }) {
+  const { t } = useI18n();
+  const teamName = (doc: Document) => {
+    if (!doc.team_id) return t("filters.private");
+    return teams.find((team) => team.id === doc.team_id)?.name || t("filters.private");
+  };
+
   if (loading)
     return (
       <Typography color="text.secondary" align="center" sx={{ py: 10 }}>
-        Loading your library…
+        {loadingLabel}
       </Typography>
     );
-  if (!documents.length)
+  if (!items.length)
     return (
       <Card
         variant="outlined"
@@ -59,25 +78,25 @@ export function DocumentGrid({
             <Inventory2Outlined fontSize="large" />
           </Avatar>
           <Typography component="h2" variant="h5">
-            {ready ? "Search your archive" : "Your desk is ready"}
+            {emptyState === "search" ? t("grid.search_empty") : t("grid.library_empty")}
           </Typography>
           <Typography
             color="text.secondary"
             variant="body2"
             sx={{ mt: 1, mb: 3 }}
           >
-            {ready
-              ? "Enter a phrase above to find a document."
-              : "Upload a document to start building your library."}
+            {emptyState === "search" ? t("grid.search_empty_hint") : t("grid.library_empty_hint")}
           </Typography>
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<AddRounded />}
-            onClick={onUpload}
-          >
-            Upload document
-          </Button>
+          {emptyState !== "search" && (
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<AddRounded />}
+              onClick={onUpload}
+            >
+              {t("upload.title")}
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -93,113 +112,139 @@ export function DocumentGrid({
         },
       }}
     >
-      {documents.map((doc) => (
-        <Card
-          key={doc.id}
-          component="article"
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            minHeight: 265,
-            transition: "transform .25s, box-shadow .25s",
-            "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
-          }}
-        >
-          <CardContent
-            sx={{ display: "flex", flexDirection: "column", flex: 1, p: 3 }}
+      {items.map((item) => {
+        const doc = item.document;
+        return (
+          <Card
+            key={doc.id}
+            component="article"
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 265,
+              transition: "transform .25s, box-shadow .25s",
+              "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
+            }}
           >
-            <Button
-              onClick={() => onOpen(doc)}
-              sx={{
-                textAlign: "left",
-                p: 0,
-                flex: 1,
-                display: "block",
-                color: "text.primary",
-                "&:hover": {
-                  bgcolor: "transparent",
-                  textDecoration: "underline",
-                  textDecorationColor: "secondary.main",
-                  textUnderlineOffset: 4,
-                },
-              }}
+            <CardContent
+              sx={{ display: "flex", flexDirection: "column", flex: 1, p: 3 }}
             >
+              <Button
+                onClick={() => onOpen(doc)}
+                sx={{
+                  textAlign: "left",
+                  p: 0,
+                  flex: 1,
+                  display: "block",
+                  color: "text.primary",
+                  "&:hover": {
+                    bgcolor: "transparent",
+                    textDecoration: "underline",
+                    textDecorationColor: "secondary.main",
+                    textUnderlineOffset: 4,
+                  },
+                }}
+              >
+                <Stack
+                  direction="row"
+                  sx={{
+                    alignItems: "start",
+                    justifyContent: "space-between",
+                    mb: 3.5,
+                  }}
+                >
+                  <Avatar
+                    variant="rounded"
+                    sx={{ bgcolor: "action.hover", color: "text.primary" }}
+                  >
+                    {doc.content_type.includes("pdf") ? (
+                      <PictureAsPdfOutlined />
+                    ) : (
+                      <DescriptionOutlined />
+                    )}
+                  </Avatar>
+                  <Chip
+                    size="small"
+                    color={statusTone[doc.status]}
+                    variant={statusTone[doc.status] === "default" ? "outlined" : "filled"}
+                    label={t(`status.${doc.status}`)}
+                    sx={{ fontSize: 10, fontWeight: 700 }}
+                  />
+                </Stack>
+                <Typography
+                  component="h2"
+                  variant="h6"
+                  sx={{
+                    fontWeight: 650,
+                    lineHeight: 1.3,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {doc.title}
+                </Typography>
+                <Typography
+                  color="text.secondary"
+                  variant="caption"
+                  noWrap
+                  sx={{ display: "block", mt: 1.5 }}
+                >
+                  {doc.original_filename} · {bytes(doc.file_size)}
+                </Typography>
+                {item.highlights && item.highlights.length > 0 ? (
+                  <Typography
+                    color="text.secondary"
+                    variant="caption"
+                    sx={{ display: "block", mt: 1 }}
+                  >
+                    {parseHighlights(item.highlights[0]).map((seg, index) =>
+                      seg.emphasized ? (
+                        <em key={index}>{seg.text}</em>
+                      ) : (
+                        <span key={index}>{seg.text}</span>
+                      ),
+                    )}
+                  </Typography>
+                ) : null}
+              </Button>
+              <Divider sx={{ my: 2 }} />
               <Stack
                 direction="row"
                 sx={{
-                  alignItems: "start",
+                  gap: 1,
+                  alignItems: "center",
                   justifyContent: "space-between",
-                  mb: 3.5,
                 }}
               >
-                <Avatar
-                  variant="rounded"
-                  sx={{ bgcolor: "action.hover", color: "text.primary" }}
-                >
-                  {doc.content_type.includes("pdf") ? (
-                    <PictureAsPdfOutlined />
-                  ) : (
-                    <DescriptionOutlined />
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center", overflow: "hidden" }}>
+                  <Typography color="text.secondary" variant="caption" noWrap>
+                    {teamName(doc)}
+                  </Typography>
+                  {item.score !== undefined && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 20, fontSize: 10 }}
+                      label={`${t("search.relevance")} ${item.score.toFixed(2)}`}
+                    />
                   )}
-                </Avatar>
-                <Chip
+                </Stack>
+                <Button
                   size="small"
-                  label={doc.status.replaceAll("_", " ")}
-                  sx={{
-                    bgcolor: "action.hover",
-                    fontSize: 10,
-                    fontWeight: 700,
-                  }}
-                />
+                  color="error"
+                  startIcon={<DeleteOutlineRounded fontSize="small" />}
+                  aria-label={`${t("common.delete")} ${doc.title}`}
+                  onClick={() => onDelete(doc.id)}
+                >
+                  {t("common.delete")}
+                </Button>
               </Stack>
-              <Typography
-                component="h2"
-                variant="h6"
-                sx={{
-                  fontWeight: 650,
-                  lineHeight: 1.3,
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {doc.title}
-              </Typography>
-              <Typography
-                color="text.secondary"
-                variant="caption"
-                noWrap
-                sx={{ display: "block", mt: 1.5 }}
-              >
-                {doc.original_filename} · {bytes(doc.file_size)}
-              </Typography>
-            </Button>
-            <Divider sx={{ my: 2 }} />
-            <Stack
-              direction="row"
-              sx={{
-                gap: 1,
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <Typography color="text.secondary" variant="caption" noWrap>
-                {doc.correspondent?.name || "Unassigned"}
-              </Typography>
-              <Button
-                size="small"
-                color="error"
-                startIcon={<DeleteOutlineRounded fontSize="small" />}
-                aria-label={`Delete ${doc.title}`}
-                onClick={() => onDelete(doc.id)}
-              >
-                Delete
-              </Button>
-            </Stack>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </Box>
   );
 }

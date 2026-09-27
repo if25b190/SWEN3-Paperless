@@ -1,286 +1,353 @@
+"use client";
+
 import { useState } from "react";
 import {
   Alert,
-  Box,
   Button,
-  Card,
-  DialogActions,
+  List,
+  ListItem,
   Paper,
   Stack,
   TextField,
   Typography,
 } from "@mui/material";
-import { api, type Correspondent, type DocumentType } from "../../lib/api";
+import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
+import EditRounded from "@mui/icons-material/EditRounded";
+import AddRounded from "@mui/icons-material/AddRounded";
+import {
+  ApiError,
+  api,
+  invalidParamFor,
+  type DocumentType,
+  type User,
+} from "../../lib/api";
+import { useI18n } from "../../lib/i18n/I18nProvider";
+import { describeError } from "../../lib/toast/errors";
+import { useToast } from "../../lib/toast/ToastProvider";
 import { Modal } from "../shared/Modal";
-import { sectionSx } from "../shared/styles";
 
 export function Settings({
-  correspondents,
+  user,
+  onUser,
   types,
-  onChange,
-  onError,
+  onTypes,
 }: {
-  correspondents: Correspondent[];
+  user: User | null;
+  onUser: (user: User) => void;
   types: DocumentType[];
-  onChange: (
-    kind: "correspondents" | "document-types",
-    items: (Correspondent | DocumentType)[],
-  ) => void;
-  onError: (e: unknown, f: string) => void;
+  onTypes: (types: DocumentType[]) => void;
 }) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [editingLabel, setEditingLabel] = useState<{
-    kind: "correspondents" | "document-types";
-    id: number;
-    name: string;
-    description: string;
-    error?: string;
-  } | null>(null);
+  const { t } = useI18n();
+  const { toast } = useToast();
 
-  const add = async (kind: "correspondents" | "document-types") => {
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addDescription, setAddDescription] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const [savingType, setSavingType] = useState(false);
+
+  const [editFor, setEditFor] = useState<DocumentType | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const [deleteFor, setDeleteFor] = useState<DocumentType | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const refreshTypes = async () => {
     try {
-      const item =
-        kind === "correspondents"
-          ? await api.createLabel(kind, { name, notes: description })
-          : await api.createDocumentType({ name, description });
-      onChange(kind, [
-        ...(kind === "correspondents" ? correspondents : types),
-        item,
-      ]);
-      setName("");
-      setDescription("");
-    } catch (err) {
-      onError(err, "Item could not be created.");
+      const page = await api.documentTypes();
+      onTypes(page.items);
+    } catch {
+      /* keep the previous list */
     }
   };
 
-  const row = (
-    kind: "correspondents" | "document-types",
-    item: Correspondent | DocumentType,
-  ) => {
-    const text =
-      kind === "correspondents"
-        ? (item as Correspondent).notes
-        : (item as DocumentType).description;
-    const edit = async () => {
-      try {
-        const detail =
-          kind === "correspondents"
-            ? await api.correspondent(item.id)
-            : await api.documentType(item.id);
-        const detailText =
-          kind === "correspondents"
-            ? (detail as Correspondent).notes || ""
-            : (detail as DocumentType).description || "";
-        setEditingLabel({
-          kind,
-          id: item.id,
-          name: detail.name,
-          description: detailText,
-        });
-      } catch (err) {
-        onError(err, "Item details could not be loaded.");
+  const createType = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingType(true);
+    setAddError(null);
+    try {
+      await api.createDocumentType({ name: addName, description: addDescription || null });
+      toast("success", t("messages.type_created"));
+      setAddOpen(false);
+      setAddName("");
+      setAddDescription("");
+      await refreshTypes();
+    } catch (err) {
+      setAddError(describeError(err, t));
+    } finally {
+      setSavingType(false);
+    }
+  };
+
+  const openEdit = (type: DocumentType) => {
+    setEditFor(type);
+    setEditName(type.name);
+    setEditDescription(type.description ?? "");
+    setEditError(null);
+  };
+
+  const saveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editFor) return;
+    setSavingType(true);
+    setEditError(null);
+    try {
+      await api.updateDocumentType(editFor.id, {
+        name: editName,
+        description: editDescription || null,
+      });
+      toast("success", t("messages.type_updated"));
+      setEditFor(null);
+      await refreshTypes();
+    } catch (err) {
+      setEditError(describeError(err, t));
+    } finally {
+      setSavingType(false);
+    }
+  };
+
+  const removeType = async () => {
+    if (!deleteFor) return;
+    setDeleting(true);
+    try {
+      await api.deleteDocumentType(deleteFor.id);
+      toast("success", t("messages.type_deleted"));
+      setDeleteFor(null);
+      await refreshTypes();
+    } catch (err) {
+      toast("error", describeError(err, t));
+      setDeleteFor(null);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setSavingProfile(true);
+    setUsernameError(null);
+    setPasswordError(null);
+    const body: Partial<{ username: string; password: string }> = {};
+    if (username) body.username = username;
+    if (password) body.password = password;
+    if (!username && !password) {
+      setSavingProfile(false);
+      return;
+    }
+    try {
+      const updated = await api.updateUser(user.id, body);
+      onUser(updated);
+      setUsername("");
+      setPassword("");
+      toast("success", t("messages.profile_saved"));
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const usernameParam = invalidParamFor(err, "username");
+        const passwordParam = invalidParamFor(err, "password");
+        if (usernameParam) setUsernameError(usernameParam);
+        if (passwordParam) setPasswordError(passwordParam);
+        if (!usernameParam && !passwordParam) toast("error", err.message);
+      } else {
+        toast("error", t("common.error"));
       }
-    };
-    return (
-      <Paper
-        key={item.id}
-        variant="outlined"
-        sx={{
-          p: 1.5,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 1,
-          flexWrap: "wrap",
-          bgcolor: "action.hover",
-        }}
-      >
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {item.name}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {text || "No description"}
-          </Typography>
-        </Box>
-        <Stack direction="row">
-          <Button size="small" onClick={() => void edit()}>
-            Edit
-          </Button>
-          <Button
-            size="small"
-            color="error"
-            onClick={() =>
-              api
-                .deleteLabel(kind, item.id)
-                .then(() =>
-                  onChange(
-                    kind,
-                    (kind === "correspondents" ? correspondents : types).filter(
-                      (x) => x.id !== item.id,
-                    ),
-                  ),
-                )
-                .catch((err) => onError(err, "Item could not be deleted."))
-            }
-          >
-            Delete
-          </Button>
-        </Stack>
-      </Paper>
-    );
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   return (
-    <Stack className="reveal" sx={{ gap: 2.5, maxWidth: 920 }}>
-      <Card component="section" sx={sectionSx}>
-        <Typography component="h2" variant="h5">
-          Correspondents and document types
-        </Typography>
-        <Stack direction={{ xs: "column", md: "row" }} sx={{ gap: 1.5, mt: 3 }}>
-          <TextField
-            label="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            sx={{ flex: 1 }}
-            slotProps={{ htmlInput: { "aria-label": "Metadata name" } }}
-          />
-          <TextField
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            sx={{ flex: 1 }}
-            slotProps={{ htmlInput: { "aria-label": "Metadata description" } }}
-          />
-          <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
-            <Button
-              onClick={() => void add("correspondents")}
-              variant="contained"
-            >
-              Add correspondent
-            </Button>
-            <Button
-              onClick={() => void add("document-types")}
-              variant="contained"
-              color="secondary"
-            >
-              Add type
-            </Button>
-          </Stack>
-        </Stack>
-      </Card>
-      <Card component="section" sx={sectionSx}>
-        <Typography component="h2" variant="h5">
-          Correspondents
-        </Typography>
-        <Stack sx={{ gap: 1, mt: 2 }}>
-          {correspondents.map((x) => row("correspondents", x))}
-        </Stack>
-      </Card>
-      <Card component="section" sx={sectionSx}>
-        <Typography component="h2" variant="h5">
-          Document types
-        </Typography>
-        <Stack sx={{ gap: 1, mt: 2 }}>
-          {types.map((x) => row("document-types", x))}
-        </Stack>
-      </Card>
-      {editingLabel && (
-        <Modal
-          title={`Edit ${editingLabel.kind === "correspondents" ? "correspondent" : "document type"}`}
-          onClose={() => setEditingLabel(null)}
+    <Stack spacing={3}>
+      <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
+        <Stack
+          direction="row"
+          sx={{ mb: 0.5, alignItems: "center", justifyContent: "space-between" }}
         >
-          <Box
-            component="form"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                if (editingLabel.kind === "correspondents") {
-                  const updated = await api.updateLabel(
-                    editingLabel.kind,
-                    editingLabel.id,
-                    {
-                      name: editingLabel.name,
-                      notes: editingLabel.description || undefined,
-                    },
-                  );
-                  onChange(
-                    editingLabel.kind,
-                    correspondents.map((v) =>
-                      v.id === updated.id ? updated : v,
-                    ),
-                  );
-                } else {
-                  const updated = await api.updateDocumentType(
-                    editingLabel.id,
-                    {
-                      name: editingLabel.name,
-                      description: editingLabel.description || undefined,
-                    },
-                  );
-                  onChange(
-                    editingLabel.kind,
-                    types.map((v) => (v.id === updated.id ? updated : v)),
-                  );
-                }
-                setEditingLabel(null);
-              } catch (err) {
-                setEditingLabel((cur) =>
-                  cur
-                    ? {
-                        ...cur,
-                        error:
-                          err instanceof Error
-                            ? err.message
-                            : "Item could not be edited.",
-                      }
-                    : null,
-                );
-              }
+          <Typography sx={{ fontWeight: 650 }}>{t("settings.document_types")}</Typography>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddRounded />}
+            onClick={() => {
+              setAddName("");
+              setAddDescription("");
+              setAddError(null);
+              setAddOpen(true);
             }}
           >
-            <Stack sx={{ gap: 2, mt: 1 }}>
-              <TextField
-                label="Name"
-                required
-                autoFocus
-                value={editingLabel.name}
-                onChange={(e) =>
-                  setEditingLabel((cur) =>
-                    cur ? { ...cur, name: e.target.value } : null,
-                  )
+            {t("settings.add_type")}
+          </Button>
+        </Stack>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          {t("settings.types_hint")}
+        </Typography>
+        {types.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            {t("settings.no_description")}
+          </Typography>
+        ) : (
+          <List disablePadding>
+            {types.map((type) => (
+              <ListItem
+                key={type.id}
+                secondaryAction={
+                  <Stack direction="row" spacing={0.5}>
+                    <Button
+                      size="small"
+                      startIcon={<EditRounded />}
+                      onClick={() => openEdit(type)}
+                    >
+                      {t("common.edit")}
+                    </Button>
+                    <Button
+                      size="small"
+                      color="error"
+                      startIcon={<DeleteOutlineRounded />}
+                      onClick={() => setDeleteFor(type)}
+                    >
+                      {t("common.delete")}
+                    </Button>
+                  </Stack>
                 }
-              />
-              <TextField
-                label="Description"
-                value={editingLabel.description}
-                onChange={(e) =>
-                  setEditingLabel((cur) =>
-                    cur ? { ...cur, description: e.target.value } : null,
-                  )
-                }
-              />
-              {editingLabel.error && (
-                <Alert severity="error" role="alert">
-                  {editingLabel.error}
-                </Alert>
-              )}
-            </Stack>
-            <DialogActions sx={{ px: 0, mt: 3 }}>
-              <Button
-                type="button"
-                variant="outlined"
-                onClick={() => setEditingLabel(null)}
+                sx={{ px: 0, py: 1.25, borderBottom: "1px solid", borderColor: "divider", "&:last-child": { borderBottom: 0 } }}
               >
-                Cancel
+                <Stack spacing={0.25} sx={{ pr: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {type.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {type.description ?? t("settings.no_description")}
+                  </Typography>
+                </Stack>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </Paper>
+      {user && (
+        <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5 }}>
+          <Typography sx={{ fontWeight: 650 }}>{t("settings.your_profile")}</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+            {t("settings.profile_hint")}
+          </Typography>
+          <Stack component="form" spacing={2} onSubmit={saveProfile}>
+            <TextField
+              label={t("auth.username")}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              fullWidth
+              size="small"
+              error={!!usernameError}
+              helperText={usernameError ?? undefined}
+            />
+            <TextField
+              label={t("settings.new_password")}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              fullWidth
+              size="small"
+              helperText={passwordError ?? t("settings.password_hint")}
+              error={!!passwordError}
+            />
+            <Stack sx={{ justifyContent: "flex-end" }}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={savingProfile || (!username && !password)}
+              >
+                {t("common.save")}
               </Button>
-              <Button type="submit" variant="contained">
-                Save changes
+            </Stack>
+          </Stack>
+        </Paper>
+      )}
+      {addOpen && (
+        <Modal title={t("settings.add_type")} onClose={() => setAddOpen(false)}>
+          <Stack component="form" spacing={2} onSubmit={createType}>
+            <TextField
+              label={t("settings.name")}
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              fullWidth
+              size="small"
+              required
+            />
+            <TextField
+              label={t("settings.description")}
+              value={addDescription}
+              onChange={(e) => setAddDescription(e.target.value)}
+              fullWidth
+              size="small"
+              multiline
+              minRows={2}
+            />
+            {addError && <Alert severity="error">{addError}</Alert>}
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+              <Button onClick={() => setAddOpen(false)}>{t("common.cancel")}</Button>
+              <Button type="submit" variant="contained" disabled={savingType || !addName.trim()}>
+                {t("common.create")}
               </Button>
-            </DialogActions>
-          </Box>
+            </Stack>
+          </Stack>
+        </Modal>
+      )}
+      {editFor && (
+        <Modal title={t("settings.edit_type")} onClose={() => setEditFor(null)}>
+          <Stack component="form" spacing={2} onSubmit={saveEdit}>
+            <TextField
+              label={t("settings.name")}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              fullWidth
+              size="small"
+              required
+            />
+            <TextField
+              label={t("settings.description")}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              fullWidth
+              size="small"
+              multiline
+              minRows={2}
+            />
+            {editError && <Alert severity="error">{editError}</Alert>}
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+              <Button onClick={() => setEditFor(null)}>{t("common.cancel")}</Button>
+              <Button type="submit" variant="contained" disabled={savingType || !editName.trim()}>
+                {t("common.save")}
+              </Button>
+            </Stack>
+          </Stack>
+        </Modal>
+      )}
+      {deleteFor && (
+        <Modal title={t("settings.delete_type")} onClose={() => setDeleteFor(null)}>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              {t("settings.delete_type_confirm", { name: deleteFor.name })}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+              <Button onClick={() => setDeleteFor(null)}>{t("common.cancel")}</Button>
+              <Button
+                color="error"
+                variant="contained"
+                disabled={deleting}
+                onClick={() => void removeType()}
+              >
+                {t("common.delete")}
+              </Button>
+            </Stack>
+          </Stack>
         </Modal>
       )}
     </Stack>

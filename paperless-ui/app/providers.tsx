@@ -2,7 +2,9 @@
 
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { CssBaseline } from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import { createTheme, ThemeProvider } from "@mui/material/styles";
+import { I18nProvider } from "../lib/i18n/I18nProvider";
+import { ToastProvider } from "../lib/toast/ToastProvider";
 
 export const theme = createTheme({
   cssVariables: { colorSchemeSelector: "class" },
@@ -22,5 +24,14 @@ export const theme = createTheme({
 });
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  return <AppRouterCacheProvider><ThemeProvider theme={theme} defaultMode="system" modeStorageKey="paperless_theme" disableTransitionOnChange><CssBaseline />{children}</ThemeProvider></AppRouterCacheProvider>;
+  return (
+    <AppRouterCacheProvider>
+      <ThemeProvider theme={theme} defaultMode="system" modeStorageKey="paperless_theme" disableTransitionOnChange>
+        <CssBaseline />
+        <I18nProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </I18nProvider>
+      </ThemeProvider>
+    </AppRouterCacheProvider>
+  );
 }

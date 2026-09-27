@@ -7,11 +7,11 @@ import "./globals.css";
 const poppins = Poppins({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap", variable: "--font-poppins" });
 
 export const metadata: Metadata = {
-  title: "Paperless — your calm document desk",
+  title: "Paperless: your calm document desk",
   description: "A focused workspace for every document.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="en"

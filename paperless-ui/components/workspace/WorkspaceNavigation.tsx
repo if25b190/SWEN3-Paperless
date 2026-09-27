@@ -15,17 +15,18 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import SpaRounded from "@mui/icons-material/SpaRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
 import type { User } from "../../lib/api";
+import { useI18n } from "../../lib/i18n/I18nProvider";
 import { smallLabel } from "../shared/styles";
 import type { View } from "./types";
 
-export const navigation = [
-  { view: "library", label: "Library", icon: <DashboardRounded /> },
-  { view: "search", label: "Search", icon: <SearchRounded /> },
-  { view: "people", label: "People", icon: <Groups2Outlined /> },
-  { view: "settings", label: "Settings", icon: <TuneRounded /> },
-] as const;
+export const navigation: { view: View; labelKey: string; icon: React.ReactNode }[] = [
+  { view: "library", labelKey: "nav.library", icon: <DashboardRounded /> },
+  { view: "search", labelKey: "nav.search", icon: <SearchRounded /> },
+  { view: "people", labelKey: "nav.teams", icon: <Groups2Outlined /> },
+  { view: "settings", labelKey: "nav.settings", icon: <TuneRounded /> },
+];
 
-const initials = (name = "You") =>
+const initials = (name = "") =>
   name
     .split(/[ _-]/)
     .map((part) => part[0])
@@ -42,6 +43,7 @@ export function WorkspaceNavigation({
   user: User | null;
   onSelect: (view: View) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Box
       sx={{
@@ -96,10 +98,10 @@ export function WorkspaceNavigation({
       <Typography
         sx={{ ...smallLabel, fontSize: 10, color: "#bcd1c0", px: 2, mb: 1.25 }}
       >
-        Browse
+        {t("nav.browse")}
       </Typography>
       <List component="nav" aria-label="Main navigation" disablePadding>
-        {navigation.map(({ view: key, label, icon }) => (
+        {navigation.map(({ view: key, labelKey, icon }) => (
           <ListItemButton
             component="button"
             type="button"
@@ -125,7 +127,7 @@ export function WorkspaceNavigation({
               {icon}
             </ListItemIcon>
             <ListItemText
-              primary={label}
+              primary={t(labelKey)}
               slotProps={{
                 primary: {
                   sx: { fontSize: 14, fontWeight: view === key ? 650 : 500 },
@@ -152,14 +154,14 @@ export function WorkspaceNavigation({
             fontWeight: 700,
           }}
         >
-          {initials(user?.username)}
+          {user ? initials(user.username) : <SpaRounded />}
         </Avatar>
         <Box sx={{ minWidth: 0 }}>
           <Typography noWrap variant="body2" sx={{ fontWeight: 600 }}>
-            {user?.username || "Guest reader"}
+            {user ? user.username : t("nav.guest")}
           </Typography>
           <Typography noWrap sx={{ fontSize: 11, color: "#bcd1c0" }}>
-            {user?.email || "Sign in to sync"}
+            {user ? t("nav.signed_in") : t("nav.signed_out")}
           </Typography>
         </Box>
       </Stack>

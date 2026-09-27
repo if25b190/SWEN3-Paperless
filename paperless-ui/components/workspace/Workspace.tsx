@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   AppBar,
   Box,
   Button,
@@ -10,10 +9,14 @@ import {
   DialogActions,
   Divider,
   Drawer,
+  FormControlLabel,
   IconButton,
   InputAdornment,
+  MenuItem,
   Paper,
+  Select,
   Stack,
+  Switch,
   TextField,
   Toolbar,
   Tooltip,
@@ -30,16 +33,22 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import {
   api,
   apiDelete,
-  type Correspondent,
+  isProcessing,
   type Document,
   type DocumentType,
+  type SearchResultItem,
   type Team,
+  type TeamMembership,
   type User,
 } from "../../lib/api";
+import { useI18n } from "../../lib/i18n/I18nProvider";
+import type { Locale } from "../../lib/i18n/translations";
+import { describeError } from "../../lib/toast/errors";
+import { useToast } from "../../lib/toast/ToastProvider";
 import { LoginDialog } from "../auth/LoginDialog";
 import { DocumentDetail } from "../documents/DocumentDetail";
-import { DocumentGrid } from "../documents/DocumentGrid";
-import { Filters } from "../documents/Filters";
+import { DocumentGrid, type DocumentGridItem } from "../documents/DocumentGrid";
+import { Filters, type FilterDraft } from "../documents/Filters";
 import { Pagination } from "../documents/Pagination";
 import { UploadDialog } from "../documents/UploadDialog";
 import { People } from "../people/People";
@@ -47,174 +56,225 @@ import { Settings } from "../settings/Settings";
 import { Modal } from "../shared/Modal";
 import { drawerWidth, smallLabel } from "../shared/styles";
 import { navigation, WorkspaceNavigation } from "./WorkspaceNavigation";
-import type { Notice, View } from "./types";
+import type { View } from "./types";
+
+const PAGE_SIZE = 12;
+const POLL_INTERVAL_MS = 5000;
 
 export default function Workspace() {
+  const { t, locale, setLocale } = useI18n();
+  const { toast } = useToast();
   const [view, setView] = useState<View>("library");
   const [user, setUser] = useState<User | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [searchItems, setSearchItems] = useState<SearchResultItem[]>([]);
   const [selected, setSelected] = useState<Document | null>(null);
   const [page, setPage] = useState({ page: 0, total_pages: 0 });
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState<Notice>(null);
   const [loginOpen, setLoginOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [queryText, setQueryText] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [fuzzy, setFuzzy] = useState(true);
   const [searchReady, setSearchReady] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [draft, setDraft] = useState({
-    correspondent_id: "",
-    document_type_id: "",
-  });
-  const [filters, setFilters] = useState(draft);
-  const [correspondents, setCorrespondents] = useState<Correspondent[]>([]);
+  const [draft, setDraft] = useState<FilterDraft>({ document_type_id: "", team: "", sort: "created_at,desc" });
+  const [filters, setFilters] = useState<FilterDraft>(draft);
   const [types, setTypes] = useState<DocumentType[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [memberships, setMemberships] = useState<TeamMembership[]>([]);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [documentToDelete, setDocumentToDelete] = useState<number | null>(null);
-  const [deleteError, setDeleteError] = useState("");
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const theme = useTheme();
   const desktop = useMediaQuery(theme.breakpoints.up("lg"));
   const { mode, setMode, systemMode } = useColorScheme();
   const darkMode = (mode === "system" ? systemMode : mode) === "dark";
-  const fail = (error: unknown, fallback: string) =>
-    setNotice({
-      tone: "error",
-      text: error instanceof Error ? error.message : fallback,
-    });
+  const booted = useRef(false);
+
   const loadDocs = useCallback(
     async (next = 0, applied = filters) => {
       setLoading(true);
       try {
         const result = await api.documents({
           page: next,
-          size: 12,
-          sort: "created_at,desc",
-          ...applied,
+          size: PAGE_SIZE,
+          sort: applied.sort || "created_at,desc",
+          document_type_id: applied.document_type_id || null,
         });
         setDocuments(result.items);
-        setPage({
-          page: result.pagination.page,
-          total_pages: result.pagination.total_pages,
-        });
+        setPage({ page: result.pagination.page, total_pages: result.pagination.total_pages });
       } catch (e) {
-        fail(e, "The library could not be loaded.");
+        toast("error", describeError(e, t));
       } finally {
         setLoading(false);
       }
     },
-    [filters],
+    [filters, toast, t],
   );
-  const loadMeta = useCallback(async () => {
-    try {
-      const [c, t, team, people] = await Promise.all([
-        api.labels("correspondents"),
-        api.labels("document-types"),
-        api.teams(),
-        api.users(),
-      ]);
-      setCorrespondents(c.items as Correspondent[]);
-      setTypes(t.items as DocumentType[]);
-      setTeams(team.items);
-      setUsers(people.items);
-    } catch (e) {
-      fail(e, "Workspace data could not be loaded.");
-    }
-  }, []);
+
+  const loadMeta = useCallback(
+    async (current: User | null) => {
+      try {
+        const [typeResult, teamResult] = await Promise.all([
+          api.documentTypes(),
+          api.teams(),
+        ]);
+        setTypes(typeResult.items);
+        setTeams(teamResult.items);
+        if (current) {
+          const mine = await api.userTeams(current.id);
+          setMemberships(mine.items);
+        } else {
+          setMemberships([]);
+        }
+      } catch (e) {
+        toast("error", describeError(e, t));
+      }
+    },
+    [toast, t],
+  );
+
   useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
     const boot = async () => {
       if (!localStorage.getItem("paperless_token")) return;
       try {
         const current = await api.me();
         setUser(current);
-        await Promise.all([loadDocs(), loadMeta()]);
-      } catch (e) {
-        fail(e, "Your session could not be restored.");
+        await Promise.all([loadDocs(), loadMeta(current)]);
+      } catch {
+        toast("error", t("messages.session_failed"));
       }
     };
     void boot();
     const expired = () => {
       setUser(null);
       setDocuments([]);
+      setSearchItems([]);
       setSelected(null);
       setUploadOpen(false);
       setLoginOpen(true);
+      toast("error", t("errors.session_expired"));
     };
     window.addEventListener("paperless:unauthorized", expired);
     return () => window.removeEventListener("paperless:unauthorized", expired);
-  }, [loadDocs, loadMeta]);
-  const search = async (
-    event: React.FormEvent,
-    next = 0,
-    query = queryText,
-  ) => {
-    event.preventDefault();
-    const submitted = query.trim();
-    if (!submitted) return;
-    if (!next) setSubmittedQuery(submitted);
-    setSearchLoading(true);
-    setNotice(null);
-    try {
-      const result = await api.search({
-        query: submitted,
-        fuzzy: true,
-        page: next,
-        size: 12,
-      });
-      setDocuments(result.items.map((item) => item.document));
-      setPage({
-        page: result.pagination.page,
-        total_pages: result.pagination.total_pages,
-      });
-      setSearchReady(true);
-      setView("search");
-    } catch (e) {
-      fail(e, "Search results could not be loaded.");
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const search = useCallback(
+    async (event: React.FormEvent | null, next = 0, query = queryText) => {
+      event?.preventDefault();
+      const submitted = query.trim();
+      if (!submitted) return;
+      if (!next) setSubmittedQuery(submitted);
+      setSearchLoading(true);
+      try {
+        const result = await api.search({ query: submitted, fuzzy, page: next, size: PAGE_SIZE });
+        setSearchItems(result.items);
+        setPage({ page: result.pagination.page, total_pages: result.pagination.total_pages });
+        setSearchReady(true);
+        setView("search");
+      } catch (e) {
+        toast("error", describeError(e, t));
+      } finally {
+        setSearchLoading(false);
+      }
+    },
+    [queryText, fuzzy, toast, t],
+  );
+
   const openDocument = (doc: Document) =>
     api
       .document(doc.id)
       .then(setSelected)
-      .catch((e) => fail(e, "Document details could not be loaded."));
-  const removeDocument = (id: number) => {
-    setDocumentToDelete(id);
-    setDeleteError("");
-  };
+      .catch((e) => toast("error", describeError(e, t)));
+
+  const removeDocument = (id: string) => setDocumentToDelete(id);
+
   const selectView = (next: View) => {
     setMobileNavOpen(false);
     setView(next);
     if (next === "search") {
       setQueryText("");
       setSubmittedQuery("");
-      setDocuments([]);
-      setSearchReady(true);
+      setSearchItems([]);
+      setSearchReady(false);
       setPage({ page: 0, total_pages: 0 });
     }
     if (next === "library") {
-      setSearchReady(false);
       void loadDocs();
     }
   };
-  const headings = {
-    library: "Good documents, within reach.",
-    search: submittedQuery
-      ? `Results for “${submittedQuery}”`
-      : "Search your archive",
-    people: "Your people",
-    settings: "Workspace settings",
+
+  const visibleDocuments = filters.team
+    ? documents.filter((doc) => (filters.team === "private" ? !doc.team_id : doc.team_id === filters.team))
+    : documents;
+
+  const writableTeams = user
+    ? teams.filter(
+        (team) =>
+          team.owner_id === user.id ||
+          memberships.some((m) => m.team.id === team.id && (m.role === "ADMIN" || m.role === "READ_WRITE")),
+      )
+    : [];
+
+  const listProcessing =
+    view === "search" && searchReady
+      ? searchItems.some((item) => isProcessing(item.document.status))
+      : view === "library"
+        ? documents.some((doc) => isProcessing(doc.status))
+        : false;
+
+  useEffect(() => {
+    if (!user || !listProcessing) return;
+    const timer = setInterval(() => {
+      if (view === "library") void loadDocs(page.page);
+      if (view === "search") void search(null, page.page, submittedQuery);
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [user, view, listProcessing, page.page, submittedQuery, loadDocs, search]);
+
+  useEffect(() => {
+    if (!selected || !isProcessing(selected.status)) return;
+    const timer = setInterval(() => {
+      api
+        .document(selected.id)
+        .then((fresh) => {
+          setSelected(fresh);
+          setDocuments((items) =>
+            items.map((item) => (item.id === fresh.id ? { ...item, status: fresh.status, summary: fresh.summary, ocr_content: fresh.ocr_content } : item)),
+          );
+        })
+        .catch(() => {});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [selected]);
+
+  const headings: Record<View, string> = {
+    library: t("headings.library"),
+    search: submittedQuery ? t("headings.search_results", { query: submittedQuery }) : t("headings.search"),
+    people: t("headings.teams"),
+    settings: t("headings.settings"),
   };
-  const captions = {
-    library: "Everything you need to keep your documents in order.",
-    search: "Find the right file without digging through folders.",
-    people: "Manage the people and teams in your workspace.",
-    settings: "Keep your document labels organized.",
+  const captions: Record<View, string> = {
+    library: t("captions.library"),
+    search: t("captions.search"),
+    people: t("captions.teams"),
+    settings: t("captions.settings"),
   };
+  const smalls: Record<View, string> = {
+    library: t("workspace.your_documents"),
+    search: t("workspace.find_documents"),
+    people: t("workspace.teams_label"),
+    settings: t("workspace.manage_workspace"),
+  };
+
+  const gridItems: DocumentGridItem[] =
+    view === "search"
+      ? searchItems.map((item) => ({ document: item.document, score: item.score, highlights: item.highlights }))
+      : visibleDocuments.map((document) => ({ document }));
 
   return (
     <>
@@ -258,7 +318,7 @@ export default function Workspace() {
               {!desktop && (
                 <IconButton
                   edge="start"
-                  aria-label="Open navigation"
+                  aria-label={t("nav.open")}
                   aria-expanded={mobileNavOpen}
                   onClick={() => setMobileNavOpen(true)}
                   sx={{ color: "text.primary" }}
@@ -274,15 +334,25 @@ export default function Workspace() {
                   whiteSpace: "nowrap",
                 }}
               >
-                {navigation.find((item) => item.view === view)?.label}
+                {t(navigation.find((item) => item.view === view)?.labelKey ?? "nav.library")}
               </Typography>
               <Box sx={{ flex: 1 }} />
+              <Select
+                size="small"
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as Locale)}
+                aria-label={t("nav.language")}
+                sx={{ minWidth: 62 }}
+              >
+                <MenuItem value="en">EN</MenuItem>
+                <MenuItem value="de">DE</MenuItem>
+              </Select>
               {mode === undefined ? (
                 <Box aria-hidden="true" sx={{ width: 40, height: 40 }} />
               ) : (
-                <Tooltip title={darkMode ? "Use light mode" : "Use dark mode"}>
+                <Tooltip title={darkMode ? t("mode.light") : t("mode.dark")}>
                   <IconButton
-                    aria-label="Dark mode"
+                    aria-label={t("mode.toggle")}
                     aria-pressed={darkMode}
                     onClick={() => setMode(darkMode ? "light" : "dark")}
                     sx={{ color: "text.secondary" }}
@@ -291,9 +361,9 @@ export default function Workspace() {
                   </IconButton>
                 </Tooltip>
               )}
-              <Tooltip title={user ? "Account" : "Sign in"}>
+              <Tooltip title={user ? t("auth.account") : t("auth.sign_in")}>
                 <IconButton
-                  aria-label={user ? "Account" : "Sign in"}
+                  aria-label={user ? t("auth.account") : t("auth.sign_in")}
                   onClick={() => setLoginOpen(true)}
                   sx={{ color: "text.secondary" }}
                 >
@@ -310,7 +380,7 @@ export default function Workspace() {
                 color="secondary"
                 startIcon={<AddRounded />}
                 onClick={() => setUploadOpen(true)}
-                aria-label="Upload document"
+                aria-label={t("upload.title")}
                 sx={{
                   minWidth: { xs: 42, sm: 0 },
                   width: { xs: 42, sm: "auto" },
@@ -324,7 +394,7 @@ export default function Workspace() {
                   component="span"
                   sx={{ display: { xs: "none", sm: "inline" } }}
                 >
-                  Upload document
+                  {t("upload.title")}
                 </Box>
               </Button>
             </Toolbar>
@@ -352,13 +422,7 @@ export default function Workspace() {
                   color="primary.main"
                   sx={{ ...smallLabel, mb: 1.5, letterSpacing: ".12em" }}
                 >
-                  {view === "library"
-                    ? "Your documents"
-                    : view === "people"
-                      ? "People and teams"
-                      : view === "settings"
-                        ? "Manage your workspace"
-                        : "Find documents"}
+                  {smalls[view]}
                 </Typography>
                 <Typography
                   component="h1"
@@ -382,16 +446,11 @@ export default function Workspace() {
               {view === "library" && (
                 <Chip
                   variant="outlined"
-                  label={`${documents.length} documents on this page`}
+                  label={t("workspace.page_count", { count: visibleDocuments.length })}
                   sx={{ alignSelf: { xs: "flex-start", sm: "flex-end" } }}
                 />
               )}
             </Stack>
-            {notice && (
-              <Alert severity={notice.tone} role="alert" sx={{ mb: 3 }}>
-                {notice.text}
-              </Alert>
-            )}
             {view === "library" || view === "search" ? (
               <Box className="reveal reveal-later">
                 <Paper
@@ -406,14 +465,14 @@ export default function Workspace() {
                   }}
                 >
                   <Typography color="text.secondary" sx={smallLabel}>
-                    {view === "search" ? "Find a document" : "Quick search"}
+                    {view === "search" ? t("workspace.find_a_document") : t("workspace.quick_search")}
                   </Typography>
                   <Typography
                     variant="h5"
                     component="h2"
                     sx={{ my: 1, fontSize: 21 }}
                   >
-                    Your files, a little easier to find.
+                    {t("workspace.search_hero")}
                   </Typography>
                   <Paper
                     component="form"
@@ -428,11 +487,12 @@ export default function Workspace() {
                       display: "flex",
                       flexWrap: { xs: "wrap", sm: "nowrap" },
                       gap: 1,
+                      alignItems: "center",
                     }}
                   >
                     <TextField
                       slotProps={{
-                        htmlInput: { "aria-label": "Search documents" },
+                        htmlInput: { "aria-label": t("search.placeholder") },
                         input: {
                           startAdornment: (
                             <InputAdornment position="start">
@@ -441,11 +501,16 @@ export default function Workspace() {
                           ),
                         },
                       }}
-                      placeholder="Search by title, text, or filename"
+                      placeholder={t("search.placeholder")}
                       value={queryText}
                       onChange={(e) => setQueryText(e.target.value)}
                       fullWidth
                       sx={{ "& fieldset": { border: 0 } }}
+                    />
+                    <FormControlLabel
+                      control={<Switch size="small" checked={fuzzy} onChange={(e) => setFuzzy(e.target.checked)} />}
+                      label={t("search.fuzzy")}
+                      sx={{ whiteSpace: "nowrap", mx: { xs: 0.5, sm: 1 } }}
                     />
                     <Button
                       type="submit"
@@ -454,39 +519,40 @@ export default function Workspace() {
                       disabled={searchLoading}
                       sx={{ width: { xs: "100%", sm: "auto" }, flexShrink: 0 }}
                     >
-                      {searchLoading ? "Searching…" : "Search"}
+                      {searchLoading ? t("search.searching") : t("search.button")}
                     </Button>
                   </Paper>
                 </Paper>
                 {view === "library" && (
                   <Filters
                     draft={draft}
-                    correspondents={correspondents}
                     types={types}
+                    teams={teams}
                     onChange={setDraft}
                     onApply={() => {
                       setFilters(draft);
-                      setSearchReady(false);
                       void loadDocs(0, draft);
                     }}
                   />
                 )}
-                {searchLoading ? (
+                {view === "search" && searchLoading ? (
                   <Typography
                     color="text.secondary"
                     align="center"
                     sx={{ py: 10 }}
                   >
-                    Loading search results…
+                    {t("common.loading_search")}
                   </Typography>
                 ) : (
                   <DocumentGrid
-                    documents={documents}
-                    loading={loading}
+                    items={gridItems}
+                    loading={view === "library" && loading}
+                    loadingLabel={t("common.loading_library")}
+                    teams={teams}
+                    emptyState={view === "search" ? "search" : "library"}
                     onDelete={removeDocument}
                     onOpen={openDocument}
                     onUpload={() => setUploadOpen(true)}
-                    ready={searchReady}
                   />
                 )}
                 {page.total_pages > 1 && (
@@ -496,11 +562,7 @@ export default function Workspace() {
                     loading={loading || searchLoading}
                     onChange={(next) =>
                       searchReady
-                        ? void search(
-                            new Event("submit") as unknown as React.FormEvent,
-                            next,
-                            submittedQuery,
-                          )
+                        ? void search(null, next, submittedQuery)
                         : void loadDocs(next)
                     }
                   />
@@ -508,22 +570,18 @@ export default function Workspace() {
               </Box>
             ) : view === "people" ? (
               <People
-                users={users}
+                user={user}
                 teams={teams}
-                onUsers={setUsers}
+                memberships={memberships}
                 onTeams={setTeams}
-                onError={fail}
+                onMemberships={setMemberships}
               />
             ) : (
               <Settings
-                correspondents={correspondents}
+                user={user}
+                onUser={setUser}
                 types={types}
-                onChange={(kind, items) =>
-                  kind === "correspondents"
-                    ? setCorrespondents(items as Correspondent[])
-                    : setTypes(items as DocumentType[])
-                }
-                onError={fail}
+                onTypes={setTypes}
               />
             )}
           </Box>
@@ -535,7 +593,7 @@ export default function Workspace() {
           onLogin={(u) => {
             setUser(u);
             setLoginOpen(false);
-            void Promise.all([loadDocs(), loadMeta()]);
+            void Promise.all([loadDocs(), loadMeta(u)]);
           }}
         />
       )}
@@ -546,18 +604,25 @@ export default function Workspace() {
             setDocuments((items) => [doc, ...items]);
             setUploadOpen(false);
           }}
+          types={types}
+          writableTeams={writableTeams}
         />
       )}
       {selected && (
         <DocumentDetail
           document={selected}
-          correspondents={correspondents}
+          user={user}
           types={types}
+          teams={teams}
+          writableTeams={writableTeams}
           onClose={() => setSelected(null)}
           onSaved={(doc) => {
             setSelected(doc);
             setDocuments((items) =>
               items.map((item) => (item.id === doc.id ? doc : item)),
+            );
+            setSearchItems((items) =>
+              items.map((item) => (item.document.id === doc.id ? { ...item, document: doc } : item)),
             );
           }}
           onDelete={removeDocument}
@@ -565,33 +630,21 @@ export default function Workspace() {
       )}
       {documentToDelete !== null && (
         <Modal
-          title="Delete document"
-          onClose={() => {
-            setDocumentToDelete(null);
-            setDeleteError("");
-          }}
+          title={t("delete.title")}
+          onClose={() => setDocumentToDelete(null)}
         >
           <Stack sx={{ gap: 2 }}>
             <Typography variant="body1">
-              Are you sure you want to delete this document? This action cannot
-              be undone.
+              {t("delete.confirm")}
             </Typography>
-            {deleteError && (
-              <Alert severity="error" role="alert">
-                {deleteError}
-              </Alert>
-            )}
           </Stack>
           <DialogActions sx={{ px: 0, mt: 3 }}>
             <Button
               type="button"
               variant="outlined"
-              onClick={() => {
-                setDocumentToDelete(null);
-                setDeleteError("");
-              }}
+              onClick={() => setDocumentToDelete(null)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -605,20 +658,21 @@ export default function Workspace() {
                   setDocuments((items) =>
                     items.filter((item) => item.id !== documentToDelete),
                   );
+                  setSearchItems((items) =>
+                    items.filter((item) => item.document.id !== documentToDelete),
+                  );
                   setSelected(null);
                   setDocumentToDelete(null);
+                  toast("success", t("messages.document_deleted"));
                 } catch (e) {
-                  setDeleteError(
-                    e instanceof Error
-                      ? e.message
-                      : "Document could not be deleted.",
-                  );
+                  setDocumentToDelete(null);
+                  toast("error", describeError(e, t));
                 } finally {
                   setDeleting(false);
                 }
               }}
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? t("delete.deleting") : t("common.delete")}
             </Button>
           </DialogActions>
         </Modal>
