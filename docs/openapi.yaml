@@ -4,8 +4,8 @@ info:
   description: |
     Document Management System REST API for the SWEN3 Paperless project.
     Provides endpoints for:
-    - Document Upload: file storage, automated OCR processing, Elasticsearch full-text indexing, and GenAI summarization.
-    - Document Search: full-text and fuzzy search powered by Elasticsearch.
+    - Document Upload: file storage, automated OCR processing, full-text indexing, and GenAI summarization.
+    - Document Search: full-text and fuzzy search.
     - Document Management: document lifecycle (details, metadata update, deletion, download) and metadata (document types).
     - User and Team Management: authentication (login, me), user management (User-MM), teams, and role-based memberships (User <-- m:n (role) --> Team; roles: ADMIN, READONLY, READ_WRITE).
   version: 1.0.0
@@ -35,7 +35,7 @@ tags:
     description: |
       Private documents are visible only to their uploader. Team-shared documents are visible only to current team members; an uploader who is removed from the team loses access. READONLY members can read, search, and download; READ_WRITE and ADMIN members can also upload, edit, and delete team documents.
   - name: Search
-    description: Full-text and fuzzy search powered by Elasticsearch.
+    description: Full-text and fuzzy search across document content, titles, and summaries.
   - name: Document Types
     description: Document classifications (e.g., Invoice, Contract, Receipt, Bank Statement).
 
@@ -580,7 +580,7 @@ paths:
         Uploads a PDF document to file storage (MinIO). If team_id is absent, the document is private and visible only to its uploader. Sharing with a team requires current READ_WRITE or ADMIN membership in that team; insufficient access returns 403 and a nonexistent team returns 404.
         Automatically triggers asynchronous processing:
         - Performs OCR recognition to extract document text.
-        - Automatically indexes extracted text for full-text search in Elasticsearch.
+        - Automatically indexes extracted text for full-text search.
         - Automatically generates an AI summary using Google Gemini.
       operationId: uploadDocument
       requestBody:
@@ -700,7 +700,7 @@ paths:
       tags:
         - Documents
       summary: Delete a document
-      description: Deletes a document record, file from MinIO, and Elasticsearch search index entry; only the private uploader or a current READ_WRITE/ADMIN team member may delete it. Insufficient write access returns 403; a missing or inaccessible document returns 404.
+      description: Deletes a document record, file from MinIO, and search index entry; only the private uploader or a current READ_WRITE/ADMIN team member may delete it. Insufficient write access returns 403; a missing or inaccessible document returns 404.
       operationId: deleteDocument
       parameters:
         - $ref: '#/components/parameters/PathId'
@@ -747,14 +747,14 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   # ============================================================================
-  # SEARCH (ELASTICSEARCH)
+  # SEARCH
   # ============================================================================
   /search:
     get:
       tags:
         - Search
       summary: Full-text and fuzzy search across documents
-      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries using Elasticsearch; results include only documents visible to the authenticated user. READONLY, READ_WRITE, and ADMIN members can search team documents.
+      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries; results include only documents visible to the authenticated user. READONLY, READ_WRITE, and ADMIN members can search team documents.
       operationId: searchDocumentsFullText
       parameters:
         - name: query
@@ -766,7 +766,7 @@ paths:
             example: "invoice electric"
         - name: fuzzy
           in: query
-          description: Enable fuzzy typo tolerance matching in Elasticsearch.
+          description: Enable fuzzy typo tolerance matching.
           required: false
           schema:
             type: boolean
@@ -1361,7 +1361,7 @@ components:
         score:
           type: number
           format: float
-          description: Elasticsearch BM25 relevance score.
+          description: Relevance matching score.
           example: 3.842
         highlights:
           type: array
