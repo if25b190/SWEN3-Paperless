@@ -2,7 +2,7 @@
 
 ### Philip Duong & Patrick Hornek
 
-A document management and processing platform consisting of a Spring Boot (Kotlin) backend and a Next.js (TypeScript) web interface, backed by PostgreSQL and Elasticsearch.
+A document management and processing platform consisting of a Spring Boot (Kotlin) backend and a Next.js (TypeScript) web interface, backed by PostgreSQL.
 
 ---
 
@@ -40,7 +40,6 @@ This starts:
 - **`backend`**: Spring Boot REST API
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 16 database
-- **`elasticsearch`**: Elasticsearch 8.17.0 single-node cluster
 
 ---
 
@@ -54,7 +53,6 @@ Once all services are healthy and running:
 | **Backend REST API** | [http://localhost:8080](http://localhost:8080) | Spring Boot backend |
 | **Swagger UI** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive OpenAPI documentation |
 | **OpenAPI v3 Spec** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Raw OpenAPI JSON definition |
-| **Elasticsearch** | [http://localhost:9200](http://localhost:9200) | Search engine cluster endpoint |
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
 
 ---
@@ -86,7 +84,7 @@ Stop all running containers:
 docker compose --env-file .env.local down
 ```
 
-To stop and remove all volumes (including database and Elasticsearch data):
+To stop and remove all volumes (including database data):
 ```bash
 docker compose --env-file .env.local down -v
 ```
