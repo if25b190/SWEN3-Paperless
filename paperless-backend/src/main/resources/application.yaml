@@ -1,6 +1,10 @@
 spring:
   application:
     name: paperless
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_SIZE:50MB}
+      max-request-size: ${MAX_UPLOAD_SIZE:50MB}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperless}
     username: ${SPRING_DATASOURCE_USERNAME:paperless}
@@ -15,6 +19,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
+
+server:
+  tomcat:
+    # Drain near-limit rejected requests so clients can receive the HTTP 413 response.
+    max-swallow-size: 51MB
 
 springdoc:
   api-docs:
