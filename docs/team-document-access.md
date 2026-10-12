@@ -1,6 +1,6 @@
 # Team and Document Access
 
-Registration (`POST /users`) is public, but accounts do not share documents by default. An unassigned document is private to its uploader. A document assigned to a team is visible to that team's current members; removing a member also removes their access, even if they uploaded the document.
+Registration (`POST /api/v1/users`) is public, but accounts do not share documents by default. An unassigned document is private to its uploader. A document assigned to a team is visible to that team's current members; removing a member also removes their access, even if they uploaded the document.
 
 | Team role | Document permissions |
 | --- | --- |

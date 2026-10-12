@@ -56,20 +56,20 @@ class SecurityIntegrationTest(
             .doesNotContain("páß🔑")
         val originalHash = users.findById(alice).orElseThrow().password
 
-        mvc.perform(get("/auth/me")).andExpect(status().isUnauthorized)
+        mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.status").value(401))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("WWW-Authenticate", "Bearer"))
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer invalid"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer invalid"))
             .andExpect(status().isUnauthorized).andExpect(jsonPath("$.status").value(401))
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("WWW-Authenticate", "Bearer"))
-        mvc.perform(get("/users")).andExpect(status().isUnauthorized)
-        mvc.perform(get("/teams")).andExpect(status().isUnauthorized)
-        mvc.perform(get("/auth/me").header("Authorization", "Basic abc"))
+        mvc.perform(get("/api/v1/users")).andExpect(status().isUnauthorized)
+        mvc.perform(get("/api/v1/teams")).andExpect(status().isUnauthorized)
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Basic abc"))
             .andExpect(status().isUnauthorized)
-        mvc.perform(get("/auth/me").with(user("not-a-uuid")))
+        mvc.perform(get("/api/v1/auth/me").with(user("not-a-uuid")))
             .andExpect(status().isUnauthorized)
 
-        val login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"alice","password":"${"páß🔑".repeat(20)}"}"""))
             .andExpect(status().isOk).andExpect(jsonPath("$.token_type").value("Bearer"))
             .andReturn().response.contentAsString
@@ -79,70 +79,70 @@ class SecurityIntegrationTest(
         assertThat(tokens.findById(TokenDigests.sha256(token))).isPresent
         tokens.save(AccessTokenEntity(TokenDigests.sha256("expired"), users.getReferenceById(bob), Instant.EPOCH))
         // An expired credential is rejected even if its digest is still in the database.
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer expired"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer expired"))
             .andExpect(status().isUnauthorized)
-        val replacementLogin = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        val replacementLogin = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"alice","password":"${"páß🔑".repeat(20)}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val replacementToken = Regex("\"token\":\"([^\"]+)\"").find(replacementLogin)!!.groupValues[1]
         assertThat(replacementToken).isNotEqualTo(token)
         assertThat(tokens.countByUserId(alice)).isEqualTo(1)
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer $token"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $token"))
             .andExpect(status().isUnauthorized)
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer $replacementToken"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $replacementToken"))
             .andExpect(status().isOk).andExpect(jsonPath("$.id").value(alice.toString()))
             .andExpect(jsonPath("$.password").doesNotExist())
-        mvc.perform(put("/users/$bob").header("Authorization", "Bearer $replacementToken")
+        mvc.perform(put("/api/v1/users/$bob").header("Authorization", "Bearer $replacementToken")
             .contentType(MediaType.APPLICATION_JSON).content("""{"password":"forbidden"}"""))
             .andExpect(status().isForbidden).andExpect(jsonPath("$.status").value(403))
 
-        mvc.perform(put("/users/$alice").header("Authorization", "Bearer $replacementToken")
+        mvc.perform(put("/api/v1/users/$alice").header("Authorization", "Bearer $replacementToken")
             .contentType(MediaType.APPLICATION_JSON).content("{}"))
             .andExpect(status().isOk).andExpect(jsonPath("$.username").value("alice"))
         assertThat(users.findById(alice).orElseThrow().password).isEqualTo(originalHash)
         assertThat(users.findById(alice).orElseThrow().username).isEqualTo("alice")
 
-        mvc.perform(put("/users/$alice").header("Authorization", "Bearer $replacementToken")
+        mvc.perform(put("/api/v1/users/$alice").header("Authorization", "Bearer $replacementToken")
             .contentType(MediaType.APPLICATION_JSON).content("""{"username":"bobby"}"""))
             .andExpect(status().isConflict)
         assertThat(users.findById(alice).orElseThrow().username).isEqualTo("alice")
 
         val renamedUsername = "alice-renamed"
-        mvc.perform(put("/users/$alice").header("Authorization", "Bearer $replacementToken")
+        mvc.perform(put("/api/v1/users/$alice").header("Authorization", "Bearer $replacementToken")
             .contentType(MediaType.APPLICATION_JSON).content("""{"username":"$renamedUsername"}"""))
             .andExpect(status().isOk).andExpect(jsonPath("$.username").value(renamedUsername))
         assertThat(users.findById(alice).orElseThrow().username).isEqualTo(renamedUsername)
         assertThat(users.findById(alice).orElseThrow().password).isEqualTo(originalHash)
         assertThat(tokens.countByUserId(alice)).isEqualTo(1)
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer $replacementToken"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $replacementToken"))
             .andExpect(status().isOk).andExpect(jsonPath("$.id").value(alice.toString()))
             .andExpect(jsonPath("$.username").value(renamedUsername))
-        val renamedLogin = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        val renamedLogin = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$renamedUsername","password":"páß🔑${"páß🔑".repeat(19)}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val renamedToken = Regex("\"token\":\"([^\"]+)\"").find(renamedLogin)!!.groupValues[1]
 
-        mvc.perform(put("/users/$alice").header("Authorization", "Bearer $replacementToken")
+        mvc.perform(put("/api/v1/users/$alice").header("Authorization", "Bearer $replacementToken")
             .contentType(MediaType.APPLICATION_JSON).content("""{"password":"new-unicode-🔒"}"""))
             .andExpect(status().isUnauthorized)
-        mvc.perform(put("/users/$alice").header("Authorization", "Bearer $renamedToken")
+        mvc.perform(put("/api/v1/users/$alice").header("Authorization", "Bearer $renamedToken")
             .contentType(MediaType.APPLICATION_JSON).content("""{"password":"new-unicode-🔒"}"""))
             .andExpect(status().isOk).andExpect(jsonPath("$.username").value(renamedUsername))
         assertThat(users.findById(alice).orElseThrow().username).isEqualTo(renamedUsername)
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer $token"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $token"))
             .andExpect(status().isUnauthorized)
-        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$renamedUsername","password":"${"páß🔑".repeat(20)}"}"""))
             .andExpect(status().isUnauthorized)
-        val newToken = Regex("\"token\":\"([^\"]+)\"").find(mvc.perform(post("/auth/login")
+        val newToken = Regex("\"token\":\"([^\"]+)\"").find(mvc.perform(post("/api/v1/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$renamedUsername","password":"new-unicode-🔒"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString)!!.groupValues[1]
-        mvc.perform(delete("/users/$bob").header("Authorization", "Bearer $newToken"))
+        mvc.perform(delete("/api/v1/users/$bob").header("Authorization", "Bearer $newToken"))
             .andExpect(status().isForbidden)
-        mvc.perform(delete("/users/$alice").header("Authorization", "Bearer $newToken"))
+        mvc.perform(delete("/api/v1/users/$alice").header("Authorization", "Bearer $newToken"))
             .andExpect(status().isNoContent)
-        mvc.perform(get("/auth/me").header("Authorization", "Bearer $newToken"))
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $newToken"))
             .andExpect(status().isUnauthorized)
     }
 
@@ -156,7 +156,7 @@ class SecurityIntegrationTest(
             pool.submit<String> {
                 ready.countDown()
                 check(start.await(5, TimeUnit.SECONDS))
-                val body = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                val body = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
                     .content("""{"username":"${users.findById(userId).orElseThrow().username}","password":"race-password"}"""))
                     .andExpect(status().isOk).andReturn().response.contentAsString
                 Regex("\"token\":\"([^\"]+)\"").find(body)!!.groupValues[1]
@@ -178,7 +178,7 @@ class SecurityIntegrationTest(
         val username = "duplicate_${System.nanoTime()}"
         register(username, "first-password")
 
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$username","password":"second-password"}"""))
             .andExpect(status().isConflict)
     }
@@ -190,33 +190,33 @@ class SecurityIntegrationTest(
             if (candidate == initialUsername) boundaryUsername() else candidate
         }
 
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"abc","password":"12345678"}"""))
             .andExpect(status().isBadRequest)
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$initialUsername","password":"1234567"}"""))
             .andExpect(status().isBadRequest)
 
-        val createdResponse = mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
+        val createdResponse = mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$initialUsername","password":"12345678"}"""))
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.username").value(initialUsername))
             .andExpect(jsonPath("$.password").doesNotExist())
             .andReturn().response.contentAsString
         val userId = Regex("\"id\":\"([^\"]+)\"").find(createdResponse)!!.groupValues[1]
-        val login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$initialUsername","password":"12345678"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val token = Regex("\"token\":\"([^\"]+)\"").find(login)!!.groupValues[1]
 
-        mvc.perform(put("/users/$userId").header("Authorization", "Bearer $token")
+        mvc.perform(put("/api/v1/users/$userId").header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON).content("""{"username":"abc"}"""))
             .andExpect(status().isBadRequest)
-        mvc.perform(put("/users/$userId").header("Authorization", "Bearer $token")
+        mvc.perform(put("/api/v1/users/$userId").header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON).content("""{"password":"1234567"}"""))
             .andExpect(status().isBadRequest)
 
-        val updatedResponse = mvc.perform(put("/users/$userId").header("Authorization", "Bearer $token")
+        val updatedResponse = mvc.perform(put("/api/v1/users/$userId").header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$updatedUsername","password":"abcdefgh"}"""))
             .andExpect(status().isOk)
@@ -229,10 +229,20 @@ class SecurityIntegrationTest(
             .doesNotContain("abcdefgh")
     }
 
+    @Test
+    fun unversioned_and_unsupported_api_routes_ko() {
+        val actor = UUID.randomUUID().toString()
+
+        mvc.perform(get("/users").with(user(actor))).andExpect(status().isNotFound)
+        mvc.perform(get("/api/v2/users").with(user(actor))).andExpect(status().isNotFound)
+        mvc.perform(post("/users")).andExpect(status().isUnauthorized)
+        mvc.perform(post("/auth/login")).andExpect(status().isUnauthorized)
+    }
+
     private fun boundaryUsername(): String = UUID.randomUUID().toString().replace("-", "").take(4)
 
     private fun register(name: String, password: String): UUID =
-        mvc.perform(post("/users").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
             .content("""{"username":"$name","password":"$password"}"""))
             .andExpect(status().isCreated).andExpect(jsonPath("$.password").doesNotExist())
             .andReturn().response.contentAsString.let { UUID.fromString(Regex("\"id\":\"([^\"]+)\"").find(it)!!.groupValues[1]) }

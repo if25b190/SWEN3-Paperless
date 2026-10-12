@@ -50,7 +50,7 @@ Once all services are healthy and running:
 | Service | URL | Description |
 | :--- | :--- | :--- |
 | **Frontend UI** | [http://localhost:3000](http://localhost:3000) | Next.js user interface |
-| **Backend REST API** | [http://localhost:8080](http://localhost:8080) | Spring Boot backend |
+| **Backend REST API** | [http://localhost:8080/api/v1](http://localhost:8080/api/v1) | Spring Boot backend |
 | **Swagger UI** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive OpenAPI documentation |
 | **OpenAPI v3 Spec** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Raw OpenAPI JSON definition |
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
@@ -59,7 +59,7 @@ Once all services are healthy and running:
 
 ### Authentication
 
-Public registration (`POST /users`) does not grant access to other users' documents. Documents are private to their uploader unless assigned to a team, where access follows current membership. See [Team and document access](docs/team-document-access.md) for roles, sharing, and existing-database compatibility. Login returns an opaque bearer token and replaces the account's previous session. Existing development accounts with plaintext passwords must be recreated before they can log in.
+Public registration (`POST /api/v1/users`) does not grant access to other users' documents. Documents are private to their uploader unless assigned to a team, where access follows current membership. See [Team and document access](docs/team-document-access.md) for roles, sharing, and existing-database compatibility. Login returns an opaque bearer token and replaces the account's previous session. Existing development accounts with plaintext passwords must be recreated before they can log in.
 
 ---
 
@@ -88,3 +88,5 @@ To stop and remove all volumes (including database data):
 ```bash
 docker compose --env-file .env.local down -v
 ```
+
+The REST API uses the `/api/v1` path prefix. See [API versioning](docs/api-versioning.md) for the version policy.

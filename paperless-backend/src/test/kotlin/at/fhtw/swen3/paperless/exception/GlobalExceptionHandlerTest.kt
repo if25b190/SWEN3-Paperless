@@ -32,7 +32,7 @@ class GlobalExceptionHandlerTest {
     @Test
     fun missing_resources_return_generic_not_found_problem() {
         val handler = GlobalExceptionHandler()
-        val exception = NoResourceFoundException(HttpMethod.GET, "/users/", "/users/")
+        val exception = NoResourceFoundException(HttpMethod.GET, "/api/v1/users/", "/api/v1/users/")
 
         val response = handler.handleNoResourceFound(exception)
 
@@ -41,7 +41,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.body?.title).isEqualTo("Resource Not Found")
         assertThat(response.body?.status).isEqualTo(404)
         assertThat(response.body?.detail).isEqualTo("The requested resource was not found.")
-        assertThat(response.body?.detail).doesNotContain("/users/")
+        assertThat(response.body?.detail).doesNotContain("/api/v1/users/")
 
         val annotation = GlobalExceptionHandler::class.java.getMethod(
             "handleNoResourceFound",

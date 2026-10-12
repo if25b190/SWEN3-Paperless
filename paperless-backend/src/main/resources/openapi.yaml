@@ -43,7 +43,7 @@ paths:
   # ============================================================================
   # AUTH
   # ============================================================================
-  /auth/login:
+  /api/v1/auth/login:
     post:
       tags:
         - Auth
@@ -71,7 +71,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /auth/me:
+  /api/v1/auth/me:
     get:
       tags:
         - Auth
@@ -93,7 +93,7 @@ paths:
   # ============================================================================
   # USERS (USER-MM)
   # ============================================================================
-  /users:
+  /api/v1/users:
     get:
       tags:
         - Users
@@ -134,7 +134,7 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/users/550e8400-e29b-41d4-a716-446655440000"
+                example: "/api/v1/users/550e8400-e29b-41d4-a716-446655440000"
           content:
             application/json:
               schema:
@@ -146,7 +146,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /users/{id}:
+  /api/v1/users/{id}:
     get:
       tags:
         - Users
@@ -225,7 +225,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /users/{id}/teams:
+  /api/v1/users/{id}/api/v1/teams:
     get:
       tags:
         - Users
@@ -253,7 +253,7 @@ paths:
   # ============================================================================
   # TEAMS & ROLES (User <-- m:n (role) --> Team)
   # ============================================================================
-  /teams:
+  /api/v1/teams:
     get:
       tags:
         - Teams
@@ -293,7 +293,7 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/teams/550e8400-e29b-41d4-a716-446655440001"
+                example: "/api/v1/teams/550e8400-e29b-41d4-a716-446655440001"
           content:
             application/json:
               schema:
@@ -307,7 +307,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /teams/{id}:
+  /api/v1/teams/{id}:
     get:
       tags:
         - Teams
@@ -388,7 +388,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /teams/{id}/members:
+  /api/v1/teams/{id}/members:
     get:
       tags:
         - Teams
@@ -447,7 +447,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /teams/{id}/members/{user_id}:
+  /api/v1/teams/{id}/members/{user_id}:
     put:
       tags:
         - Teams
@@ -519,7 +519,7 @@ paths:
   # ============================================================================
   # DOCUMENTS
   # ============================================================================
-  /documents:
+  /api/v1/documents:
     get:
       tags:
         - Documents
@@ -622,7 +622,7 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/documents/550e8400-e29b-41d4-a716-446655440002"
+                example: "/api/v1/documents/550e8400-e29b-41d4-a716-446655440002"
           content:
             application/json:
               schema:
@@ -638,7 +638,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /documents/{id}:
+  /api/v1/documents/{id}:
     get:
       tags:
         - Documents
@@ -718,7 +718,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /documents/{id}/download:
+  /api/v1/documents/{id}/download:
     get:
       tags:
         - Documents
@@ -749,7 +749,7 @@ paths:
   # ============================================================================
   # SEARCH
   # ============================================================================
-  /search:
+  /api/v1/search:
     get:
       tags:
         - Search
@@ -805,7 +805,7 @@ paths:
   # ============================================================================
   # DOCUMENT TYPES (DOCUMENT METADATA)
   # ============================================================================
-  /document-types:
+  /api/v1/document-types:
     get:
       tags:
         - Document Types
@@ -843,7 +843,7 @@ paths:
               schema:
                 type: string
                 format: uri
-                example: "/document-types/550e8400-e29b-41d4-a716-446655440004"
+                example: "/api/v1/document-types/550e8400-e29b-41d4-a716-446655440004"
           content:
             application/json:
               schema:
@@ -857,7 +857,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /document-types/{id}:
+  /api/v1/document-types/{id}:
     get:
       tags:
         - Document Types
@@ -1473,7 +1473,7 @@ components:
           type: string
           format: uri
           description: A URI reference that identifies the specific occurrence of the problem.
-          example: "/documents/550e8400-e29b-41d4-a716-446655440002"
+          example: "/api/v1/documents/550e8400-e29b-41d4-a716-446655440002"
         invalid_params:
           type: array
           description: An array of invalid parameter errors (RFC 7807 extension).

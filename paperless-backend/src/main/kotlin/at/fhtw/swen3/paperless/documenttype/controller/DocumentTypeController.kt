@@ -29,7 +29,7 @@ class DocumentTypeController(
         val documentType = DocumentTypeMapper.fromCreateDto(createDocumentTypeRequest)
         val created = service.createDocumentType(documentType)
         val response = DocumentTypeMapper.toDto(created)
-        return ResponseEntity.created(URI.create("/document-types/${created.id}")).body(response)
+        return ResponseEntity.created(URI.create("/api/v1/document-types/${created.id}")).body(response)
     }
 
     override fun getDocumentTypeById(id: UUID): ResponseEntity<DocumentTypeResponse> {

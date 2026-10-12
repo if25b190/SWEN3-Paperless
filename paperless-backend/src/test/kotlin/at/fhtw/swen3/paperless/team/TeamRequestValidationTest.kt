@@ -38,7 +38,7 @@ class TeamRequestValidationTest(
         ).id)
 
         mvc.perform(
-            post("/teams")
+            post("/api/v1/teams")
                 .with(user(actorId.toString()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"name":"   "}""")

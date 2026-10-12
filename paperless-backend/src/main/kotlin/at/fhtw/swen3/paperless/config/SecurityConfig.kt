@@ -34,7 +34,7 @@ class SecurityConfig(private val introspector: LocalTokenIntrospector) {
             .formLogin { it.disable() }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers(HttpMethod.POST, "/auth/login", "/users").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/users").permitAll()
                     .requestMatchers(
                         "/swagger-ui/**",
                         "/swagger-ui.html",

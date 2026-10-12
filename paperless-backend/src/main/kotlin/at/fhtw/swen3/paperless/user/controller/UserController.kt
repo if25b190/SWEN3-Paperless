@@ -27,7 +27,7 @@ class UserController(
         val created = userService.create(user)
         val response = UserMapper.toDto(created)
 
-        return ResponseEntity.created(URI.create("/users/${created.id}")).body(response)
+        return ResponseEntity.created(URI.create("/api/v1/users/${created.id}")).body(response)
     }
 
     override fun deleteUser(id: UUID): ResponseEntity<Unit> {
