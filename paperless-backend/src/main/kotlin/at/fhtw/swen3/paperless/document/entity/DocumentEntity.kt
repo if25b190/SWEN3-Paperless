@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.document.entity
 
+import at.fhtw.swen3.paperless.common.entity.AbstractEntity
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
@@ -9,13 +10,9 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
-import jakarta.persistence.Version
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.PositiveOrZero
 import jakarta.validation.constraints.Size
@@ -25,9 +22,7 @@ import java.util.UUID
 @Entity
 @Table(name = "documents")
 class DocumentEntity(
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    val id: UUID? = null,
+    id: UUID? = null,
     @field:NotBlank
     @field:Size(max = 255)
     @Column(nullable = false)
@@ -58,10 +53,7 @@ class DocumentEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_type_id")
     val documentType: DocumentTypeEntity? = null,
-    @Column(nullable = false, updatable = false)
-    val createdAt: Instant = Instant.EPOCH,
-    @Column(nullable = false)
-    val updatedAt: Instant = Instant.EPOCH,
-    @Version
-    var version: Long = 0
-)
+    createdAt: Instant = Instant.now(),
+    updatedAt: Instant = Instant.now(),
+    version: Long = 0
+) : AbstractEntity(id, createdAt, updatedAt, version)

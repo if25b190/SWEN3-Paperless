@@ -9,5 +9,6 @@ data class Team(
     val description: String?,
     val createdAt: Instant,
     val updatedAt: Instant?,
-    val ownerId: UUID? = null
+    val ownerId: UUID? = null,
+    val version: Long = 0
 )

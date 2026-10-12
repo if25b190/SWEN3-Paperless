@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.team.entity
 
+import at.fhtw.swen3.paperless.common.entity.AbstractEntity
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.Column
@@ -7,9 +8,6 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.FetchType
-import jakarta.persistence.GeneratedValue
-import jakarta.persistence.GenerationType
-import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
@@ -23,9 +21,7 @@ import java.util.UUID
     uniqueConstraints = [UniqueConstraint(columnNames = ["team_id", "user_id"])]
 )
 class TeamMemberEntity(
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    val id: UUID? = null,
+    id: UUID? = null,
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "team_id", nullable = false)
     val team: TeamEntity = TeamEntity(),
@@ -35,5 +31,8 @@ class TeamMemberEntity(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var role: Role = Role.READ_WRITE,
-    val joinedAt: Instant? = null
-)
+    val joinedAt: Instant? = null,
+    createdAt: Instant = Instant.now(),
+    updatedAt: Instant? = null,
+    version: Long = 0
+) : AbstractEntity(id, createdAt, updatedAt ?: createdAt, version)
