@@ -1,21 +1,27 @@
 package at.fhtw.swen3.paperless.document.service
 
-import at.fhtw.swen3.paperless.document.entity.DocumentEntity
 import at.fhtw.swen3.paperless.document.mapper.DocumentMapper
+import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
-import at.fhtw.swen3.paperless.document.repository.DocumentRepository
-import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
+import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
+import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
-import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.model.Role
+import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.service.TeamService
-import at.fhtw.swen3.paperless.user.entity.UserEntity
-import jakarta.persistence.EntityManager
+import at.fhtw.swen3.paperless.testsupport.any
+import at.fhtw.swen3.paperless.user.model.User
 import jakarta.persistence.OptimisticLockException
 import jakarta.validation.ConstraintViolationException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Instant
+import java.util.Optional
+import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
@@ -24,11 +30,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
-import org.mockito.ArgumentMatchers.any
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.never
 import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.dao.DataIntegrityViolationException
@@ -41,20 +46,15 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
-import java.nio.file.Files
-import java.nio.file.Path
-import java.time.Instant
-import java.util.Optional
-import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class DocumentServiceImplTest {
 
     @Mock
-    lateinit var repository: DocumentRepository
+    lateinit var repository: DocumentPersistence
 
     @Mock
-    lateinit var entityManager: EntityManager
+    lateinit var references: DocumentReferencesPersistence
 
     @Mock
     lateinit var teamService: TeamService
@@ -71,7 +71,9 @@ class DocumentServiceImplTest {
         originalTempDirectory = System.getProperty("java.io.tmpdir")
         System.setProperty("java.io.tmpdir", tempDir.toString())
         setActor(uuid(1))
-        service = DocumentServiceImpl(repository, entityManager, teamService)
+        service = DocumentServiceImpl(repository, references, teamService)
+        org.mockito.Mockito.lenient().`when`(repository.refreshUnchanged(any(Document::class.java)))
+            .thenAnswer { it.arguments[0] as Document }
     }
 
     @AfterEach
@@ -96,7 +98,6 @@ class DocumentServiceImplTest {
             { assertThat(result.totalElements).isEqualTo(3) },
             { assertThat(result.content.single().title).isEqualTo("Invoice") },
             { verify(repository).findVisibleDocuments(uuid(1), setOf(uuid(4), uuid(5)), uuid(9), pageable) },
-            { verify(repository, never()).findAll(any(Pageable::class.java)) }
         )
     }
 
@@ -176,7 +177,7 @@ class DocumentServiceImplTest {
         assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.updateDocument(uuid(1), update(title = "No")) }
         assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.deleteDocument(uuid(1)) }
         verify(repository, never()).delete(entity)
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
 
         setActor(uuid(1))
         assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.getDocument(uuid(1)) }
@@ -184,9 +185,9 @@ class DocumentServiceImplTest {
 
     @Test
     fun private_upload_sets_owner_on_server_and_stays_private() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer {
-            val unsaved = it.arguments[0] as DocumentEntity
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
+        `when`(repository.save(any(Document::class.java))).thenAnswer {
+            val unsaved = it.arguments[0] as Document
             assertThat(unsaved.id).isNull()
             persistedDocument(unsaved, uuid(20))
         }
@@ -200,14 +201,14 @@ class DocumentServiceImplTest {
             { assertThat(result.status).isEqualTo(ProcessingStatus.PENDING) }
         )
         val stored = repositorySaveArgument()
-        assertThat(stored.owner.id).isEqualTo(uuid(1))
+        assertThat(stored.ownerId).isEqualTo(uuid(1))
         assertThat(stored.id).isNull()
-        assertThat(stored.team).isNull()
+        assertThat(stored.teamId).isNull()
     }
 
     @Test
     fun upload_rejects_blank_or_overlong_title_before_file_write() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
 
         listOf(" \t\n", "x".repeat(256)).forEach { title ->
             assertThrows<ConstraintViolationException> {
@@ -216,43 +217,43 @@ class DocumentServiceImplTest {
         }
 
         assertThat(tempDir.resolve("paperless-documents")).doesNotExist()
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
     }
 
     @Test
     fun team_upload_requires_writer_and_validates_before_file_write() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to Role.READONLY))
 
         assertDenied { service.uploadDocument(upload(teamId = uuid(4))) }
 
         assertThat(tempDir.resolve("paperless-documents")).doesNotExist()
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
     }
 
     @Test
     fun team_upload_persists_owner_and_team_after_authorization() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
-        `when`(entityManager.find(TeamEntity::class.java, uuid(4))).thenReturn(teamEntity(uuid(4)))
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
+        `when`(references.findTeam(uuid(4))).thenReturn(teamEntity(uuid(4)))
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to Role.READ_WRITE))
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer {
-            persistedDocument(it.arguments[0] as DocumentEntity, uuid(21))
+        `when`(repository.save(any(Document::class.java))).thenAnswer {
+            persistedDocument(it.arguments[0] as Document, uuid(21))
         }
 
         val result = service.uploadDocument(upload(teamId = uuid(4)))
 
         assertThat(result.ownerId).isEqualTo(uuid(1))
         assertThat(result.teamId).isEqualTo(uuid(4))
-        assertThat(repositorySaveArgument().team?.id).isEqualTo(uuid(4))
+        assertThat(repositorySaveArgument().teamId).isEqualTo(uuid(4))
     }
 
     @Test
     fun upload_preserves_document_type_metadata_without_correspondent() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
-        val documentType = DocumentTypeEntity(uuid(9), "Invoice")
-        `when`(entityManager.find(DocumentTypeEntity::class.java, uuid(9))).thenReturn(documentType)
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer {
-            persistedDocument(it.arguments[0] as DocumentEntity, uuid(22))
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
+        val documentType = DocumentType(uuid(9), "Invoice", null)
+        `when`(references.findDocumentType(uuid(9))).thenReturn(documentType)
+        `when`(repository.save(any(Document::class.java))).thenAnswer {
+            persistedDocument(it.arguments[0] as Document, uuid(22))
         }
 
         val uploaded = service.uploadDocument(upload(documentTypeId = uuid(9)))
@@ -265,10 +266,10 @@ class DocumentServiceImplTest {
     @Test
     fun update_changes_document_type_metadata_without_correspondent() {
         val existing = documentEntity()
-        val updatedType = DocumentTypeEntity(uuid(8), "Receipt")
+        val updatedType = DocumentType(uuid(8), "Receipt", null)
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
-        `when`(entityManager.find(DocumentTypeEntity::class.java, uuid(8))).thenReturn(updatedType)
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer { it.arguments[0] as DocumentEntity }
+        `when`(references.findDocumentType(uuid(8))).thenReturn(updatedType)
+        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
 
         val updated = service.updateDocument(uuid(1), update(documentTypeId = uuid(8)))
 
@@ -278,8 +279,8 @@ class DocumentServiceImplTest {
 
     @Test
     fun upload_failure_cleans_file_on_rollback() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
-        `when`(repository.save(any(DocumentEntity::class.java))).thenThrow(IllegalStateException("save failed"))
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
+        `when`(repository.save(any(Document::class.java))).thenThrow(IllegalStateException("save failed"))
         TransactionSynchronizationManager.initSynchronization()
 
         assertThrows<IllegalStateException> { service.uploadDocument(upload()) }
@@ -295,7 +296,7 @@ class DocumentServiceImplTest {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(2))).thenReturn(mapOf(uuid(4) to Role.READ_WRITE))
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer { it.arguments[0] as DocumentEntity }
+        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
         setActor(uuid(2))
 
         val result = service.updateDocument(uuid(1), update(title = "Updated"))
@@ -318,7 +319,7 @@ class DocumentServiceImplTest {
             }
         }
 
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
     }
 
     @Test
@@ -326,11 +327,11 @@ class DocumentServiceImplTest {
         val entity = documentEntity(teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to Role.ADMIN))
-        doAnswer { entity.version++; null }.`when`(entityManager).refresh(entity)
+        `when`(repository.refreshUnchanged(entity)).thenThrow(OptimisticLockException("Concurrent update"))
 
         assertThrows<OptimisticLockException> { service.updateDocument(uuid(1), update(title = "Stale")) }
         assertThrows<OptimisticLockException> { service.deleteDocument(uuid(1)) }
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
         verify(repository, never()).delete(entity)
     }
 
@@ -352,8 +353,8 @@ class DocumentServiceImplTest {
         `when`(teamService.lockedRoles(setOf(uuid(4), uuid(5)), uuid(1)))
             .thenReturn(mapOf(uuid(4) to Role.READ_WRITE, uuid(5) to Role.ADMIN))
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to Role.READ_WRITE))
-        `when`(entityManager.find(TeamEntity::class.java, uuid(5))).thenReturn(teamEntity(uuid(5)))
-        `when`(repository.save(any(DocumentEntity::class.java))).thenAnswer { it.arguments[0] as DocumentEntity }
+        `when`(references.findTeam(uuid(5))).thenReturn(teamEntity(uuid(5)))
+        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
 
         val moved = service.updateDocument(uuid(1), update(teamId = uuid(5)))
         val madePrivate = service.updateDocument(uuid(1), update(clearTeam = true))
@@ -374,7 +375,7 @@ class DocumentServiceImplTest {
         setActor(uuid(2))
 
         assertDenied { service.updateDocument(uuid(1), update(teamId = uuid(5))) }
-        verify(repository, never()).save(any(DocumentEntity::class.java))
+        verify(repository, never()).save(any(Document::class.java))
 
         setActor(uuid(1))
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to Role.ADMIN))
@@ -391,7 +392,7 @@ class DocumentServiceImplTest {
 
     @Test
     fun non_member_cannot_upload_to_existing_team_and_missing_team_is_not_found() {
-        `when`(entityManager.find(UserEntity::class.java, uuid(1))).thenReturn(userEntity())
+        `when`(references.ownerExists(uuid(1))).thenReturn(true)
         `when`(teamService.lockedRoles(setOf(uuid(4)), uuid(1))).thenReturn(mapOf(uuid(4) to null))
         assertDenied { service.uploadDocument(upload(teamId = uuid(4))) }
 
@@ -460,30 +461,15 @@ class DocumentServiceImplTest {
 
     private fun uuid(value: Int) = UUID(0L, value.toLong())
 
-    private fun userEntity() = UserEntity(id = uuid(1), username = "uploader", password = "hash")
+    private fun userEntity() = User(uuid(1), "uploader", "hash", Instant.EPOCH, null)
 
-    private fun teamEntity(id: UUID) = TeamEntity(id = id, name = "Team $id", ownerId = uuid(1))
+    private fun teamEntity(id: UUID) = Team(id, "Team $id", null, Instant.EPOCH, null, uuid(1))
 
-    private fun repositorySaveArgument(): DocumentEntity =
+    private fun repositorySaveArgument(): Document =
         org.mockito.Mockito.mockingDetails(repository).getInvocations()
-            .last { it.method.name == "save" }.arguments[0] as DocumentEntity
+            .last { it.method.name == "save" }.arguments[0] as Document
 
-    private fun persistedDocument(entity: DocumentEntity, id: UUID) = DocumentEntity(
-        id = id,
-        title = entity.title,
-        originalFilename = entity.originalFilename,
-        contentType = entity.contentType,
-        fileSize = entity.fileSize,
-        owner = entity.owner,
-        team = entity.team,
-        status = entity.status,
-        ocrContent = entity.ocrContent,
-        summary = entity.summary,
-        storageKey = entity.storageKey,
-        documentType = entity.documentType,
-        createdAt = entity.createdAt,
-        updatedAt = entity.updatedAt
-    )
+    private fun persistedDocument(document: Document, id: UUID) = document.copy(id = id)
 
     private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
         val thrown = catchThrowable(action)
@@ -504,54 +490,22 @@ class DocumentServiceImplTest {
     private fun documentEntity(
         ownerId: UUID = uuid(1),
         teamId: UUID? = null
-    ) = DocumentEntity(
+    ) = Document(
         id = uuid(1),
         title = "Invoice",
         originalFilename = "invoice.pdf",
         contentType = "application/pdf",
         fileSize = 10,
-        owner = userEntity(),
-        team = teamId?.let(::teamEntity),
+        ownerId = ownerId,
+        teamId = teamId,
         status = ProcessingStatus.COMPLETED,
         ocrContent = "Invoice from Acme",
         summary = "An invoice",
         storageKey = "documents/existing.pdf",
-        documentType = DocumentTypeEntity(uuid(9), "Invoice"),
+        documentType = DocumentType(uuid(9), "Invoice", null),
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH
-    ).let { entity ->
-        if (ownerId == uuid(1)) entity else DocumentEntity(
-            id = entity.id,
-            title = entity.title,
-            originalFilename = entity.originalFilename,
-            contentType = entity.contentType,
-            fileSize = entity.fileSize,
-            owner = UserEntity(id = ownerId),
-            team = entity.team,
-            status = entity.status,
-            ocrContent = entity.ocrContent,
-            summary = entity.summary,
-            storageKey = entity.storageKey,
-            documentType = entity.documentType,
-            createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt
-        )
-    }
-
-    private fun DocumentEntity.withStorageKey(value: String?) = DocumentEntity(
-        id = id,
-        title = title,
-        originalFilename = originalFilename,
-        contentType = contentType,
-        fileSize = fileSize,
-        owner = owner,
-        team = team,
-        status = status,
-        ocrContent = ocrContent,
-        summary = summary,
-        storageKey = value,
-        documentType = documentType,
-        createdAt = createdAt,
-        updatedAt = updatedAt
     )
+
+    private fun Document.withStorageKey(value: String?) = copy(storageKey = value)
 }

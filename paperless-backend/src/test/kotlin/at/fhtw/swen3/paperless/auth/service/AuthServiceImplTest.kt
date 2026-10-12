@@ -1,11 +1,11 @@
 package at.fhtw.swen3.paperless.auth.service
 
 import at.fhtw.swen3.paperless.auth.model.LoginCredentials
-import at.fhtw.swen3.paperless.auth.repository.AccessTokenRepository
+import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.service.UserService
-import at.fhtw.swen3.paperless.user.repository.UserRepository
-import at.fhtw.swen3.paperless.user.entity.UserEntity
+import java.time.Instant
+import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
@@ -14,8 +14,6 @@ import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
-import java.time.Instant
-import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class AuthServiceImplTest {
@@ -23,8 +21,7 @@ class AuthServiceImplTest {
     @Mock
     lateinit var userService: UserService
 
-    @Mock lateinit var userRepository: UserRepository
-    @Mock lateinit var tokenRepository: AccessTokenRepository
+    @Mock lateinit var tokenRepository: AccessTokenPersistence
 
     @InjectMocks
     lateinit var service: AuthServiceImpl
@@ -34,7 +31,6 @@ class AuthServiceImplTest {
         // given
         val user = user()
         `when`(userService.authenticate("alice", "secret")).thenReturn(user)
-        `when`(userRepository.getReferenceById(userId())).thenReturn(UserEntity(userId(), "alice", "hash"))
         val credentials = LoginCredentials("alice", "secret")
 
         // when

@@ -1,59 +1,63 @@
 # Layered Architecture
 
-Each feature is organized in its own package, split into distinct layer subpackages:
+Each feature exposes a service interface and isolates JPA behind an Anti-Corruption Layer:
 
 ```
 at/fhtw/swen3/paperless/<feature>/
-  controller/   <Feature>Controller     @RestController @RequestMapping("/<feature>")
-  service/      <Feature>Service        interface — the feature's public surface
-                <Feature>ServiceImpl    @Service, class-level @Transactional — the one impl
-  repository/   <Feature>Repository     interface extends JpaRepository<<Feature>Entity, Id>
-  model/        <Feature>, enums        Kotlin domain models (data classes), no jakarta.persistence imports
-  entity/       <Feature>Entity         @Entity only, no logic
-  dto/          Create/Update/Response records
-  mapper/       <Feature>Mapper         static — DTO ↔ model
-                <Feature>EntityMapper   static — model ↔ entity
+  controller/   <Feature>Controller
+  service/      <Feature>Service, <Feature>ServiceImpl
+  model/        immutable domain models and enums
+  dto/          request and response types
+  mapper/       <Feature>Mapper — DTO ↔ model
+  persistence/  <Feature>Persistence — domain-facing interface
+                Jpa<Feature>Persistence — Spring @Repository adapter
+    entity/     JPA entities
+    repository/ plain Spring Data interfaces
+    mapper/     <Feature>EntityMapper — pure model ↔ entity mapping
 ```
 
-## Layer Contract
+## Layer contract
 
-The contract defines what each layer is permitted to touch — and what it must not:
+| Layer | May depend on | Must not depend on |
+| --- | --- | --- |
+| Controller / DTO mapper | Service interfaces, models, DTOs | Persistence interfaces or implementation details |
+| Service | Domain persistence interfaces, models, other service interfaces, paging types | JPA, entities, Spring Data repositories, entity mappers, DTOs |
+| Persistence interface | Domain models, UUIDs, Optional, Page / Pageable | JPA, entities, Spring Data repositories, services, DTOs |
+| JPA adapter | Entities, repositories, entity mappers, EntityManager | Controllers, DTOs, business services |
+| Entity mapper | Models and entities | I/O, repositories, services, business rules |
+| Domain model | Kotlin / Java value types | JPA and Spring framework classes |
 
-| Layer | May Access / Depend On | Must Not Access |
-| :--- | :--- | :--- |
-| `controller` | `service/` (interface), `dto/`, `mapper/<Feature>Mapper`, `model/` | `repository/`, `entity/`, `<Feature>EntityMapper`, local `@ExceptionHandler` |
-| `service` | `repository/`, `model/`, `mapper/<Feature>EntityMapper`, other feature `service/` interfaces, `Pageable`, `Sort` | `dto/`, `<Feature>Mapper`, other feature `repository/` or `entity/` |
-| `repository` | `entity/`, Spring Data (`@Query`, `Specification`) | `model/`, `dto/`, `service/`, `controller/` |
-| `model` | Kotlin data classes / plain classes | `jakarta.persistence.*`, Spring framework classes |
-| `entity` | JPA annotations (`jakarta.persistence.*`) | Business logic, service references, helper methods |
-| `dto` | Java records, Bean Validation (`jakarta.validation.*`) | Entities, repositories, database concerns |
-| `mapper` | Target & source models/DTOs/entities (pure field mapping) | Services, repositories, I/O operations, business logic |
-
-## Request Flow
-
-### Write Request Flow
-A DTO becomes a model, a model becomes an entity, and the response walks the same path back:
+## Request flow
 
 ```
-POST /<feature>
-Controller(Create<Feature>DTO)
-  → <Feature>Mapper.toModel(dto)            [dto → model]
-  → <Feature>Service.create(model)          [@Transactional]
-    → <Feature>EntityMapper.toEntity(model) [model → entity]
-    → repository.save(entity)
-    → <Feature>EntityMapper.toModel(saved)  [entity → model]
-  → <Feature>Mapper.toDto(model)            [model → response dto]
+Controller → DTO mapper → Service → Persistence interface
+                                      ↓
+                              JPA adapter → entity mapper → Spring Data repository
 ```
 
-### Paged Read Flow
-1. The controller receives a `Pageable` directly from request query parameters.
-2. The controller passes `Pageable` straight to the service (`search...`).
-3. The service calls the repository, maps `Page<Entity>` to `Page<Model>` via `<Feature>EntityMapper`, and returns `Page<Model>`.
-4. The controller maps items to DTOs and wraps them into a standard list envelope (e.g. `{ metaData, data }`).
+Adapters translate all persistence results to domain models before returning, including
+optional values, lists, pages, and lazy relationships. Services never receive managed
+entities and update immutable domain values with `copy`.
 
-## Architectural Boundaries
+Business validation, authorization, and domain not-found errors remain in services.
+Adapters resolve entity references and handle database operations, mapping, flushes,
+and concurrent-deletion / stale-version detection. They do not decide who may access data.
+Spring Data repositories stay plain interfaces; no handwritten repository implementations.
 
-- **Interface-first services:** The service consists of an interface (`<Feature>Service`) and a single implementation (`<Feature>ServiceImpl`). Controllers and other features depend exclusively on the interface.
-- **Repositories are plain interfaces:** Spring Data manages repository implementations. "Find or 404" is a service concern, not a repository concern.
-- **Domain Models vs. Entities:** `model/` holds Kotlin data classes without JPA imports; `entity/` holds `@Entity` classes only, without business logic.
-- **Feature-to-feature boundaries:** A feature may call another feature's `service/` interface and use its `dto/` or `model/` types, but **never** access another feature's `repository/` or `entity/` directly.
+Services own transactions. Adapter calls participate in those transactions so lazy
+relationships are materialized while the persistence context is open. Existing
+pessimistic locks for user authentication and team membership changes are preserved.
+The document adapter carries the domain version through mapping and compares it,
+owner ID, and team ID after refresh before update or deletion. Service file cleanup
+continues to depend on transaction completion and explicit flush failures.
+
+Cross-feature orchestration uses service interfaces and domain-facing persistence
+interfaces where the operation must stay in one transaction (for example account
+deletion checking team memberships and revoking tokens). JPA types are confined to
+persistence packages, even when associations refer to another feature's entities.
+
+`DocumentReferencesPersistence` provides domain-valued reference lookups to document
+services. `AccessToken` carries a digest, user ID, and expiry, without leaking a user
+entity. New documents have a nullable ID until persisted; response mapping requires an ID.
+
+See [Annotations](annotations.md), [Mappers](mappers.md), and [Testing](testing.md).

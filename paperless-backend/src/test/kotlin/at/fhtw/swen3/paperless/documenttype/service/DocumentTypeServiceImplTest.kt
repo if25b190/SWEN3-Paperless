@@ -1,30 +1,29 @@
 package at.fhtw.swen3.paperless.documenttype.service
 
-import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
-import at.fhtw.swen3.paperless.documenttype.repository.DocumentTypeRepository
+import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.testsupport.any
+import java.util.Optional
+import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.ArgumentMatchers.any
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
-import java.util.Optional
-import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class DocumentTypeServiceImplTest {
 
     @Mock
-    lateinit var repository: DocumentTypeRepository
+    lateinit var repository: DocumentTypePersistence
 
     @InjectMocks
     lateinit var service: DocumentTypeServiceImpl
@@ -48,7 +47,7 @@ class DocumentTypeServiceImplTest {
     fun create_document_type_ok() {
         // given
         `when`(repository.findByName("Invoice")).thenReturn(null)
-        `when`(repository.save(any(DocumentTypeEntity::class.java))).thenReturn(entity())
+        `when`(repository.save(any(DocumentType::class.java))).thenReturn(entity())
 
         // when
         val result = service.createDocumentType(documentType())
@@ -69,7 +68,7 @@ class DocumentTypeServiceImplTest {
         // when / then
         assertAll(
             { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.createDocumentType(documentType()) } },
-            { verify(repository, never()).save(any(DocumentTypeEntity::class.java)) }
+            { verify(repository, never()).save(any(DocumentType::class.java)) }
         )
     }
 
@@ -102,7 +101,7 @@ class DocumentTypeServiceImplTest {
         // given
         `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
         `when`(repository.findByName("Receipt")).thenReturn(null)
-        `when`(repository.save(any(DocumentTypeEntity::class.java))).thenAnswer { it.arguments[0] as DocumentTypeEntity }
+        `when`(repository.save(any(DocumentType::class.java))).thenAnswer { it.arguments[0] as DocumentType }
 
         // when
         val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(OTHER_ID, "Receipt", "Proof"))
@@ -119,12 +118,12 @@ class DocumentTypeServiceImplTest {
     fun update_duplicate_document_type_ko() {
         // given
         `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
-        `when`(repository.findByName("Receipt")).thenReturn(DocumentTypeEntity(OTHER_ID, "Receipt"))
+        `when`(repository.findByName("Receipt")).thenReturn(DocumentType(OTHER_ID, "Receipt", null))
 
         // when / then
         assertAll(
             { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
-            { verify(repository, never()).save(any(DocumentTypeEntity::class.java)) }
+            { verify(repository, never()).save(any(DocumentType::class.java)) }
         )
     }
 
@@ -160,7 +159,7 @@ class DocumentTypeServiceImplTest {
 
     private fun documentType() = DocumentType(null, "Invoice", "Bills")
 
-    private fun entity() = DocumentTypeEntity(DOCUMENT_TYPE_ID, "Invoice", "Bills")
+    private fun entity() = DocumentType(DOCUMENT_TYPE_ID, "Invoice", "Bills")
 
     private companion object {
         val DOCUMENT_TYPE_ID: UUID = UUID.fromString("00000000-0000-0000-0000-000000000001")

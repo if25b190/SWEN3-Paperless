@@ -4,6 +4,8 @@ import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.service.DocumentService
 import jakarta.validation.ConstraintViolationException
+import java.time.Instant
+import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
@@ -15,8 +17,6 @@ import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.junit.jupiter.MockitoExtension
-import java.time.Instant
-import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
 class SearchServiceImplTest {

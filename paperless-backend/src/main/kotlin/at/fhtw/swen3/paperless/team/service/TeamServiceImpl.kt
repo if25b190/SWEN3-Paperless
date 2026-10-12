@@ -1,46 +1,41 @@
 package at.fhtw.swen3.paperless.team.service
 
+import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
-import at.fhtw.swen3.paperless.team.entity.TeamEntity
-import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
-import at.fhtw.swen3.paperless.team.mapper.TeamEntityMapper
-import at.fhtw.swen3.paperless.team.mapper.TeamMemberEntityMapper
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
-import at.fhtw.swen3.paperless.team.repository.TeamMemberRepository
-import at.fhtw.swen3.paperless.team.repository.TeamRepository
+import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.user.service.UserService
+import java.time.Instant
+import java.util.UUID
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
-import java.util.UUID
 
 @Service
 @Transactional
 class TeamServiceImpl(
-    private val teamRepository: TeamRepository,
-    private val teamMemberRepository: TeamMemberRepository,
+    private val teamRepository: TeamPersistence,
+    private val teamMemberRepository: TeamMemberPersistence,
     private val userService: UserService
 ) : TeamService {
 
     @Transactional(readOnly = true)
     override fun getTeams(): List<Team> =
         teamMemberRepository.findByUserId(currentActorId())
-            .map { TeamEntityMapper.toModel(it.team) }
+            .map { it.team }
 
     override fun createTeam(team: Team): Team {
         val actorId = currentActorId()
-        val saved = teamRepository.save(TeamEntityMapper.toEntity(team.copy(ownerId = actorId)))
-        val createdTeam = TeamEntityMapper.toModel(saved)
+        val createdTeam = teamRepository.save(team.copy(ownerId = actorId))
         val creator = userService.getById(actorId)
         val membership = TeamMember(createdTeam, creator, Role.ADMIN, Instant.now())
-        teamMemberRepository.save(TeamMemberEntityMapper.toEntity(membership))
+        teamMemberRepository.save(membership)
         return createdTeam
     }
 
@@ -49,17 +44,20 @@ class TeamServiceImpl(
         val entity = teamRepository.findById(id)
             .orElseThrow { AppException(AppErrorMessage.TEAM_NOT_FOUND) }
         requireTeamMember(entity)
-        return TeamEntityMapper.toModel(entity)
+        return entity
     }
 
     override fun updateTeam(id: UUID, name: String?, description: String?): Team {
         val entity = teamRepository.findById(id)
             .orElseThrow { AppException(AppErrorMessage.TEAM_NOT_FOUND) }
         requireAdmin(id, entity.ownerId)
-        entity.name = name ?: entity.name
-        entity.description = description ?: entity.description
-        entity.updatedAt = Instant.now()
-        return TeamEntityMapper.toModel(teamRepository.save(entity))
+        val updated = entity.copy(
+            name = name ?: entity.name,
+            description = description ?: entity.description,
+            updatedAt = Instant.now()
+        )
+
+        return teamRepository.save(updated)
     }
 
     override fun deleteTeam(id: UUID) {
@@ -74,7 +72,7 @@ class TeamServiceImpl(
     @Transactional(readOnly = true)
     override fun getTeamMembers(teamId: UUID): List<TeamMember> {
         getTeam(teamId)
-        return teamMemberRepository.findByTeamId(teamId).map(TeamMemberEntityMapper::toModel)
+        return teamMemberRepository.findByTeamId(teamId)
     }
 
     @Transactional(readOnly = true)
@@ -94,9 +92,9 @@ class TeamServiceImpl(
     }
 
     override fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember {
-        val teamEntity = findLockedTeam(teamId)
-        requireAdmin(teamId, teamEntity.ownerId)
-        if (userId == teamEntity.ownerId && role != Role.ADMIN) {
+        val team = findLockedTeam(teamId)
+        requireAdmin(teamId, team.ownerId)
+        if (userId == team.ownerId && role != Role.ADMIN) {
             throw AccessDeniedException("The team owner must remain an admin")
         }
         val user = userService.getById(userId)
@@ -104,8 +102,8 @@ class TeamServiceImpl(
             throw AppException(AppErrorMessage.TEAM_MEMBER_ALREADY_EXISTS)
         }
 
-        val member = TeamMember(TeamEntityMapper.toModel(teamEntity), user, role, Instant.now())
-        teamMemberRepository.save(TeamMemberEntityMapper.toEntity(member))
+        val member = TeamMember(team, user, role, Instant.now())
+        teamMemberRepository.save(member)
         return member
     }
 
@@ -119,8 +117,7 @@ class TeamServiceImpl(
         if (member.role == Role.ADMIN && role != Role.ADMIN) {
             requireAnotherAdmin(teamId, member)
         }
-        member.role = role
-        return TeamMemberEntityMapper.toModel(teamMemberRepository.save(member))
+        return teamMemberRepository.save(member.copy(role = role))
     }
 
     override fun removeTeamMember(teamId: UUID, userId: UUID) {
@@ -140,7 +137,7 @@ class TeamServiceImpl(
         teamRepository.findLockedById(teamId)
             ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
 
-    private fun requireAnotherAdmin(teamId: UUID, member: TeamMemberEntity) {
+    private fun requireAnotherAdmin(teamId: UUID, member: TeamMember) {
         val anotherAdminExists = teamMemberRepository.findByTeamId(teamId).any {
             it.user.id != member.user.id && it.role == Role.ADMIN
         }
@@ -158,7 +155,7 @@ class TeamServiceImpl(
         }
     }
 
-    private fun requireTeamMember(team: TeamEntity) {
+    private fun requireTeamMember(team: Team) {
         val actorId = currentActorId()
         val isMember = actorId == team.ownerId || teamMemberRepository.existsByTeamIdAndUserId(requireNotNull(team.id), actorId)
         if (!isMember) {

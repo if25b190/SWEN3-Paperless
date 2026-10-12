@@ -1,8 +1,8 @@
 package at.fhtw.swen3.paperless.auth
 
-import at.fhtw.swen3.paperless.auth.repository.AccessTokenRepository
-import at.fhtw.swen3.paperless.document.repository.DocumentRepository
-import at.fhtw.swen3.paperless.user.repository.UserRepository
+import at.fhtw.swen3.paperless.auth.persistence.repository.AccessTokenRepository
+import at.fhtw.swen3.paperless.document.persistence.repository.DocumentRepository
+import at.fhtw.swen3.paperless.user.persistence.repository.UserRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test

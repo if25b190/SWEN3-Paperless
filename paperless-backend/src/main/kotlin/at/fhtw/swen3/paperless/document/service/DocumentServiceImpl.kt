@@ -1,23 +1,22 @@
 package at.fhtw.swen3.paperless.document.service
 
-import at.fhtw.swen3.paperless.document.entity.DocumentEntity
-import at.fhtw.swen3.paperless.document.mapper.DocumentEntityMapper
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
-import at.fhtw.swen3.paperless.document.repository.DocumentRepository
-import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
+import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
+import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
-import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.service.TeamService
-import at.fhtw.swen3.paperless.user.entity.UserEntity
-import jakarta.persistence.EntityManager
-import jakarta.persistence.EntityNotFoundException
-import jakarta.persistence.OptimisticLockException
 import jakarta.validation.ConstraintViolationException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.time.Instant
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.FileSystemResource
 import org.springframework.core.io.Resource
@@ -31,17 +30,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.time.Instant
-import java.util.UUID
 
 @Service
 @Transactional
 class DocumentServiceImpl(
-    private val repository: DocumentRepository,
-    private val entityManager: EntityManager,
+    private val repository: DocumentPersistence,
+    private val referencesPersistence: DocumentReferencesPersistence,
     private val teamService: TeamService
 ) : DocumentService {
 
@@ -62,7 +56,7 @@ class DocumentServiceImpl(
         } else {
             repository.findVisibleDocuments(actorId, teamIds, documentTypeId, pageable)
         }
-        return documents.map(DocumentEntityMapper::toModel)
+        return documents
     }
 
     @Transactional(readOnly = true)
@@ -75,12 +69,11 @@ class DocumentServiceImpl(
             repository.findVisibleDocuments(actorId, teamIds)
         }
         return documents
-            .map(DocumentEntityMapper::toModel)
     }
 
     @Transactional(readOnly = true)
     override fun getDocument(id: UUID): Document =
-        DocumentEntityMapper.toModel(requireReadable(findEntity(id), currentActorId()))
+        requireReadable(findDocument(id), currentActorId())
 
     override fun uploadDocument(upload: DocumentUpload): Document {
         val actorId = currentActorId()
@@ -104,13 +97,16 @@ class DocumentServiceImpl(
         return try {
             val now = Instant.now()
             val entity = repository.save(
-                DocumentEntity(
+                Document(
+                    id = null,
+                    ocrContent = null,
+                    summary = null,
                     title = upload.title,
                     originalFilename = upload.originalFilename,
                     contentType = upload.contentType,
                     fileSize = upload.content.size.toLong(),
-                    owner = references.owner,
-                    team = references.team,
+                    ownerId = actorId,
+                    teamId = references.teamId,
                     status = ProcessingStatus.PENDING,
                     storageKey = storageKey,
                     documentType = references.documentType,
@@ -118,7 +114,7 @@ class DocumentServiceImpl(
                     updatedAt = now
                 )
             )
-            DocumentEntityMapper.toModel(entity)
+            entity
         } catch (exception: RuntimeException) {
             Files.deleteIfExists(file)
             throw exception
@@ -131,8 +127,8 @@ class DocumentServiceImpl(
         }
 
         val actorId = currentActorId()
-        val initial = findEntity(id)
-        val sourceTeamId = initial.team?.id
+        val initial = findDocument(id)
+        val sourceTeamId = initial.teamId
         val hasSharingUpdate = update.teamId != null || update.clearTeam
         val requestedTeamId = when {
             update.clearTeam -> null
@@ -140,36 +136,36 @@ class DocumentServiceImpl(
             else -> sourceTeamId
         }
         val roles = lockedRoles(setOfNotNull(sourceTeamId, requestedTeamId), actorId)
-        val existing = requireWritable(refreshUnchanged(initial, sourceTeamId), actorId, roles)
+        val existing = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
         update.title?.let(::validateTitle)
-        var updatedTeam = existing.team
+        var updatedTeamId = existing.teamId
 
         if (hasSharingUpdate) {
-            if (actorId != existing.owner.id) {
+            if (actorId != existing.ownerId) {
                 throw AccessDeniedException("Only the document uploader can change sharing")
             }
-            if (requestedTeamId == existing.team?.id) {
+            if (requestedTeamId == existing.teamId) {
                 throw DataIntegrityViolationException("The requested sharing transition conflicts with current sharing state")
             }
-            updatedTeam = requestedTeamId?.let {
+            updatedTeamId = requestedTeamId?.let {
                 if (roles[it]?.canWrite() != true) throw AccessDeniedException("Write access to the team is required")
-                entityManager.find(TeamEntity::class.java, it) ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+                referencesPersistence.findTeam(it)?.id ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
             }
         }
 
         val documentType = update.documentTypeId?.let {
-            entityManager.find(DocumentTypeEntity::class.java, it)
+            referencesPersistence.findDocumentType(it)
                 ?: throw AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
         } ?: existing.documentType
 
-        val updated = DocumentEntity(
+        val updated = Document(
             id = existing.id,
             title = update.title ?: existing.title,
             originalFilename = existing.originalFilename,
             contentType = existing.contentType,
             fileSize = existing.fileSize,
-            owner = existing.owner,
-            team = updatedTeam,
+            ownerId = existing.ownerId,
+            teamId = updatedTeamId,
             status = existing.status,
             ocrContent = existing.ocrContent,
             summary = existing.summary,
@@ -180,24 +176,24 @@ class DocumentServiceImpl(
             version = existing.version
         )
         val result = repository.save(updated)
-        entityManager.flush()
-        return DocumentEntityMapper.toModel(result)
+        repository.flush()
+        return result
     }
 
     override fun deleteDocument(id: UUID) {
         val actorId = currentActorId()
-        val initial = findEntity(id)
-        val sourceTeamId = initial.team?.id
+        val initial = findDocument(id)
+        val sourceTeamId = initial.teamId
         val roles = lockedRoles(setOfNotNull(sourceTeamId), actorId)
-        val entity = requireWritable(refreshUnchanged(initial, sourceTeamId), actorId, roles)
+        val entity = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
         repository.delete(entity)
-        entityManager.flush()
+        repository.flush()
         entity.storageKey?.let { deleteAfterCommit(fileFor(it)) }
     }
 
     @Transactional(readOnly = true)
     override fun downloadDocument(id: UUID): Resource {
-        val entity = requireReadable(findEntity(id), currentActorId())
+        val entity = requireReadable(findDocument(id), currentActorId())
         val storageKey = entity.storageKey ?: throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
         val resource = FileSystemResource(fileFor(storageKey))
         if (!resource.exists() || !resource.isReadable) {
@@ -207,54 +203,39 @@ class DocumentServiceImpl(
     }
 
     private fun validateUploadReferences(upload: DocumentUpload, actorId: UUID): UploadReferences {
-        val owner = entityManager.find(UserEntity::class.java, actorId)
-            ?: throw AppException(AppErrorMessage.USER_NOT_FOUND)
+        if (!referencesPersistence.ownerExists(actorId)) throw AppException(AppErrorMessage.USER_NOT_FOUND)
         val documentType = upload.documentTypeId?.let {
-            entityManager.find(DocumentTypeEntity::class.java, it)
+            referencesPersistence.findDocumentType(it)
                 ?: throw AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
         }
-        val team = upload.teamId?.let {
+        val teamId = upload.teamId?.let {
             val roles = lockedRoles(setOf(it), actorId)
             if (roles[it]?.canWrite() != true) throw AccessDeniedException("Write access to the team is required")
-            entityManager.find(TeamEntity::class.java, it) ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+            referencesPersistence.findTeam(it)?.id ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
         }
-        return UploadReferences(owner, team, documentType)
+
+        return UploadReferences(teamId, documentType)
     }
 
     private fun lockedRoles(teamIds: Set<UUID>, actorId: UUID): Map<UUID, Role?> =
         if (teamIds.isEmpty()) emptyMap() else teamService.lockedRoles(teamIds.toSortedSet(), actorId)
 
-    private fun refreshUnchanged(entity: DocumentEntity, sourceTeamId: UUID?): DocumentEntity {
-        val originalVersion = entity.version
-        val ownerId = entity.owner.id
-        try {
-            entityManager.refresh(entity)
-        } catch (exception: EntityNotFoundException) {
-            throw OptimisticLockException("Document was deleted concurrently", exception)
-        }
-        if (entity.version != originalVersion || entity.team?.id != sourceTeamId || entity.owner.id != ownerId) {
-            throw OptimisticLockException("Document sharing changed concurrently")
-        }
-        return entity
-    }
-
-    private fun requireReadable(entity: DocumentEntity, actorId: UUID): DocumentEntity {
-        val team = entity.team
-        val canRead = if (team == null) {
-            entity.owner.id == actorId
+    private fun requireReadable(entity: Document, actorId: UUID): Document {
+        val teamId = entity.teamId
+        val canRead = if (teamId == null) {
+            entity.ownerId == actorId
         } else {
-            teamService.roleFor(requireNotNull(team.id) { "Persisted document team must have an ID" }, actorId) != null
+            teamService.roleFor(teamId, actorId) != null
         }
         if (!canRead) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
         return entity
     }
 
-    private fun requireWritable(entity: DocumentEntity, actorId: UUID, roles: Map<UUID, Role?>): DocumentEntity {
-        val team = entity.team
-        if (team == null) {
-            if (entity.owner.id != actorId) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+    private fun requireWritable(entity: Document, actorId: UUID, roles: Map<UUID, Role?>): Document {
+        val teamId = entity.teamId
+        if (teamId == null) {
+            if (entity.ownerId != actorId) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
         } else {
-            val teamId = requireNotNull(team.id) { "Persisted document team must have an ID" }
             val role = roles[teamId]
                 ?: throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
             if (!role.canWrite()) throw AccessDeniedException("Write access to the document is required")
@@ -264,7 +245,7 @@ class DocumentServiceImpl(
 
     private fun Role.canWrite(): Boolean = this == Role.READ_WRITE || this == Role.ADMIN
 
-    private fun findEntity(id: UUID): DocumentEntity =
+    private fun findDocument(id: UUID): Document =
         repository.findById(id).orElseThrow { AppException(AppErrorMessage.DOCUMENT_NOT_FOUND) }
 
     private fun currentActorId(): UUID =
@@ -329,9 +310,8 @@ class DocumentServiceImpl(
             .ifBlank { "document" }
 
     private data class UploadReferences(
-        val owner: UserEntity,
-        val team: TeamEntity?,
-        val documentType: DocumentTypeEntity?
+        val teamId: UUID?,
+        val documentType: DocumentType?
     )
 
     private companion object {
