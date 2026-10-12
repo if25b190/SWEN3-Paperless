@@ -230,6 +230,14 @@ class SecurityIntegrationTest(
     }
 
     @Test
+    fun user_teams_route_has_one_version_prefix_ok() {
+        val userId = register("route_${System.nanoTime()}", "secret123")
+
+        mvc.perform(get("/api/v1/users/$userId/teams").with(user(userId.toString())))
+            .andExpect(status().isOk)
+    }
+
+    @Test
     fun unversioned_and_unsupported_api_routes_ko() {
         val actor = UUID.randomUUID().toString()
 
