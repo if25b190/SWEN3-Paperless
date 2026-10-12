@@ -6,6 +6,7 @@ import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.search.model.SearchResult
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import jakarta.validation.ConstraintViolationException
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
@@ -19,6 +20,7 @@ class SearchServiceImpl(
     private val documentRepository: DocumentPersistence,
     private val teamMemberRepository: TeamMemberPersistence
 ) : SearchService {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     override fun search(query: String, fuzzy: Boolean, page: Int, size: Int): Page<SearchResult> {
         if (page < 0) throw ConstraintViolationException("page must be non-negative", emptySet())
@@ -44,6 +46,8 @@ class SearchServiceImpl(
         val request = PageRequest.of(page, size)
         val from = minOf(page.toLong() * size, results.size.toLong()).toInt()
         val to = minOf(from.toLong() + size, results.size.toLong()).toInt()
+        log.debug("[SEARCH] - ACTION: search: page: {}, size: {}, resultCount: {}", page, size, results.size)
+
         return PageImpl(results.subList(from, to), request, results.size.toLong())
     }
 

@@ -2,6 +2,7 @@ package at.fhtw.swen3.paperless.config
 
 import at.fhtw.swen3.paperless.auth.service.LocalTokenIntrospector
 import jakarta.servlet.http.HttpServletResponse
+import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
@@ -18,6 +19,7 @@ import org.springframework.http.HttpMethod
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(private val introspector: LocalTokenIntrospector) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Bean
     fun passwordEncoder(): PasswordEncoder {
@@ -55,6 +57,7 @@ class SecurityConfig(private val introspector: LocalTokenIntrospector) {
     }
 
     private fun problem(response: HttpServletResponse, status: Int, title: String, detail: String) {
+        log.warn("[SECURITY] - ACTION: rejectRequest: status: {}", status)
         response.status = status
         response.contentType = MediaType.APPLICATION_PROBLEM_JSON_VALUE
         if (status == 401) response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer")

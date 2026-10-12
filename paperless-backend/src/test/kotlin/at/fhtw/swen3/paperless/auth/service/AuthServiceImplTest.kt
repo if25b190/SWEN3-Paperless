@@ -23,11 +23,13 @@ import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Spy
 import org.mockito.junit.jupiter.MockitoExtension
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder
 
-@ExtendWith(MockitoExtension::class)
+@ExtendWith(MockitoExtension::class, OutputCaptureExtension::class)
 class AuthServiceImplTest {
     @Mock lateinit var userRepository: UserPersistence
     @Mock lateinit var tokenRepository: AccessTokenPersistence
@@ -38,7 +40,7 @@ class AuthServiceImplTest {
     @InjectMocks lateinit var service: AuthServiceImpl
 
     @Test
-    fun login_locks_user_and_replaces_session_before_returning_token_ok() {
+    fun login_locks_user_and_replaces_session_before_returning_token_ok(output: CapturedOutput) {
         // given
         val user = user(requireNotNull(passwordEncoder.encode("secret")))
         `when`(userRepository.findLockedByUsername("alice")).thenReturn(user)
@@ -55,6 +57,9 @@ class AuthServiceImplTest {
         ordered.verify(userRepository).findLockedByUsername("alice")
         ordered.verify(tokenRepository).deleteByUserId(userId())
         ordered.verify(tokenRepository).save(any(AccessToken::class.java))
+        assertThat(output.all)
+            .contains("[AUTH] - ACTION: login: userId: ${userId()}")
+            .doesNotContain("alice", "secret", authenticated.token, user.password)
         val stored = savedToken()
         assertAll(
             { assertThat(stored.digest).isEqualTo(TokenDigests.sha256(authenticated.token)) },

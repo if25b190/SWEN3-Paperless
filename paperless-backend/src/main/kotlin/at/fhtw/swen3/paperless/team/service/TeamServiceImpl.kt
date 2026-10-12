@@ -11,6 +11,7 @@ import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.time.Instant
 import java.util.UUID
+import org.slf4j.LoggerFactory
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
@@ -23,6 +24,7 @@ class TeamServiceImpl(
     private val teamMemberRepository: TeamMemberPersistence,
     private val userRepository: UserPersistence
 ) : TeamService {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional(readOnly = true)
     override fun getTeams(): List<Team> =
@@ -35,6 +37,8 @@ class TeamServiceImpl(
         val creator = userRepository.findById(actorId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
         val membership = TeamMember(createdTeam, creator, Role.ADMIN, Instant.now())
         teamMemberRepository.save(membership)
+        log.info("[TEAM] - ACTION: createTeam: teamId: {}, actorId: {}", createdTeam.id, actorId)
+
         return createdTeam
     }
 
@@ -56,7 +60,10 @@ class TeamServiceImpl(
             updatedAt = Instant.now()
         )
 
-        return teamRepository.save(updated)
+        val saved = teamRepository.save(updated)
+        log.info("[TEAM] - ACTION: updateTeam: teamId: {}", id)
+
+        return saved
     }
 
     override fun deleteTeam(id: UUID) {
@@ -66,6 +73,7 @@ class TeamServiceImpl(
         }
         teamMemberRepository.deleteByTeamId(id)
         teamRepository.deleteById(id)
+        log.info("[TEAM] - ACTION: deleteTeam: teamId: {}", id)
     }
 
     @Transactional(readOnly = true)
@@ -87,6 +95,8 @@ class TeamServiceImpl(
 
         val member = TeamMember(team, user, role, Instant.now())
         teamMemberRepository.save(member)
+        log.info("[TEAM] - ACTION: addTeamMember: teamId: {}, userId: {}, role: {}", teamId, userId, role)
+
         return member
     }
 
@@ -100,7 +110,10 @@ class TeamServiceImpl(
         if (member.role == Role.ADMIN && role != Role.ADMIN) {
             requireAnotherAdmin(teamId, member)
         }
-        return teamMemberRepository.save(member.copy(role = role))
+        val saved = teamMemberRepository.save(member.copy(role = role))
+        log.info("[TEAM] - ACTION: updateTeamMemberRole: teamId: {}, userId: {}, role: {}", teamId, userId, role)
+
+        return saved
     }
 
     override fun removeTeamMember(teamId: UUID, userId: UUID) {
@@ -114,6 +127,7 @@ class TeamServiceImpl(
             requireAnotherAdmin(teamId, member)
         }
         teamMemberRepository.delete(member)
+        log.info("[TEAM] - ACTION: removeTeamMember: teamId: {}, userId: {}", teamId, userId)
     }
 
     private fun findLockedTeam(teamId: UUID) =

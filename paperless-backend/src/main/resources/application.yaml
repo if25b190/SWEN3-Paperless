@@ -25,6 +25,12 @@ server:
     # Drain near-limit rejected requests so clients can receive the HTTP 413 response.
     max-swallow-size: 51MB
 
+logging:
+  level:
+    at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
+  pattern:
+    level: "%5p [requestId=%X{requestId:-none}]"
+
 springdoc:
   api-docs:
     path: /v3/api-docs

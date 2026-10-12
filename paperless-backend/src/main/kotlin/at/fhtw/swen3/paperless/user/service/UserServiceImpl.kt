@@ -12,6 +12,7 @@ import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.UUID
+import org.slf4j.LoggerFactory
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -27,6 +28,7 @@ class UserServiceImpl(
     private val passwordEncoder: PasswordEncoder,
     private val tokenRepository: AccessTokenPersistence
 ) : UserService {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional(readOnly = true)
     override fun searchUsers(): List<User> =
@@ -39,6 +41,7 @@ class UserServiceImpl(
 
         val encodedUser = user.copy(password = requireNotNull(passwordEncoder.encode(user.password)))
         val saved = userRepository.save(encodedUser)
+        log.info("[USER] - ACTION: create: userId: {}", saved.id)
 
         return saved
     }
@@ -66,6 +69,7 @@ class UserServiceImpl(
         )
         val saved = userRepository.save(updated)
         if (password != null) tokenRepository.deleteByUserId(id)
+        log.info("[USER] - ACTION: update: userId: {}", id)
 
         return saved
     }
@@ -95,6 +99,7 @@ class UserServiceImpl(
         tokenRepository.deleteByUserId(id)
         teamMemberRepository.deleteAll(teamMemberRepository.findByUserId(id))
         userRepository.deleteById(id)
+        log.info("[USER] - ACTION: delete: userId: {}", id)
     }
 
     @Transactional(readOnly = true)
