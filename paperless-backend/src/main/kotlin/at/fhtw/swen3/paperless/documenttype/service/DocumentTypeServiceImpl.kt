@@ -38,7 +38,7 @@ class DocumentTypeServiceImpl(
             throw AppException(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS)
         }
 
-        val updated = documentType.copy(id = current.id)
+        val updated = documentType.copy(id = current.id, version = current.version)
         val saved = repository.save(updated)
         return saved
     }

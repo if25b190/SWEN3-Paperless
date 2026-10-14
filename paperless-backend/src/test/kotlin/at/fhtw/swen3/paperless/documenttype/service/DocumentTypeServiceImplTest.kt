@@ -99,7 +99,7 @@ class DocumentTypeServiceImplTest {
     @Test
     fun update_document_type_ok() {
         // given
-        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
+        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity().copy(version = 7)))
         `when`(repository.findByName("Receipt")).thenReturn(null)
         `when`(repository.save(any(DocumentType::class.java))).thenAnswer { it.arguments[0] as DocumentType }
 
@@ -110,7 +110,8 @@ class DocumentTypeServiceImplTest {
         assertAll(
             { assertThat(result.id).isEqualTo(DOCUMENT_TYPE_ID) },
             { assertThat(result.name).isEqualTo("Receipt") },
-            { assertThat(result.description).isEqualTo("Proof") }
+            { assertThat(result.description).isEqualTo("Proof") },
+            { assertThat(result.version).isEqualTo(7) }
         )
     }
 

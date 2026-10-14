@@ -66,3 +66,14 @@ Search owns its membership-filtered candidate lookup. `AccessToken` carries a di
 user ID, and expiry, without leaking a user entity. New documents have a nullable ID until persisted; response mapping requires an ID.
 
 See [Annotations](annotations.md), [Mappers](mappers.md), and [Testing](testing.md).
+
+## Shared entity properties
+
+UUID entities inherit `id`, `createdAt`, `updatedAt`, and `version` from
+`common/entity/AbstractEntity`, a JPA mapped superclass. Hibernate generates UUIDs,
+maintains creation/update timestamps, and checks the inherited version on writes.
+Domain models and entity mappers carry the loaded version through updates to preserve
+optimistic locking. Membership updates mutate the managed entity and retain its version.
+Flyway V2 adds and backfills the new columns for existing databases.
+`AccessTokenEntity` keeps its digest primary key and expiration lifecycle; it does not
+inherit a generated UUID identity.

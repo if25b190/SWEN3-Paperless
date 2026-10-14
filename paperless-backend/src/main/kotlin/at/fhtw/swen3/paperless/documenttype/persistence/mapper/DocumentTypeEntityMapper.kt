@@ -9,13 +9,15 @@ object DocumentTypeEntityMapper {
         DocumentTypeEntity(
             id = documentType.id,
             name = documentType.name,
-            description = documentType.description
+            description = documentType.description,
+            version = documentType.version
         )
 
     fun toModel(entity: DocumentTypeEntity): DocumentType =
         DocumentType(
             id = entity.id,
             name = entity.name,
-            description = entity.description
+            description = entity.description,
+            version = entity.version
         )
 }

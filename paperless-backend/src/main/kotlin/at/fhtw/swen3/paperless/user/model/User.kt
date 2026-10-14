@@ -8,5 +8,6 @@ data class User(
     val username: String,
     val password: String,
     val createdAt: Instant,
-    val updatedAt: Instant?
+    val updatedAt: Instant?,
+    val version: Long = 0
 )

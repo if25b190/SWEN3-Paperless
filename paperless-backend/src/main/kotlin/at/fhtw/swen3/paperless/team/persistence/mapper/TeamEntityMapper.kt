@@ -12,7 +12,8 @@ object TeamEntityMapper {
             description = team.description,
             createdAt = team.createdAt,
             updatedAt = team.updatedAt,
-            ownerId = team.ownerId
+            ownerId = team.ownerId,
+            version = team.version
         )
 
     fun toModel(entity: TeamEntity): Team =
@@ -22,6 +23,7 @@ object TeamEntityMapper {
             description = entity.description,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
-            ownerId = entity.ownerId
+            ownerId = entity.ownerId,
+            version = entity.version
         )
 }

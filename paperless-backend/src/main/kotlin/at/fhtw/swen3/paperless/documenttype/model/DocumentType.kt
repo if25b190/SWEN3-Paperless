@@ -5,5 +5,6 @@ import java.util.UUID
 data class DocumentType(
     val id: UUID?,
     val name: String,
-    val description: String?
+    val description: String?,
+    val version: Long = 0
 )
