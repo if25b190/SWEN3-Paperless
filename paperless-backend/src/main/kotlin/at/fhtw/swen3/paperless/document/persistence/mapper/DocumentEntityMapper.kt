@@ -1,11 +1,11 @@
 package at.fhtw.swen3.paperless.document.persistence.mapper
 
 import at.fhtw.swen3.paperless.document.model.Document
-import at.fhtw.swen3.paperless.document.persistence.entity.DocumentEntity
-import at.fhtw.swen3.paperless.documenttype.persistence.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.document.entity.DocumentEntity
+import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.persistence.mapper.DocumentTypeEntityMapper
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 
 object DocumentEntityMapper {
 

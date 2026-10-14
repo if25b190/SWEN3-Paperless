@@ -1,9 +1,9 @@
-package at.fhtw.swen3.paperless.document.persistence.entity
+package at.fhtw.swen3.paperless.document.entity
 
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
-import at.fhtw.swen3.paperless.documenttype.persistence.entity.DocumentTypeEntity
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType

@@ -13,7 +13,7 @@ class PersistenceBoundaryTest {
         assertThat(sources).isNotEmpty()
         assertThat(sources).allSatisfy { path ->
             assertThat(Files.readString(path)).describedAs(path.toString())
-                .doesNotContain("import jakarta.persistence.", ".persistence.entity.", ".persistence.repository.")
+                .doesNotContain("import jakarta.persistence.", ".entity.", ".persistence.repository.")
                 .doesNotContain(".persistence.mapper.", "import org.springframework.data.jpa.")
         }
     }
@@ -25,7 +25,7 @@ class PersistenceBoundaryTest {
         assertThat(interfaces).isNotEmpty()
         assertThat(interfaces).allSatisfy { path ->
             assertThat(Files.readString(path)).describedAs(path.toString())
-                .doesNotContain("jakarta.persistence.", ".persistence.entity.", ".persistence.repository.")
+                .doesNotContain("jakarta.persistence.", ".entity.", ".persistence.repository.")
                 .doesNotContain("JpaRepository", "EntityManager", ".persistence.mapper.")
         }
     }

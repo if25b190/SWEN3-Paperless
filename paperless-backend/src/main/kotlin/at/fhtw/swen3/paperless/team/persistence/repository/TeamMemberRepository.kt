@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.team.persistence.repository
 
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamMemberEntity
+import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
 import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 

@@ -1,6 +1,6 @@
-package at.fhtw.swen3.paperless.auth.persistence.entity
+package at.fhtw.swen3.paperless.auth.entity
 
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.FetchType

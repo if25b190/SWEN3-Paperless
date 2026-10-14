@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.document.persistence.repository
 
-import at.fhtw.swen3.paperless.document.persistence.entity.DocumentEntity
+import at.fhtw.swen3.paperless.document.entity.DocumentEntity
 import java.util.UUID
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

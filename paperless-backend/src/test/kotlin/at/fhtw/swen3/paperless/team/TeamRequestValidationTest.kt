@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.team
 
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import at.fhtw.swen3.paperless.user.persistence.repository.UserRepository
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired

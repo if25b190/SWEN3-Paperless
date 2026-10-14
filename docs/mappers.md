@@ -30,7 +30,7 @@ In unit tests without a Spring context, obtain the mapper instance via `Mappers.
 
 Static mappers trade code generation for plain Java that can be read top-to-bottom without IDE plugins. Each feature gets two static mappers corresponding to architectural boundaries:
 - `<Feature>Mapper`: static — `dto` ↔ `model`
-- `persistence/mapper/<Feature>EntityMapper`: Kotlin object — `model` ↔ `persistence/entity`, called only by JPA adapters.
+- `persistence/mapper/<Feature>EntityMapper`: Kotlin object — `model` ↔ `entity`, called only by JPA adapters.
 
 ### Implementation Rules
 - Declare the class as `public final class`.

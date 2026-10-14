@@ -18,15 +18,18 @@ at/fhtw/swen3/paperless/<feature>/
   controller/   <Feature>Controller     @RestController @RequestMapping("/<feature>")
   service/      <Feature>Service        interface — the feature's public surface
                 <Feature>ServiceImpl    @Service, class-level @Transactional — the one impl
+  entity/       <Feature>Entity         JPA annotations only, no business logic
   persistence/  <Feature>Persistence    domain-facing interface
                 Jpa<Feature>Persistence @Repository adapter — maps models ↔ entities
     repository/ <Feature>Repository     plain Spring Data interface
-    entity/     <Feature>Entity         JPA annotations only, no business logic
     mapper/     <Feature>EntityMapper   pure model ↔ entity mapping
   model/        <Feature>, enums        domain models (data class), no jakarta.persistence imports
   dto/          Create/Update/Response records
   mapper/       <Feature>Mapper         static — DTO ↔ model
 ```
+
+`model/`, `entity/`, `service/`, and `persistence/` are sibling folders within each
+feature. Entities stay separate from the persistence adapters and repositories.
 
 Not every feature needs every file — a read-only feature has no `Create<Feature>DTO`. Add a
 layer only when it actually carries weight.
@@ -41,7 +44,7 @@ layer only when it actually carries weight.
   Services inject `<Feature>Persistence` domain interfaces; adapters handle JPA and mapping.
   "Find or 404" remains a service concern:
   `repository.findById(id).orElseThrow(() -> new AppException(AppErrorMessage.<X>_NOT_FOUND))`.
-- `model/` holds Kotlin domain models / data classes (no JPA imports); `persistence/entity/` holds `@Entity` classes only, no logic.
+- `model/` holds Kotlin domain models / data classes (no JPA imports); `entity/` holds `@Entity` classes only, no logic.
 - Primary constructor injection is used in services (`class <Feature>ServiceImpl(private val persistence: <Feature>Persistence) : <Feature>Service`);
   Lombok is not used.
 - Prefer `val` for immutability; use `var` only when mutable state is strictly necessary (see [`docs/kotlin-style.md`](docs/kotlin-style.md)).

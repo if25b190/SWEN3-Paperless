@@ -9,12 +9,15 @@ at/fhtw/swen3/paperless/<feature>/
   model/        immutable domain models and enums
   dto/          request and response types
   mapper/       <Feature>Mapper — DTO ↔ model
+  entity/       JPA entities
   persistence/  <Feature>Persistence — domain-facing interface
                 Jpa<Feature>Persistence — Spring @Repository adapter
-    entity/     JPA entities
     repository/ plain Spring Data interfaces
     mapper/     <Feature>EntityMapper — pure model ↔ entity mapping
 ```
+
+`model/`, `entity/`, `service/`, and `persistence/` are sibling folders within each
+feature. Entities stay separate from the persistence adapters and repositories.
 
 ## Layer contract
 
@@ -54,7 +57,7 @@ continues to depend on transaction completion and explicit flush failures.
 Cross-feature orchestration uses service interfaces and domain-facing persistence
 interfaces where the operation must stay in one transaction (for example account
 deletion checking team memberships and revoking tokens). JPA types are confined to
-persistence packages, even when associations refer to another feature's entities.
+entity and persistence packages, even when associations refer to another feature's entities.
 
 `DocumentReferencesPersistence` provides domain-valued reference lookups to document
 services. `AccessToken` carries a digest, user ID, and expiry, without leaking a user

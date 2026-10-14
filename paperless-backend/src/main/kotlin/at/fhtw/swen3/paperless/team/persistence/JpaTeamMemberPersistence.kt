@@ -1,10 +1,10 @@
 package at.fhtw.swen3.paperless.team.persistence
 
 import at.fhtw.swen3.paperless.team.model.TeamMember
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.persistence.mapper.TeamMemberEntityMapper
 import at.fhtw.swen3.paperless.team.persistence.repository.TeamMemberRepository
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.EntityManager
 import java.util.UUID
 import org.springframework.stereotype.Repository

@@ -1,9 +1,9 @@
 package at.fhtw.swen3.paperless.auth.persistence
 
 import at.fhtw.swen3.paperless.auth.model.AccessToken
-import at.fhtw.swen3.paperless.auth.persistence.entity.AccessTokenEntity
+import at.fhtw.swen3.paperless.auth.entity.AccessTokenEntity
 import at.fhtw.swen3.paperless.auth.persistence.repository.AccessTokenRepository
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.EntityManager
 import java.util.Optional
 import java.util.UUID

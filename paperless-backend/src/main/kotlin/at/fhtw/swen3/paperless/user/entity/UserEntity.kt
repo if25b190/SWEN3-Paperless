@@ -1,4 +1,4 @@
-package at.fhtw.swen3.paperless.user.persistence.entity
+package at.fhtw.swen3.paperless.user.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

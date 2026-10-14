@@ -1,6 +1,6 @@
-package at.fhtw.swen3.paperless.document.persistence.entity
+package at.fhtw.swen3.paperless.document.entity
 
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.validation.Validation
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

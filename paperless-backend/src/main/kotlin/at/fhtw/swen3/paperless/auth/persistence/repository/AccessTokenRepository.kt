@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.auth.persistence.repository
 
-import at.fhtw.swen3.paperless.auth.persistence.entity.AccessTokenEntity
+import at.fhtw.swen3.paperless.auth.entity.AccessTokenEntity
 import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying

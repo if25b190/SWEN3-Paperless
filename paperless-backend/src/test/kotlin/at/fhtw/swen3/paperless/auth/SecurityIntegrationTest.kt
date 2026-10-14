@@ -1,15 +1,15 @@
 package at.fhtw.swen3.paperless.auth
 
 import at.fhtw.swen3.paperless.auth.persistence.repository.AccessTokenRepository
-import at.fhtw.swen3.paperless.auth.persistence.entity.AccessTokenEntity
+import at.fhtw.swen3.paperless.auth.entity.AccessTokenEntity
 import at.fhtw.swen3.paperless.auth.service.TokenDigests
 import at.fhtw.swen3.paperless.auth.service.LocalTokenIntrospector
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamMemberEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.persistence.repository.TeamMemberRepository
 import at.fhtw.swen3.paperless.team.persistence.repository.TeamRepository
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import at.fhtw.swen3.paperless.user.persistence.repository.UserRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test

@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.team.persistence.repository
 
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import jakarta.persistence.LockModeType
 import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository

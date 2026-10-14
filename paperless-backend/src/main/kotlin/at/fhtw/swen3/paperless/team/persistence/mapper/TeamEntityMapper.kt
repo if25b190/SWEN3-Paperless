@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.team.persistence.mapper
 
 import at.fhtw.swen3.paperless.team.model.Team
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
 
 object TeamEntityMapper {
 

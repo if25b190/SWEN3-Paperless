@@ -2,14 +2,14 @@ package at.fhtw.swen3.paperless.document.persistence
 
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
-import at.fhtw.swen3.paperless.documenttype.persistence.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.JpaTeamMemberPersistence
-import at.fhtw.swen3.paperless.team.persistence.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.persistence.mapper.TeamEntityMapper
 import at.fhtw.swen3.paperless.team.persistence.repository.TeamMemberRepository
-import at.fhtw.swen3.paperless.user.persistence.entity.UserEntity
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 import at.fhtw.swen3.paperless.user.persistence.mapper.UserEntityMapper
 import jakarta.persistence.EntityManager
 import java.time.Instant

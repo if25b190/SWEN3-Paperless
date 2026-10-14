@@ -8,7 +8,7 @@ Lombok is not used in this project because Kotlin natively provides these capabi
 - **Data classes (`data class`):** Provide getters, setters (for `var`), `copy()`, `equals()`, `hashCode()`, and `toString()` natively without boilerplate.
 - **Default and named arguments:** Replace builder patterns and `@Builder`. Construct objects directly using named parameters.
 - **`model/` domain models:** Declared as Kotlin `data class` with `val` properties, and **never** import `jakarta.persistence.*`.
-- **`persistence/entity/` classes:** Plain Kotlin classes carrying JPA annotations and nothing else — no business logic. The `kotlin-jpa` plugin generates the zero-argument constructor required by JPA.
+- **`entity/` classes:** Plain Kotlin classes carrying JPA annotations and nothing else — no business logic. The `kotlin-jpa` plugin generates the zero-argument constructor required by JPA.
 - **Logging:** Use SLF4J `LoggerFactory.getLogger(...)` directly (replacing `@Slf4j`). See [`docs/logging.md`](logging.md).
 
 ## Spring Annotations

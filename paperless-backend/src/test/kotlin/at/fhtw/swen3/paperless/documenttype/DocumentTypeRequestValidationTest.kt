@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.documenttype
 
-import at.fhtw.swen3.paperless.documenttype.persistence.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.persistence.repository.DocumentTypeRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
