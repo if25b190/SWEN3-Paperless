@@ -40,6 +40,8 @@ layer only when it actually carries weight.
   `<Feature>ServiceImpl` (both in `service/`). Inject and mock the interface; `@InjectMocks`
   in the service's own unit test targets `<Feature>ServiceImpl` — Mockito can't instantiate
   an interface.
+- Services must never inject or call another service. Use domain-facing persistence
+  interfaces for cross-feature data access and keep validation and authorization in the calling service.
 - JPA repositories remain plain Spring Data interfaces inside `persistence/repository/`.
   Services inject `<Feature>Persistence` domain interfaces; adapters handle JPA and mapping.
   "Find or 404" remains a service concern:

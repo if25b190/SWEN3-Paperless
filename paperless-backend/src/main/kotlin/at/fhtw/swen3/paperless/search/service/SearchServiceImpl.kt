@@ -1,25 +1,38 @@
 package at.fhtw.swen3.paperless.search.service
 
+import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.document.model.Document
-import at.fhtw.swen3.paperless.document.service.DocumentService
+import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.search.model.SearchResult
+import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import jakarta.validation.ConstraintViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class SearchServiceImpl(private val documentService: DocumentService) : SearchService {
+class SearchServiceImpl(
+    private val documentRepository: DocumentPersistence,
+    private val teamMemberRepository: TeamMemberPersistence
+) : SearchService {
 
     override fun search(query: String, fuzzy: Boolean, page: Int, size: Int): Page<SearchResult> {
         if (page < 0) throw ConstraintViolationException("page must be non-negative", emptySet())
         if (size !in 1..100) throw ConstraintViolationException("size must be between 1 and 100", emptySet())
 
         val terms = query.trim().lowercase().split(Regex("\\s+")).filter(String::isNotBlank)
-        val results = documentService.visibleDocumentsForSearch().mapNotNull { document ->
+        val actorId = AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
+        val teamIds = teamMemberRepository.findByUserId(actorId).mapTo(mutableSetOf()) { requireNotNull(it.team.id) }
+        val documents = if (teamIds.isEmpty()) {
+            documentRepository.findOwnerOnlyDocuments(actorId)
+        } else {
+            documentRepository.findVisibleDocuments(actorId, teamIds)
+        }
+        val results = documents.mapNotNull { document ->
             val searchable = listOfNotNull(document.title, document.ocrContent, document.summary)
                 .joinToString(" ").lowercase()
             val matched = terms.filter { term ->

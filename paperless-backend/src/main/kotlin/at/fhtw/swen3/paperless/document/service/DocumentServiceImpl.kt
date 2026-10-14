@@ -10,7 +10,7 @@ import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.team.model.Role
-import at.fhtw.swen3.paperless.team.service.TeamService
+import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import jakarta.validation.ConstraintViolationException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,7 +36,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class DocumentServiceImpl(
     private val repository: DocumentPersistence,
     private val referencesPersistence: DocumentReferencesPersistence,
-    private val teamService: TeamService
+    private val teamMemberRepository: TeamMemberPersistence
 ) : DocumentService {
 
     private val storageDirectory: Path = Paths.get(System.getProperty("java.io.tmpdir"), "paperless-documents")
@@ -49,24 +49,12 @@ class DocumentServiceImpl(
         documentTypeId: UUID?
     ): Page<Document> {
         val actorId = currentActorId()
-        val teamIds = teamService.visibleTeamIds(actorId)
+        val teamIds = teamMemberRepository.findByUserId(actorId).mapTo(mutableSetOf()) { requireNotNull(it.team.id) }
         val pageable = PageRequest.of(page, size, toSort(sort))
         val documents = if (teamIds.isEmpty()) {
             repository.findOwnerOnlyDocuments(actorId, documentTypeId, pageable)
         } else {
             repository.findVisibleDocuments(actorId, teamIds, documentTypeId, pageable)
-        }
-        return documents
-    }
-
-    @Transactional(readOnly = true)
-    override fun visibleDocumentsForSearch(): List<Document> {
-        val actorId = currentActorId()
-        val teamIds = teamService.visibleTeamIds(actorId)
-        val documents = if (teamIds.isEmpty()) {
-            repository.findOwnerOnlyDocuments(actorId)
-        } else {
-            repository.findVisibleDocuments(actorId, teamIds)
         }
         return documents
     }
@@ -217,15 +205,23 @@ class DocumentServiceImpl(
         return UploadReferences(teamId, documentType)
     }
 
-    private fun lockedRoles(teamIds: Set<UUID>, actorId: UUID): Map<UUID, Role?> =
-        if (teamIds.isEmpty()) emptyMap() else teamService.lockedRoles(teamIds.toSortedSet(), actorId)
+    private fun lockedRoles(teamIds: Set<UUID>, actorId: UUID): Map<UUID, Role?> {
+        val teams = teamIds.sorted().map { teamId ->
+            referencesPersistence.findLockedTeam(teamId) ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+        }
+
+        return teams.associate { team ->
+            val teamId = requireNotNull(team.id)
+            teamId to teamMemberRepository.findByTeamIdAndUserId(teamId, actorId)?.role
+        }
+    }
 
     private fun requireReadable(entity: Document, actorId: UUID): Document {
         val teamId = entity.teamId
         val canRead = if (teamId == null) {
             entity.ownerId == actorId
         } else {
-            teamService.roleFor(teamId, actorId) != null
+            teamMemberRepository.findByTeamIdAndUserId(teamId, actorId) != null
         }
         if (!canRead) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
         return entity

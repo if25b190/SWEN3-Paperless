@@ -371,35 +371,6 @@ class UserServiceImplTest {
         verify(teamMemberRepository, never()).findByUserId(fixtureId(2))
     }
 
-    @Test
-    fun authenticate_user_ok() {
-        // given
-        val hashed = encoder.encode("secret")!!
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(userFixture(fixtureId(1), "alice", hashed, Instant.EPOCH, null))
-
-        // when
-        val result = service.authenticate("alice", "secret")
-
-        // then
-        assertThat(result.password).isEqualTo(hashed)
-    }
-
-    @Test
-    fun authenticate_with_wrong_password_ko() {
-        // given
-        val hashed = encoder.encode("secret")!!
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(userFixture(fixtureId(1), "alice", hashed, Instant.EPOCH, null))
-
-        // when / then
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.authenticate("alice", "wrong") }
-    }
-
-    @Test
-    fun legacy_plaintext_password_is_not_accepted() {
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(entity())
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.authenticate("alice", "secret") }
-    }
-
     private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
         val thrown = catchThrowable(action)
         assertAll(

@@ -16,7 +16,7 @@ Tests mirror the feature's layer subpackages:
 ## Mocking Rules
 
 - In the service's own unit test, `@InjectMocks` must target the implementation class `<Feature>ServiceImpl` (Mockito cannot instantiate an interface).
-- Everywhere else (controllers, other services), mock the interface (`@Mock` / `@MockitoBean <Feature>Service`).
+- In controller tests, mock the service interface (`@Mock` / `@MockitoBean <Feature>Service`).
 - Field injection (`@Mock`, `@InjectMocks`, `@Autowired`) is allowed in test classes (forbidden in production code).
 
 ## Test Conventions
@@ -47,4 +47,6 @@ Nothing is merged without passing formatting checks and test suites:
 ```
 
 Service unit tests mock domain persistence interfaces and use domain model fixtures.
-The persistence boundary test prevents JPA implementation imports outside persistence.
+The persistence boundary test prevents business layers from importing JPA implementation details.
+The application context test checks that no service constructor depends on another service,
+including dependencies injected through interfaces.

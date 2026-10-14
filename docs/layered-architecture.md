@@ -24,7 +24,7 @@ feature. Entities stay separate from the persistence adapters and repositories.
 | Layer | May depend on | Must not depend on |
 | --- | --- | --- |
 | Controller / DTO mapper | Service interfaces, models, DTOs | Persistence interfaces or implementation details |
-| Service | Domain persistence interfaces, models, other service interfaces, paging types | JPA, entities, Spring Data repositories, entity mappers, DTOs |
+| Service | Domain persistence interfaces, models, paging types | Other services, JPA, entities, Spring Data repositories, entity mappers, DTOs |
 | Persistence interface | Domain models, UUIDs, Optional, Page / Pageable | JPA, entities, Spring Data repositories, services, DTOs |
 | JPA adapter | Entities, repositories, entity mappers, EntityManager | Controllers, DTOs, business services |
 | Entity mapper | Models and entities | I/O, repositories, services, business rules |
@@ -54,13 +54,15 @@ The document adapter carries the domain version through mapping and compares it,
 owner ID, and team ID after refresh before update or deletion. Service file cleanup
 continues to depend on transaction completion and explicit flush failures.
 
-Cross-feature orchestration uses service interfaces and domain-facing persistence
-interfaces where the operation must stay in one transaction (for example account
-deletion checking team memberships and revoking tokens). JPA types are confined to
+Services never inject or call other services, including services from the same feature.
+Cross-feature operations use domain-facing persistence interfaces within the calling
+service's transaction (for example account deletion checking team memberships and
+revoking tokens). JPA types are confined to
 entity and persistence packages, even when associations refer to another feature's entities.
 
-`DocumentReferencesPersistence` provides domain-valued reference lookups to document
-services. `AccessToken` carries a digest, user ID, and expiry, without leaking a user
-entity. New documents have a nullable ID until persisted; response mapping requires an ID.
+`DocumentReferencesPersistence` provides domain-valued reference lookups and team
+locks to document services. Authentication owns credential validation, user locking, and token replacement.
+Search owns its membership-filtered candidate lookup. `AccessToken` carries a digest,
+user ID, and expiry, without leaking a user entity. New documents have a nullable ID until persisted; response mapping requires an ID.
 
 See [Annotations](annotations.md), [Mappers](mappers.md), and [Testing](testing.md).

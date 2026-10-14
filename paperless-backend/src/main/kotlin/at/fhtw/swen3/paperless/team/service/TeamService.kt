@@ -19,12 +19,6 @@ interface TeamService {
 
     fun getTeamMembers(teamId: UUID): List<TeamMember>
 
-    fun roleFor(teamId: UUID, userId: UUID): Role?
-
-    fun visibleTeamIds(userId: UUID): Set<UUID>
-
-    fun lockedRoles(teamIds: Set<UUID>, userId: UUID): Map<UUID, Role?>
-
     fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember
 
     fun updateTeamMemberRole(teamId: UUID, userId: UUID, role: Role): TeamMember

@@ -8,13 +8,12 @@ import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
-import at.fhtw.swen3.paperless.user.service.UserService
+import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.time.Instant
 import java.util.UUID
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 
 @Service
@@ -22,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 class TeamServiceImpl(
     private val teamRepository: TeamPersistence,
     private val teamMemberRepository: TeamMemberPersistence,
-    private val userService: UserService
+    private val userRepository: UserPersistence
 ) : TeamService {
 
     @Transactional(readOnly = true)
@@ -33,7 +32,7 @@ class TeamServiceImpl(
     override fun createTeam(team: Team): Team {
         val actorId = currentActorId()
         val createdTeam = teamRepository.save(team.copy(ownerId = actorId))
-        val creator = userService.getById(actorId)
+        val creator = userRepository.findById(actorId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
         val membership = TeamMember(createdTeam, creator, Role.ADMIN, Instant.now())
         teamMemberRepository.save(membership)
         return createdTeam
@@ -75,29 +74,13 @@ class TeamServiceImpl(
         return teamMemberRepository.findByTeamId(teamId)
     }
 
-    @Transactional(readOnly = true)
-    override fun roleFor(teamId: UUID, userId: UUID): Role? =
-        teamMemberRepository.findByTeamIdAndUserId(teamId, userId)?.role
-
-    @Transactional(readOnly = true)
-    override fun visibleTeamIds(userId: UUID): Set<UUID> =
-        teamMemberRepository.findByUserId(userId).mapTo(mutableSetOf()) { requireNotNull(it.team.id) }
-
-    @Transactional(propagation = Propagation.REQUIRED)
-    override fun lockedRoles(teamIds: Set<UUID>, userId: UUID): Map<UUID, Role?> {
-        val teams = teamIds.sorted().map(::findLockedTeam)
-        return teams.associate { team ->
-            requireNotNull(team.id) to teamMemberRepository.findByTeamIdAndUserId(requireNotNull(team.id), userId)?.role
-        }
-    }
-
     override fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember {
         val team = findLockedTeam(teamId)
         requireAdmin(teamId, team.ownerId)
         if (userId == team.ownerId && role != Role.ADMIN) {
             throw AccessDeniedException("The team owner must remain an admin")
         }
-        val user = userService.getById(userId)
+        val user = userRepository.findById(userId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
         if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
             throw AppException(AppErrorMessage.TEAM_MEMBER_ALREADY_EXISTS)
         }

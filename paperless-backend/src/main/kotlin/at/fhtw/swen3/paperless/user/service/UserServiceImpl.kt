@@ -105,17 +105,6 @@ class UserServiceImpl(
         return teamMemberRepository.findByUserId(id)
     }
 
-    override fun authenticate(username: String, password: String): User {
-        val user = userRepository.findLockedByUsername(username)
-            ?: throw AppException(AppErrorMessage.INVALID_CREDENTIALS)
-
-        if (!user.password.startsWith("{pbkdf2@SpringSecurity_v5_8}") || !passwordEncoder.matches(password, user.password)) {
-            throw AppException(AppErrorMessage.INVALID_CREDENTIALS)
-        }
-
-        return user
-    }
-
     private fun ensureUsernameAvailable(username: String) {
         val duplicate = userRepository.findByUsername(username)
         if (duplicate != null) {

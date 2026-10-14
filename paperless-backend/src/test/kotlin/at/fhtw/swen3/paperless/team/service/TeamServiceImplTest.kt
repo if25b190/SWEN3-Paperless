@@ -9,7 +9,7 @@ import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.model.User
-import at.fhtw.swen3.paperless.user.service.UserService
+import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
@@ -23,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
@@ -41,7 +40,7 @@ class TeamServiceImplTest {
     lateinit var teamMemberRepository: TeamMemberPersistence
 
     @Mock
-    lateinit var userService: UserService
+    lateinit var userRepository: UserPersistence
 
     @InjectMocks
     lateinit var service: TeamServiceImpl
@@ -77,7 +76,7 @@ class TeamServiceImplTest {
     fun create_team_ok() {
         // given
         `when`(teamRepository.save(any(Team::class.java))).thenReturn(teamEntity())
-        `when`(userService.getById(fixtureId(1))).thenReturn(user(fixtureId(1)))
+        `when`(userRepository.findById(fixtureId(1))).thenReturn(Optional.of(user(fixtureId(1))))
 
         // when
         val result = service.createTeam(team())
@@ -189,37 +188,6 @@ class TeamServiceImplTest {
     }
 
     @Test
-    fun role_for_uses_current_membership_and_returns_null_when_removed() {
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(2))).thenReturn(memberEntity(userId = fixtureId(2)))
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(3))).thenReturn(null)
-
-        assertAll(
-            { assertThat(service.roleFor(fixtureId(1), fixtureId(2))).isEqualTo(Role.READ_WRITE) },
-            { assertThat(service.roleFor(fixtureId(1), fixtureId(3))).isNull() }
-        )
-    }
-
-    @Test
-    fun visible_team_ids_comes_from_current_memberships() {
-        `when`(teamMemberRepository.findByUserId(fixtureId(7))).thenReturn(
-            listOf(memberEntity(teamId = fixtureId(4), userId = fixtureId(7)), memberEntity(teamId = fixtureId(9), userId = fixtureId(7)))
-        )
-
-        assertThat(service.visibleTeamIds(fixtureId(7))).containsExactlyInAnyOrder(fixtureId(4), fixtureId(9))
-    }
-
-    @Test
-    fun owner_without_membership_has_no_visible_team_ids_or_role() {
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(3))).thenReturn(null)
-        `when`(teamMemberRepository.findByUserId(fixtureId(3))).thenReturn(emptyList())
-
-        assertAll(
-            { assertThat(service.roleFor(fixtureId(1), fixtureId(3))).isNull() },
-            { assertThat(service.visibleTeamIds(fixtureId(3))).isEmpty() }
-        )
-    }
-
-    @Test
     fun malformed_principal_fails_closed() {
         SecurityContextHolder.getContext().authentication =
             UsernamePasswordAuthenticationToken("not-a-uuid", "password", emptyList())
@@ -228,47 +196,22 @@ class TeamServiceImplTest {
     }
 
     @Test
-    fun locked_roles_lock_sorted_teams_before_reading_current_membership() {
-        val currentMembership = adminMemberEntity(teamId = fixtureId(3), userId = fixtureId(7), ownerId = fixtureId(99))
-        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamEntity(fixtureId(3), ownerId = fixtureId(99)))
-        `when`(teamRepository.findLockedById(fixtureId(9))).thenReturn(teamEntity(fixtureId(9), ownerId = fixtureId(99)))
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(3), fixtureId(7))).thenReturn(currentMembership)
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(9), fixtureId(7))).thenReturn(null)
+    fun add_missing_user_to_team_returns_not_found_without_creating_membership_ko() {
+        // given
+        `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity())
 
-        val result = service.lockedRoles(setOf(fixtureId(9), fixtureId(3)), fixtureId(7))
-
-        val sortedTeamIds = listOf(fixtureId(3), fixtureId(9)).sorted()
-        assertThat(result.keys).containsExactlyElementsOf(sortedTeamIds)
-        assertThat(result[fixtureId(3)]).isEqualTo(Role.ADMIN)
-        assertThat(result[fixtureId(9)]).isNull()
-
-        val ordered = inOrder(teamRepository, teamMemberRepository)
-        sortedTeamIds.forEach { ordered.verify(teamRepository).findLockedById(it) }
-        sortedTeamIds.forEach { ordered.verify(teamMemberRepository).findByTeamIdAndUserId(it, fixtureId(7)) }
-    }
-
-    @Test
-    fun locked_roles_do_not_grant_owner_role_without_membership() {
-        `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity(ownerId = fixtureId(7)))
-        `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(7))).thenReturn(null)
-
-        assertThat(service.lockedRoles(setOf(fixtureId(1)), fixtureId(7))).containsEntry(fixtureId(1), null)
-    }
-
-    @Test
-    fun locked_roles_reports_missing_team_distinctly() {
-        `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(null)
-
-        assertAppError(AppErrorMessage.TEAM_NOT_FOUND) { service.lockedRoles(setOf(fixtureId(1)), fixtureId(7)) }
-
-        verify(teamMemberRepository, never()).findByTeamIdAndUserId(fixtureId(1), fixtureId(7))
+        // when / then
+        assertAppError(AppErrorMessage.USER_NOT_FOUND) {
+            service.addTeamMember(fixtureId(1), fixtureId(99), Role.READONLY)
+        }
+        verify(teamMemberRepository, never()).save(any(TeamMember::class.java))
     }
 
     @Test
     fun add_team_member_ok() {
         // given
         `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity())
-        `when`(userService.getById(fixtureId(2))).thenReturn(user())
+        `when`(userRepository.findById(fixtureId(2))).thenReturn(Optional.of(user()))
         `when`(teamMemberRepository.existsByTeamIdAndUserId(fixtureId(1), fixtureId(2))).thenReturn(false)
 
         // when
@@ -288,7 +231,7 @@ class TeamServiceImplTest {
     fun add_duplicate_team_member_ko() {
         // given
         `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity())
-        `when`(userService.getById(fixtureId(2))).thenReturn(user())
+        `when`(userRepository.findById(fixtureId(2))).thenReturn(Optional.of(user()))
         `when`(teamMemberRepository.existsByTeamIdAndUserId(fixtureId(1), fixtureId(2))).thenReturn(true)
 
         // when / then

@@ -7,5 +7,6 @@ import java.util.UUID
 interface DocumentReferencesPersistence {
     fun ownerExists(id: UUID): Boolean
     fun findTeam(id: UUID): Team?
+    fun findLockedTeam(id: UUID): Team?
     fun findDocumentType(id: UUID): DocumentType?
 }
