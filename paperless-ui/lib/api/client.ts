@@ -3,7 +3,7 @@ import { clearToken, getToken } from "@/lib/auth-token";
 import { t } from "@/lib/i18n";
 import type { Problem } from "@/lib/types";
 
-const API_BASE = "/api";
+const API_BASE = "/api/v1";
 
 export class ApiError extends Error {
   readonly status: number;
