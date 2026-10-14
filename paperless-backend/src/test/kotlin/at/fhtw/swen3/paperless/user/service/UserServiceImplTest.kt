@@ -1,53 +1,52 @@
 package at.fhtw.swen3.paperless.user.service
 
-import at.fhtw.swen3.paperless.auth.repository.AccessTokenRepository
+import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
-import at.fhtw.swen3.paperless.team.entity.TeamEntity
-import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
 import at.fhtw.swen3.paperless.team.model.Role
-import at.fhtw.swen3.paperless.team.repository.TeamMemberRepository
-import at.fhtw.swen3.paperless.team.repository.TeamRepository
-import at.fhtw.swen3.paperless.user.entity.UserEntity
+import at.fhtw.swen3.paperless.team.model.Team
+import at.fhtw.swen3.paperless.team.model.TeamMember
+import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
+import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.model.User
-import at.fhtw.swen3.paperless.user.repository.UserRepository
+import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import jakarta.validation.ConstraintViolationException
-import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.catchThrowable
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.extension.ExtendWith
-import org.mockito.ArgumentMatchers.any
-import org.mockito.InjectMocks
-import org.mockito.Mock
-import org.mockito.Spy
-import org.mockito.Mockito.`when`
-import org.mockito.Mockito.never
-import org.mockito.Mockito.inOrder
-import org.mockito.Mockito.verify
-import org.mockito.junit.jupiter.MockitoExtension
-import org.springframework.security.authentication.TestingAuthenticationToken
-import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.crypto.password.PasswordEncoder
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.catchThrowable
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertAll
+import org.junit.jupiter.api.extension.ExtendWith
+import org.mockito.InjectMocks
+import org.mockito.Mock
+import org.mockito.Mockito.`when`
+import org.mockito.Mockito.inOrder
+import org.mockito.Mockito.never
+import org.mockito.Mockito.verify
+import org.mockito.Spy
+import org.mockito.junit.jupiter.MockitoExtension
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.TestingAuthenticationToken
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.crypto.password.PasswordEncoder
 
 @ExtendWith(MockitoExtension::class)
 class UserServiceImplTest {
 
     @Mock
-    lateinit var userRepository: UserRepository
+    lateinit var userRepository: UserPersistence
 
     @Mock
-    lateinit var teamMemberRepository: TeamMemberRepository
+    lateinit var teamMemberRepository: TeamMemberPersistence
 
-    @Mock lateinit var teamRepository: TeamRepository
+    @Mock lateinit var teamRepository: TeamPersistence
 
-    @Mock lateinit var tokenRepository: AccessTokenRepository
+    @Mock lateinit var tokenRepository: AccessTokenPersistence
 
     @Spy val encoder: PasswordEncoder = org.springframework.security.crypto.password.DelegatingPasswordEncoder(
         "pbkdf2@SpringSecurity_v5_8",
@@ -85,7 +84,7 @@ class UserServiceImplTest {
         // given
         val user = user()
         `when`(userRepository.findByUsername(user.username)).thenReturn(null)
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         // when
         val result = service.create(user)
@@ -103,7 +102,7 @@ class UserServiceImplTest {
     fun create_user_accepts_minimum_username_and_password_lengths() {
         val user = user(username = "abcd", password = "12345678")
         `when`(userRepository.findByUsername(user.username)).thenReturn(null)
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         val result = service.create(user)
 
@@ -121,7 +120,7 @@ class UserServiceImplTest {
         assertConstraintViolation { service.create(user(password = "1234567")) }
         assertConstraintViolation { service.create(user(password = "p".repeat(101))) }
 
-        verify(userRepository, never()).save(any(UserEntity::class.java))
+        verify(userRepository, never()).save(any(User::class.java))
     }
 
     @Test
@@ -133,7 +132,7 @@ class UserServiceImplTest {
         // when / then
         assertAll(
             { assertAppError(AppErrorMessage.USERNAME_ALREADY_EXISTS) { service.create(user) } },
-            { verify(userRepository, never()).save(any(UserEntity::class.java)) }
+            { verify(userRepository, never()).save(any(User::class.java)) }
         )
     }
 
@@ -166,7 +165,7 @@ class UserServiceImplTest {
         // given
         val originalHash = encoder.encode("stored password")!!
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity(originalHash))
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         // when
         val result = service.update(fixtureId(1), null, null)
@@ -184,7 +183,7 @@ class UserServiceImplTest {
         val originalHash = encoder.encode("stored password")!!
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity(originalHash))
         `when`(userRepository.findByUsername("alice-renamed")).thenReturn(null)
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         val result = service.update(fixtureId(1), "alice-renamed", null)
 
@@ -200,7 +199,7 @@ class UserServiceImplTest {
     fun update_accepts_minimum_username_and_password_lengths() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(userRepository.findByUsername("abcd")).thenReturn(null)
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         val result = service.update(fixtureId(1), "abcd", "12345678")
 
@@ -219,17 +218,17 @@ class UserServiceImplTest {
         assertConstraintViolation { service.update(fixtureId(1), null, "p".repeat(101)) }
 
         verify(userRepository, never()).findLockedById(fixtureId(1))
-        verify(userRepository, never()).save(any(UserEntity::class.java))
+        verify(userRepository, never()).save(any(User::class.java))
     }
 
     @Test
     fun update_duplicate_username_is_rejected_without_saving_or_revoking_tokens() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
-        `when`(userRepository.findByUsername("bobby")).thenReturn(UserEntity(fixtureId(2), "bobby", "hash"))
+        `when`(userRepository.findByUsername("bobby")).thenReturn(userFixture(fixtureId(2), "bobby", "hash"))
 
         assertAll(
             { assertAppError(AppErrorMessage.USERNAME_ALREADY_EXISTS) { service.update(fixtureId(1), "bobby", null) } },
-            { verify(userRepository, never()).save(any(UserEntity::class.java)) },
+            { verify(userRepository, never()).save(any(User::class.java)) },
             { verify(tokenRepository, never()).deleteByUserId(fixtureId(1)) }
         )
     }
@@ -243,14 +242,14 @@ class UserServiceImplTest {
         // when / then
         assertAll(
             { assertAppError(AppErrorMessage.USER_NOT_FOUND) { service.update(fixtureId(42), null, null) } },
-            { verify(userRepository, never()).save(any(UserEntity::class.java)) }
+            { verify(userRepository, never()).save(any(User::class.java)) }
         )
     }
 
     @Test
     fun update_password_hashes_and_revokes_tokens() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
-        `when`(userRepository.save(any(UserEntity::class.java))).thenAnswer { it.arguments[0] as UserEntity }
+        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         val result = service.update(fixtureId(1), null, "new secret")
 
@@ -287,10 +286,10 @@ class UserServiceImplTest {
 
     @Test
     fun delete_last_team_admin_ko() {
-        val membership = TeamMemberEntity(team = TeamEntity(fixtureId(3), "Team"), user = entity(), role = Role.ADMIN)
+        val membership = memberFixture(team = teamFixture(fixtureId(3), "Team"), user = entity(), role = Role.ADMIN)
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(listOf(membership))
-        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(TeamEntity(fixtureId(3), "Team"))
+        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamFixture(fixtureId(3), "Team"))
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(listOf(membership))
 
         assertAppError(AppErrorMessage.LAST_TEAM_ADMIN) { service.delete(fixtureId(1)) }
@@ -302,18 +301,18 @@ class UserServiceImplTest {
     fun delete_team_owner_is_rejected_even_with_other_admins_and_no_membership() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(emptyList())
-        `when`(teamRepository.findAll()).thenReturn(listOf(TeamEntity(fixtureId(3), "Owned", ownerId = fixtureId(1))))
-        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(TeamEntity(fixtureId(3), "Owned", ownerId = fixtureId(1)))
+        `when`(teamRepository.findAll()).thenReturn(listOf(teamFixture(fixtureId(3), "Owned", ownerId = fixtureId(1))))
+        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamFixture(fixtureId(3), "Owned", ownerId = fixtureId(1)))
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(
             listOf(
-                TeamMemberEntity(
-                    team = TeamEntity(fixtureId(3), "Owned", ownerId = fixtureId(1)),
-                    user = UserEntity(fixtureId(2), "bob", "hash"),
+                memberFixture(
+                    team = teamFixture(fixtureId(3), "Owned", ownerId = fixtureId(1)),
+                    user = userFixture(fixtureId(2), "bob", "hash"),
                     role = Role.ADMIN
                 ),
-                TeamMemberEntity(
-                    team = TeamEntity(fixtureId(3), "Owned", ownerId = fixtureId(1)),
-                    user = UserEntity(fixtureId(4), "carol", "hash"),
+                memberFixture(
+                    team = teamFixture(fixtureId(3), "Owned", ownerId = fixtureId(1)),
+                    user = userFixture(fixtureId(4), "carol", "hash"),
                     role = Role.ADMIN
                 )
             )
@@ -327,12 +326,12 @@ class UserServiceImplTest {
 
     @Test
     fun delete_locks_associated_teams_in_sorted_order() {
-        val firstMembership = TeamMemberEntity(team = TeamEntity(fixtureId(9), "Nine"), user = entity(), role = Role.READ_WRITE)
-        val secondMembership = TeamMemberEntity(team = TeamEntity(fixtureId(3), "Three"), user = entity(), role = Role.READ_WRITE)
+        val firstMembership = memberFixture(team = teamFixture(fixtureId(9), "Nine"), user = entity(), role = Role.READ_WRITE)
+        val secondMembership = memberFixture(team = teamFixture(fixtureId(3), "Three"), user = entity(), role = Role.READ_WRITE)
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(listOf(firstMembership, secondMembership), listOf(firstMembership, secondMembership))
-        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(TeamEntity(fixtureId(3), "Three"))
-        `when`(teamRepository.findLockedById(fixtureId(9))).thenReturn(TeamEntity(fixtureId(9), "Nine"))
+        `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamFixture(fixtureId(3), "Three"))
+        `when`(teamRepository.findLockedById(fixtureId(9))).thenReturn(teamFixture(fixtureId(9), "Nine"))
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(listOf(secondMembership))
         `when`(teamMemberRepository.findByTeamId(fixtureId(9))).thenReturn(listOf(firstMembership))
 
@@ -348,7 +347,7 @@ class UserServiceImplTest {
     @Test
     fun get_user_teams_ok() {
         // given
-        val membership = TeamMemberEntity(team = TeamEntity(fixtureId(3), "Team"), user = entity(), role = Role.READ_WRITE)
+        val membership = memberFixture(team = teamFixture(fixtureId(3), "Team"), user = entity(), role = Role.READ_WRITE)
         `when`(userRepository.findById(fixtureId(1))).thenReturn(Optional.of(entity()))
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(listOf(membership))
 
@@ -372,35 +371,6 @@ class UserServiceImplTest {
         verify(teamMemberRepository, never()).findByUserId(fixtureId(2))
     }
 
-    @Test
-    fun authenticate_user_ok() {
-        // given
-        val hashed = encoder.encode("secret")!!
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(UserEntity(fixtureId(1), "alice", hashed, Instant.EPOCH, null))
-
-        // when
-        val result = service.authenticate("alice", "secret")
-
-        // then
-        assertThat(result.password).isEqualTo(hashed)
-    }
-
-    @Test
-    fun authenticate_with_wrong_password_ko() {
-        // given
-        val hashed = encoder.encode("secret")!!
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(UserEntity(fixtureId(1), "alice", hashed, Instant.EPOCH, null))
-
-        // when / then
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.authenticate("alice", "wrong") }
-    }
-
-    @Test
-    fun legacy_plaintext_password_is_not_accepted() {
-        `when`(userRepository.findLockedByUsername("alice")).thenReturn(entity())
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.authenticate("alice", "secret") }
-    }
-
     private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
         val thrown = catchThrowable(action)
         assertAll(
@@ -414,9 +384,29 @@ class UserServiceImplTest {
         assertThat(thrown).isInstanceOf(ConstraintViolationException::class.java)
     }
 
-    private fun user(username: String = "alice", password: String = "secret123") = User(fixtureId(1), username, password, Instant.EPOCH, null)
+    private fun userFixture(
+        id: UUID? = null,
+        username: String = "",
+        password: String = "",
+        createdAt: Instant = Instant.EPOCH,
+        updatedAt: Instant? = null
+    ) = User(id, username, password, createdAt, updatedAt)
+
+    private fun teamFixture(
+        id: UUID? = null,
+        name: String = "",
+        description: String? = null,
+        createdAt: Instant = Instant.EPOCH,
+        updatedAt: Instant? = null,
+        ownerId: UUID? = null
+    ) = Team(id, name, description, createdAt, updatedAt, ownerId)
+
+    private fun memberFixture(team: Team, user: User, role: Role, joinedAt: Instant? = null) =
+        TeamMember(team, user, role, joinedAt)
+
+    private fun user(username: String = "alice", password: String = "secret123") = userFixture(fixtureId(1), username, password, Instant.EPOCH, null)
 
     private fun fixtureId(value: Int): UUID = UUID.nameUUIDFromBytes("user-fixture-$value".toByteArray())
 
-    private fun entity(password: String = "secret") = UserEntity(fixtureId(1), "alice", password, Instant.EPOCH, null)
+    private fun entity(password: String = "secret") = userFixture(fixtureId(1), "alice", password, Instant.EPOCH, null)
 }

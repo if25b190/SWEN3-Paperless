@@ -15,7 +15,7 @@ Lombok is not used in this project because Kotlin natively provides these capabi
 
 - `@RestController`: On web controllers, paired with HTTP method annotations at method level (`@GetMapping`, `@PostMapping`, `@PatchMapping`, `@DeleteMapping`).
 - `@Service`: Placed on the feature implementation `<Feature>ServiceImpl`, which implements the plain `<Feature>Service` interface (the interface itself carries no annotations).
-- `@Repository`: **Never written by hand.** Repositories are plain Spring Data interfaces (`extends JpaRepository<<Feature>Entity, Id>`) automatically registered by Spring Data JPA. Do not create manual `*RepositoryImpl` or adapter classes.
+- `@Repository`: On `Jpa<Feature>Persistence` adapters, enabling persistence exception translation. Spring Data repositories in `persistence/repository/` stay plain interfaces extending `JpaRepository`; Spring Data generates their implementations. Domain persistence interfaces carry no Spring annotations.
 - `@Component`: For generic Spring-managed beans; `@Configuration` for configuration classes.
 - `@Autowired`: Constructor injection is used in production code via Kotlin primary constructors. Spring automatically resolves single-constructor beans without `@Autowired`. Field injection (`@Autowired lateinit var`) is reserved strictly for test classes.
 - `@ConfigurationProperties`: Used when binding 3 or more related configuration properties. For fewer than 3 properties, individual `@Value` annotations are acceptable.

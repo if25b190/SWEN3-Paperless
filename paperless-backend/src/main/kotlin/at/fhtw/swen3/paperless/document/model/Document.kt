@@ -5,7 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 data class Document(
-    val id: UUID,
+    val id: UUID?,
     val title: String,
     val originalFilename: String,
     val contentType: String,
@@ -18,5 +18,6 @@ data class Document(
     val createdAt: Instant,
     val updatedAt: Instant,
     val ownerId: UUID,
-    val teamId: UUID? = null
+    val teamId: UUID? = null,
+    val version: Long = 0
 )

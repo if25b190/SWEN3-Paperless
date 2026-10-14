@@ -1,7 +1,7 @@
-package at.fhtw.swen3.paperless.user.mapper
+package at.fhtw.swen3.paperless.user.persistence.mapper
 
-import at.fhtw.swen3.paperless.user.entity.UserEntity
 import at.fhtw.swen3.paperless.user.model.User
+import at.fhtw.swen3.paperless.user.entity.UserEntity
 
 object UserEntityMapper {
 

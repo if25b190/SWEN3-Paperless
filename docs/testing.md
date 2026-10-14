@@ -10,12 +10,13 @@ Tests mirror the feature's layer subpackages:
 
 - **Service tests:** Always required. Core business logic, validation rules, and error conditions live in the service layer.
 - **Controller tests (`@WebMvcTest`):** Needed once an endpoint introduces request validation, HTTP status code mappings, security constraints, or a response shape worth asserting.
+- **Persistence adapter tests (`@DataJpaTest`):** Cover domain/entity mapping, managed relationships, membership identity, and stale-version handling.
 - **Repository tests (`@DataJpaTest`):** Reserved for custom `@Query` methods or `Specification` logic — never write tests for plain CRUD operations already provided and tested by Spring Data JPA.
 
 ## Mocking Rules
 
 - In the service's own unit test, `@InjectMocks` must target the implementation class `<Feature>ServiceImpl` (Mockito cannot instantiate an interface).
-- Everywhere else (controllers, other services), mock the interface (`@Mock` / `@MockitoBean <Feature>Service`).
+- In controller tests, mock the service interface (`@Mock` / `@MockitoBean <Feature>Service`).
 - Field injection (`@Mock`, `@InjectMocks`, `@Autowired`) is allowed in test classes (forbidden in production code).
 
 ## Test Conventions
@@ -44,3 +45,8 @@ Nothing is merged without passing formatting checks and test suites:
 ```bash
 ./gradlew spotlessCheck && ./gradlew test
 ```
+
+Service unit tests mock domain persistence interfaces and use domain model fixtures.
+The persistence boundary test prevents business layers from importing JPA implementation details.
+The application context test checks that no service constructor depends on another service,
+including dependencies injected through interfaces.

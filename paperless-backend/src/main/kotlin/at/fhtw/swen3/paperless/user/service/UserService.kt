@@ -17,6 +17,4 @@ interface UserService {
     fun delete(id: UUID)
 
     fun getTeams(id: UUID): List<TeamMember>
-
-    fun authenticate(username: String, password: String): User
 }

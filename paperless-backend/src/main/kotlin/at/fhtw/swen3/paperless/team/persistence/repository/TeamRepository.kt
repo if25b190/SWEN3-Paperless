@@ -1,12 +1,12 @@
-package at.fhtw.swen3.paperless.team.repository
+package at.fhtw.swen3.paperless.team.persistence.repository
 
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import jakarta.persistence.LockModeType
+import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
-import java.util.UUID
 
 interface TeamRepository : JpaRepository<TeamEntity, UUID> {
 
