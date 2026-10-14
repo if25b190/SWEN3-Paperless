@@ -35,7 +35,7 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
         val created = teamService.createTeam(team)
         val response = TeamMapper.toDto(created)
         return ResponseEntity.status(HttpStatus.CREATED)
-            .header(HttpHeaders.LOCATION, "/teams/${created.id}")
+            .header(HttpHeaders.LOCATION, "/api/v1/teams/${created.id}")
             .body(response)
     }
 

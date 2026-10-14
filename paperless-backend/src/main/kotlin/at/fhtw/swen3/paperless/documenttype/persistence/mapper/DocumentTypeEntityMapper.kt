@@ -1,7 +1,7 @@
-package at.fhtw.swen3.paperless.documenttype.mapper
+package at.fhtw.swen3.paperless.documenttype.persistence.mapper
 
-import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 
 object DocumentTypeEntityMapper {
 

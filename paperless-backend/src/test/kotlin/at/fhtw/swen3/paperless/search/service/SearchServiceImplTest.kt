@@ -2,9 +2,20 @@ package at.fhtw.swen3.paperless.search.service
 
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
-import at.fhtw.swen3.paperless.document.service.DocumentService
+import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
+import at.fhtw.swen3.paperless.exception.AppErrorMessage
+import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.team.model.Role
+import at.fhtw.swen3.paperless.team.model.Team
+import at.fhtw.swen3.paperless.team.model.TeamMember
+import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import at.fhtw.swen3.paperless.user.model.User
 import jakarta.validation.ConstraintViolationException
+import java.time.Instant
+import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.assertThrows
@@ -15,22 +26,33 @@ import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.junit.jupiter.MockitoExtension
-import java.time.Instant
-import java.util.UUID
+import org.springframework.security.authentication.TestingAuthenticationToken
+import org.springframework.security.core.context.SecurityContextHolder
 
 @ExtendWith(MockitoExtension::class)
 class SearchServiceImplTest {
 
     @Mock
-    lateinit var documentService: DocumentService
+    lateinit var documentRepository: DocumentPersistence
+
+    @Mock
+    lateinit var teamMemberRepository: TeamMemberPersistence
 
     @InjectMocks
     lateinit var service: SearchServiceImpl
 
+    @BeforeEach
+    fun set_actor() {
+        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken(uuid(1).toString(), null)
+    }
+
+    @AfterEach
+    fun clear_actor() = SecurityContextHolder.clearContext()
+
     @Test
     fun search_multi_term_and_pagination_ok() {
         // given
-        `when`(documentService.visibleDocumentsForSearch()).thenReturn(
+        `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(
             listOf(
                 document(uuid(1), "Invoice", "Invoice from Acme"),
                 document(uuid(2), "Invoice", "Invoice from another sender")
@@ -60,7 +82,7 @@ class SearchServiceImplTest {
     @Test
     fun search_fuzzy_terms_ok() {
         // given
-        `when`(documentService.visibleDocumentsForSearch()).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
+        `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
         val result = service.search("invoic acm", true, 0, 10)
@@ -75,7 +97,7 @@ class SearchServiceImplTest {
     @Test
     fun search_without_matches_returns_empty_page_ok() {
         // given
-        `when`(documentService.visibleDocumentsForSearch()).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
+        `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
         val result = service.search("passport", false, 0, 10)
@@ -88,7 +110,7 @@ class SearchServiceImplTest {
     fun search_does_not_expose_candidates_excluded_by_visibility_boundary() {
         // given
         val hiddenCandidate = document(uuid(2), "Secret report", "project-aurora")
-        `when`(documentService.visibleDocumentsForSearch()).thenReturn(
+        `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(
             listOf(document(uuid(1), "Invoice", "Invoice from Acme"))
         )
 
@@ -101,13 +123,13 @@ class SearchServiceImplTest {
             { assertThat(result.totalElements).isZero() },
             { assertThat(result.content.flatMap { it.highlights }).isEmpty() }
         )
-        verify(documentService).visibleDocumentsForSearch()
+        verify(documentRepository).findOwnerOnlyDocuments(uuid(1))
     }
 
     @Test
     fun search_with_maximum_page_returns_empty_page_without_overflow() {
         // given
-        `when`(documentService.visibleDocumentsForSearch()).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
+        `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
         val result = service.search("invoice", false, Int.MAX_VALUE, 100)
@@ -124,7 +146,7 @@ class SearchServiceImplTest {
         assertThrows<ConstraintViolationException> {
             service.search("invoice", false, -1, 10)
         }
-        verifyNoInteractions(documentService)
+        verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 
     @Test
@@ -132,7 +154,7 @@ class SearchServiceImplTest {
         assertThrows<ConstraintViolationException> {
             service.search("invoice", false, 0, 0)
         }
-        verifyNoInteractions(documentService)
+        verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 
     @Test
@@ -140,7 +162,37 @@ class SearchServiceImplTest {
         assertThrows<ConstraintViolationException> {
             service.search("invoice", false, 0, 101)
         }
-        verifyNoInteractions(documentService)
+        verifyNoInteractions(documentRepository, teamMemberRepository)
+    }
+
+    @Test
+    fun team_search_uses_current_memberships_to_select_candidates_ok() {
+        // given
+        val membership = TeamMember(
+            Team(uuid(4), "Team", null, Instant.EPOCH, null),
+            User(uuid(1), "alice", "unused", Instant.EPOCH, null), Role.READONLY, Instant.EPOCH
+        )
+        `when`(teamMemberRepository.findByUserId(uuid(1))).thenReturn(listOf(membership))
+        `when`(documentRepository.findVisibleDocuments(uuid(1), setOf(uuid(4))))
+            .thenReturn(listOf(document(uuid(3), "Invoice", "Invoice from Acme").copy(teamId = uuid(4))))
+
+        // when
+        val result = service.search("invoice", false, 0, 10)
+
+        // then
+        assertThat(result.content.single().document.teamId).isEqualTo(uuid(4))
+        verify(documentRepository).findVisibleDocuments(uuid(1), setOf(uuid(4)))
+    }
+
+    @Test
+    fun malformed_principal_fails_before_loading_candidates_ko() {
+        // given
+        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken("not-a-uuid", null)
+
+        // when / then
+        val exception = assertThrows<AppException> { service.search("invoice", false, 0, 10) }
+        assertThat(exception.error).isEqualTo(AppErrorMessage.AUTHENTICATION_REQUIRED)
+        verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 
     private fun uuid(value: Int) = UUID(0L, value.toLong())

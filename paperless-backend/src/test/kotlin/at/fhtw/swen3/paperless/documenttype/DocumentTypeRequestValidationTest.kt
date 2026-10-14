@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.documenttype
 
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
-import at.fhtw.swen3.paperless.documenttype.repository.DocumentTypeRepository
+import at.fhtw.swen3.paperless.documenttype.persistence.repository.DocumentTypeRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -29,7 +29,7 @@ class DocumentTypeRequestValidationTest(
     @Test
     fun whitespace_only_name_is_rejected_with_bad_request() {
         mvc.perform(
-            post("/document-types")
+            post("/api/v1/document-types")
                 .with(user("name-validation"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"name":"   "}""")

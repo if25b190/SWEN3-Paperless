@@ -54,7 +54,7 @@ class DocumentController(private val documentService: DocumentService) : Documen
         )
         val created = documentService.uploadDocument(upload)
         val response = DocumentMapper.toDto(created)
-        return ResponseEntity.created(URI.create("/documents/${created.id}")).body(response)
+        return ResponseEntity.created(URI.create("/api/v1/documents/${created.id}")).body(response)
     }
 
     override fun updateDocumentMetadata(

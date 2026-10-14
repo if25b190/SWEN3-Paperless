@@ -1,11 +1,11 @@
-package at.fhtw.swen3.paperless.auth.repository
+package at.fhtw.swen3.paperless.auth.persistence.repository
 
 import at.fhtw.swen3.paperless.auth.entity.AccessTokenEntity
+import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
-import java.util.UUID
 
 interface AccessTokenRepository : JpaRepository<AccessTokenEntity, String> {
     @Modifying

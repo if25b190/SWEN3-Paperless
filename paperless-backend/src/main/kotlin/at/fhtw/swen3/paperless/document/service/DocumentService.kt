@@ -3,9 +3,9 @@ package at.fhtw.swen3.paperless.document.service
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.document.model.DocumentUpload
+import java.util.UUID
 import org.springframework.core.io.Resource
 import org.springframework.data.domain.Page
-import java.util.UUID
 
 interface DocumentService {
 
@@ -15,8 +15,6 @@ interface DocumentService {
         sort: String,
         documentTypeId: UUID?
     ): Page<Document>
-
-    fun visibleDocumentsForSearch(): List<Document>
 
     fun getDocument(id: UUID): Document
 

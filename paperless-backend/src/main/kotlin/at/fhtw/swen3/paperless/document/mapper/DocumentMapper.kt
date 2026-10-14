@@ -13,7 +13,7 @@ object DocumentMapper {
 
     fun toDto(document: Document): DocumentResponse =
         DocumentResponse(
-            id = document.id,
+            id = requireNotNull(document.id),
             title = document.title,
             originalFilename = document.originalFilename,
             contentType = document.contentType,

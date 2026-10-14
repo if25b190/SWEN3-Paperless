@@ -1,12 +1,12 @@
-package at.fhtw.swen3.paperless.document.repository
+package at.fhtw.swen3.paperless.document.persistence.repository
 
 import at.fhtw.swen3.paperless.document.entity.DocumentEntity
+import java.util.UUID
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
-import java.util.UUID
 
 interface DocumentRepository : JpaRepository<DocumentEntity, UUID> {
 

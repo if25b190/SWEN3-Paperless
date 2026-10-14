@@ -1,30 +1,33 @@
-package at.fhtw.swen3.paperless.document.mapper
+package at.fhtw.swen3.paperless.document.persistence.mapper
 
-import at.fhtw.swen3.paperless.document.entity.DocumentEntity
 import at.fhtw.swen3.paperless.document.model.Document
+import at.fhtw.swen3.paperless.document.entity.DocumentEntity
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
-import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeEntityMapper
+import at.fhtw.swen3.paperless.documenttype.persistence.mapper.DocumentTypeEntityMapper
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.user.entity.UserEntity
 
 object DocumentEntityMapper {
 
-    fun toEntity(document: Document): DocumentEntity =
+    data class References(val owner: UserEntity, val team: TeamEntity?, val documentType: DocumentTypeEntity?)
+
+    fun toEntity(document: Document, references: References): DocumentEntity =
         DocumentEntity(
             id = document.id,
             title = document.title,
             originalFilename = document.originalFilename,
             contentType = document.contentType,
             fileSize = document.fileSize,
-            owner = UserEntity(id = document.ownerId),
-            team = document.teamId?.let { TeamEntity(id = it) },
+            owner = references.owner,
+            team = references.team,
             status = document.status,
             ocrContent = document.ocrContent,
             summary = document.summary,
             storageKey = document.storageKey,
-            documentType = document.documentType?.let { DocumentTypeEntity(id = it.id) },
+            documentType = references.documentType,
             createdAt = document.createdAt,
-            updatedAt = document.updatedAt
+            updatedAt = document.updatedAt,
+            version = document.version
         )
 
     fun toModel(entity: DocumentEntity): Document =
@@ -42,6 +45,7 @@ object DocumentEntityMapper {
             storageKey = entity.storageKey,
             documentType = entity.documentType?.let(DocumentTypeEntityMapper::toModel),
             createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt
+            updatedAt = entity.updatedAt,
+            version = entity.version
         )
 }
