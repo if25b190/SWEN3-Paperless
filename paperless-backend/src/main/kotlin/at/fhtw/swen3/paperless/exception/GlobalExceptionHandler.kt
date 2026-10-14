@@ -23,8 +23,6 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(AppException::class)
     fun handleAppException(exception: AppException): ResponseEntity<Problem> {
-        logger.warn("Application exception: {}", exception.error)
-
         return problem(exception.error)
     }
 
@@ -76,7 +74,11 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleUnexpectedException(exception: Exception): ResponseEntity<Problem> {
-        logger.error("Unhandled application exception", exception)
+        logger.error(
+            "[API] - ACTION: unexpectedFailure: exceptionType: {}, stackTrace: {}",
+            exception.javaClass.name,
+            exception.stackTrace.contentToString()
+        )
 
         return problem(AppErrorMessage.INTERNAL_SERVER_ERROR)
     }
@@ -90,6 +92,10 @@ class GlobalExceptionHandler {
         detail: String,
         invalidParams: List<InvalidParam>? = null
     ): ResponseEntity<Problem> {
+        if (status.is4xxClientError) {
+            logger.warn("[API] - ACTION: rejectRequest: status: {}, title: {}", status.value(), title)
+        }
+
         val response = Problem(
             type = URI.create("urn:problem-type:${status.value()}"),
             title = title,

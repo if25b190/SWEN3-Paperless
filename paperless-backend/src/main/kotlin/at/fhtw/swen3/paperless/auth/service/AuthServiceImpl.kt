@@ -13,6 +13,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Base64
 import java.util.UUID
+import org.slf4j.LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,6 +25,7 @@ class AuthServiceImpl(
     private val passwordEncoder: PasswordEncoder,
     private val tokenRepository: AccessTokenPersistence
 ) : AuthService {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val random = SecureRandom()
 
     override fun login(credentials: LoginCredentials): AuthenticatedUser {
@@ -38,6 +40,7 @@ class AuthServiceImpl(
         val token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
         tokenRepository.deleteByUserId(userId)
         tokenRepository.save(AccessToken(TokenDigests.sha256(token), userId, Instant.now().plus(1, ChronoUnit.DAYS)))
+        log.info("[AUTH] - ACTION: login: userId: {}", userId)
 
         return AuthenticatedUser(user, token)
     }

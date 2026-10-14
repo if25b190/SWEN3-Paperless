@@ -61,6 +61,13 @@ Once all services are healthy and running:
 
 Public registration (`POST /api/v1/users`) does not grant access to other users' documents. Documents are private to their uploader unless assigned to a team, where access follows current membership. See [Team and document access](docs/team-document-access.md) for roles, sharing, and existing-database compatibility. Login returns an opaque bearer token and replaces the account's previous session. Existing development accounts with plaintext passwords must be recreated before they can log in.
 
+### Application Logging
+
+Application logs default to `INFO`; set `PAPERLESS_LOG_LEVEL=DEBUG` in `.env.local`
+for request timing and search diagnostics. Each request returns an `X-Request-ID`
+that also appears in its application logs. See [Logging](docs/logging.md) for
+the recorded events and privacy rules.
+
 ---
 
 ### 4. Viewing Logs & Status

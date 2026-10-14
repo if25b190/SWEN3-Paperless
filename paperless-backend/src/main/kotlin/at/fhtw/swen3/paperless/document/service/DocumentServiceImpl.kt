@@ -56,6 +56,12 @@ class DocumentServiceImpl(
         } else {
             repository.findVisibleDocuments(actorId, teamIds, documentTypeId, pageable)
         }
+        logger.debug(
+            "[DOCUMENT] - ACTION: searchDocuments: actorId: {}, resultCount: {}",
+            actorId,
+            documents.numberOfElements
+        )
+
         return documents
     }
 
@@ -102,6 +108,7 @@ class DocumentServiceImpl(
                     updatedAt = now
                 )
             )
+            logger.info("[DOCUMENT] - ACTION: uploadDocument: documentId: {}, actorId: {}", entity.id, actorId)
             entity
         } catch (exception: RuntimeException) {
             Files.deleteIfExists(file)
@@ -165,6 +172,8 @@ class DocumentServiceImpl(
         )
         val result = repository.save(updated)
         repository.flush()
+        logger.info("[DOCUMENT] - ACTION: updateDocument: documentId: {}, actorId: {}", id, actorId)
+
         return result
     }
 
@@ -177,6 +186,7 @@ class DocumentServiceImpl(
         repository.delete(entity)
         repository.flush()
         entity.storageKey?.let { deleteAfterCommit(fileFor(it)) }
+        logger.info("[DOCUMENT] - ACTION: deleteDocument: documentId: {}, actorId: {}", id, actorId)
     }
 
     @Transactional(readOnly = true)
@@ -187,6 +197,8 @@ class DocumentServiceImpl(
         if (!resource.exists() || !resource.isReadable) {
             throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
         }
+        logger.debug("[DOCUMENT] - ACTION: downloadDocument: documentId: {}", id)
+
         return resource
     }
 
@@ -279,7 +291,7 @@ class DocumentServiceImpl(
         try {
             Files.deleteIfExists(file)
         } catch (exception: Exception) {
-            logger.warn("Could not delete document file {}", file, exception)
+            logger.warn("[DOCUMENT] - ACTION: deleteFileFailed: exceptionType: {}", exception.javaClass.name)
         }
     }
 
