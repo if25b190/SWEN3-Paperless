@@ -20,6 +20,8 @@ services:
     build:
       context: ./paperless-ui
       dockerfile: Dockerfile
+      args:
+        BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
     restart: unless-stopped
     depends_on:
       - backend
