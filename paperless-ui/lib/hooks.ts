@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
-import { usersApi } from "@/lib/api/services";
+import { documentTypesApi, usersApi } from "@/lib/api/services";
 import { useQuery } from "@/lib/use-query";
-import type { Role, Team } from "@/lib/types";
+import type { DocumentItem, Role, Team } from "@/lib/types";
 
 /** The authenticated user's teams and roles. */
 export function useMemberships() {
@@ -33,4 +33,20 @@ export function useMemberships() {
   );
 
   return { ...query, memberships, roleByTeam, teamById, writableTeams };
+}
+
+export function useDocumentTypes() {
+  const query = useQuery("document-types", () => documentTypesApi.list({ silent: true }));
+  return { ...query, types: query.data ?? [] };
+}
+
+/** True when the current user may edit or delete the given document. */
+export function canWriteDocument(
+  document: DocumentItem,
+  userId: string,
+  roleByTeam: Map<string, Role>,
+): boolean {
+  if (!document.team_id) return document.owner_id === userId;
+  const role = roleByTeam.get(document.team_id);
+  return role === "ADMIN" || role === "READ_WRITE";
 }

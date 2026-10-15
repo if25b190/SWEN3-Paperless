@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Home", icon: FileText },
+  { href: "/", label: "Documents", icon: FileText },
   { href: "/teams", label: "Teams", icon: Users },
   { href: "/document-types", label: "Document Types", icon: FolderTree },
 ] as const;
