@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { FileText, LogOut, User as UserIcon, Users } from "lucide-react";
+import { FileText, LogOut, User as UserIcon, Users, FolderTree } from "lucide-react";
 import { toast } from "sonner";
 import { FullPageSpinner } from "@/components/common";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: FileText },
   { href: "/teams", label: "Teams", icon: Users },
+  { href: "/document-types", label: "Document Types", icon: FolderTree },
 ] as const;
 
 function isActive(pathname: string, href: string) {
