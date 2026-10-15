@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { FileText, LogOut } from "lucide-react";
+import { FileText, LogOut, User as UserIcon } from "lucide-react";
 import { toast } from "sonner";
 import { FullPageSpinner } from "@/components/common";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -88,6 +88,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="block text-sm font-medium text-foreground">{user.username}</span>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => router.push("/profile")}>
+                <UserIcon />
+                Profile
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={onLogout}>
                 <LogOut />
                 Sign out
