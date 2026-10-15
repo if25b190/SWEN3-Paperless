@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileText, Trash2, Upload } from "lucide-react";
+import Link from "next/link";
+import { Download, Eye, FileText, Pencil, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { isProcessing, StatusBadge } from "@/components/badges";
 import { ConfirmDialog, EmptyState, PageHeader, Pagination, Spinner } from "@/components/common";
+import { EditDocumentDialog } from "@/components/documents/edit-dialog";
 import { UploadDocumentDialog } from "@/components/documents/upload-dialog";
 import { useAuth } from "@/components/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -71,6 +73,7 @@ export default function DashboardPage() {
   const [sort, setSort] = useState(SORT_OPTIONS[0].value);
 
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [editing, setEditing] = useState<DocumentItem | null>(null);
   const [deleting, setDeleting] = useState<DocumentItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -247,11 +250,12 @@ export default function DashboardPage() {
                   return (
                     <TableRow key={doc.id}>
                       <TableCell className="max-w-xs">
-                        <span
-                          className="block truncate font-medium"
+                        <Link
+                          href={`/documents/${doc.id}`}
+                          className="block truncate font-medium hover:text-primary hover:underline"
                         >
                           {doc.title}
-                        </span>
+                        </Link>
                         <span className="block truncate text-xs text-muted-foreground">
                           {doc.original_filename}
                         </span>
@@ -281,11 +285,24 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-0.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" asChild aria-label="Preview">
+                                <Link href={`/documents/${doc.id}`}>
+                                  <Eye />
+                                </Link>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Preview</TooltipContent>
+                          </Tooltip>
                           <IconAction label="Download" onClick={() => void onDownload(doc)}>
                             <Download />
                           </IconAction>
                           {writable && (
                             <>
+                              <IconAction label="Edit Metadata" onClick={() => setEditing(doc)}>
+                                <Pencil />
+                              </IconAction>
                               <IconAction
                                 label="Delete Document"
                                 onClick={() => setDeleting(doc)}
@@ -320,6 +337,11 @@ export default function DashboardPage() {
           setPage(0);
           reload();
         }}
+      />
+      <EditDocumentDialog
+        document={editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        onSaved={() => reload()}
       />
       <ConfirmDialog
         open={deleting !== null}
