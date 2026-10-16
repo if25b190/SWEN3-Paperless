@@ -15,6 +15,4 @@ interface TeamMemberRepository : JpaRepository<TeamMemberEntity, UUID> {
     fun existsByTeamIdAndUserId(teamId: UUID, userId: UUID): Boolean
 
     fun deleteByTeamIdAndUserId(teamId: UUID, userId: UUID)
-
-    fun deleteByTeamId(teamId: UUID)
 }

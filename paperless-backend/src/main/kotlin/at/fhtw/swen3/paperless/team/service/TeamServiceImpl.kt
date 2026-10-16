@@ -73,7 +73,6 @@ class TeamServiceImpl(
         if (currentActorId() != team.ownerId) {
             throw AccessDeniedException("Only the team owner can delete this team")
         }
-        teamMemberRepository.deleteByTeamId(id)
         teamRepository.deleteById(id)
         log.info("[TEAM] - ACTION: deleteTeam: teamId: {}", id)
     }
