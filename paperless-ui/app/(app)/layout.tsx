@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { FileText, LogOut, User as UserIcon, Users, FolderTree } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileText, FolderTree, LogOut, Search, User as UserIcon, Users } from "lucide-react";
 import { toast } from "sonner";
 import { FullPageSpinner } from "@/components/common";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -17,10 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "Documents", icon: FileText },
+  { href: "/search", label: "Search", icon: Search },
   { href: "/teams", label: "Teams", icon: Users },
   { href: "/document-types", label: "Document Types", icon: FolderTree },
 ] as const;
@@ -34,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { ready, user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -41,6 +44,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!ready || !user) {
     return <FullPageSpinner label="Restoring your session..." />;
+  }
+
+  function onSearch(event: React.FormEvent) {
+    event.preventDefault();
+    const value = query.trim();
+    if (!value) return;
+    router.push(`/search?q=${encodeURIComponent(value)}`);
   }
 
   function onLogout() {
@@ -76,9 +86,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
+          <form onSubmit={onSearch} className="relative ml-auto w-full max-w-xs" role="search">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search documents..."
+              aria-label="Search"
+              className="h-9 pl-9"
+            />
+          </form>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={user.username} className="ml-auto rounded-full">
+              <Button variant="ghost" size="icon" aria-label={user.username} className="rounded-full">
                 <Avatar className="size-8">
                   <AvatarFallback>{user.username.slice(0, 2)}</AvatarFallback>
                 </Avatar>
