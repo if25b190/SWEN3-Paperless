@@ -3,14 +3,16 @@ package at.fhtw.swen3.paperless.auth.service
 import at.fhtw.swen3.paperless.auth.model.AccessToken
 import at.fhtw.swen3.paperless.auth.model.LoginCredentials
 import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.InvalidCredentialsException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
@@ -81,7 +83,7 @@ class AuthServiceImplTest {
     @Test
     fun get_missing_current_user_ko() {
         // when / then
-        assertAppError(AppErrorMessage.USER_NOT_FOUND) { service.getCurrentUser(userId()) }
+        assertAppError(UserNotFoundException::class) { service.getCurrentUser(userId()) }
     }
 
     @Test
@@ -91,14 +93,14 @@ class AuthServiceImplTest {
         `when`(userRepository.findLockedByUsername("alice")).thenReturn(user(hashed))
 
         // when / then
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.login(LoginCredentials("alice", "wrong")) }
+        assertAppError(InvalidCredentialsException::class) { service.login(LoginCredentials("alice", "wrong")) }
         verifyNoInteractions(tokenRepository)
     }
 
     @Test
     fun missing_user_does_not_create_token_ko() {
         // when / then
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.login(LoginCredentials("missing", "secret")) }
+        assertAppError(InvalidCredentialsException::class) { service.login(LoginCredentials("missing", "secret")) }
         verifyNoInteractions(tokenRepository)
     }
 
@@ -108,14 +110,13 @@ class AuthServiceImplTest {
         `when`(userRepository.findLockedByUsername("alice")).thenReturn(user("secret"))
 
         // when / then
-        assertAppError(AppErrorMessage.INVALID_CREDENTIALS) { service.login(LoginCredentials("alice", "secret")) }
+        assertAppError(InvalidCredentialsException::class) { service.login(LoginCredentials("alice", "secret")) }
         verifyNoInteractions(tokenRepository)
     }
 
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
+    private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
-        assertThat(thrown).isInstanceOf(AppException::class.java)
-        assertThat((thrown as AppException).error).isEqualTo(expected)
+        assertThat(thrown).isInstanceOf(expected.java)
     }
 
     private fun savedToken(): AccessToken =

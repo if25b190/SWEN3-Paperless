@@ -1,8 +1,10 @@
 package at.fhtw.swen3.paperless.user.service
 
 import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.LastTeamAdminException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
+import at.fhtw.swen3.paperless.exception.UserOwnsTeamException
+import at.fhtw.swen3.paperless.exception.UsernameAlreadyExistsException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
@@ -49,14 +51,14 @@ class UserServiceImpl(
     @Transactional(readOnly = true)
     override fun getById(id: UUID): User =
         userRepository.findById(id)
-            .orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
+            .orElseThrow { UserNotFoundException() }
 
     override fun update(id: UUID, username: String?, password: String?): User {
         requireSelf(id)
         username?.let(::validateUsername)
         password?.let(::validatePassword)
         val current = userRepository.findLockedById(id)
-            ?: throw AppException(AppErrorMessage.USER_NOT_FOUND)
+            ?: throw UserNotFoundException()
         val updatedUsername = username ?: current.username
         if (updatedUsername != current.username) {
             ensureUsernameAvailable(updatedUsername)
@@ -77,7 +79,7 @@ class UserServiceImpl(
     override fun delete(id: UUID) {
         requireSelf(id)
         userRepository.findLockedById(id)
-            ?: throw AppException(AppErrorMessage.USER_NOT_FOUND)
+            ?: throw UserNotFoundException()
 
         val memberships = teamMemberRepository.findByUserId(id)
         // ponytail: scans teams to cover owners whose membership was removed; add a filtered owner lookup if team volume warrants it.
@@ -88,11 +90,11 @@ class UserServiceImpl(
         lockedTeams.forEach { team ->
             val memberships = teamMemberRepository.findByTeamId(requireNotNull(team.id))
             if (team.ownerId == id) {
-                throw AppException(AppErrorMessage.USER_OWNS_TEAM)
+                throw UserOwnsTeamException()
             }
             val admins = memberships.filter { it.role == Role.ADMIN }
             if (admins.size == 1 && admins.single().user.id == id) {
-                throw AppException(AppErrorMessage.LAST_TEAM_ADMIN)
+                throw LastTeamAdminException()
             }
         }
 
@@ -113,7 +115,7 @@ class UserServiceImpl(
     private fun ensureUsernameAvailable(username: String) {
         val duplicate = userRepository.findByUsername(username)
         if (duplicate != null) {
-            throw AppException(AppErrorMessage.USERNAME_ALREADY_EXISTS)
+            throw UsernameAlreadyExistsException()
         }
     }
 

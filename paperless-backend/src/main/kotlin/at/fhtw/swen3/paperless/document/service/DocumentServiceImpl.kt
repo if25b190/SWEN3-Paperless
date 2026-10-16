@@ -7,8 +7,11 @@ import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
+import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
+import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
+import at.fhtw.swen3.paperless.exception.TeamNotFoundException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import jakarta.validation.ConstraintViolationException
@@ -144,13 +147,13 @@ class DocumentServiceImpl(
             }
             updatedTeamId = requestedTeamId?.let {
                 if (roles[it]?.canWrite() != true) throw AccessDeniedException("Write access to the team is required")
-                referencesPersistence.findTeam(it)?.id ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+                referencesPersistence.findTeam(it)?.id ?: throw TeamNotFoundException()
             }
         }
 
         val documentType = update.documentTypeId?.let {
             referencesPersistence.findDocumentType(it)
-                ?: throw AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
+                ?: throw DocumentTypeNotFoundException()
         } ?: existing.documentType
 
         val updated = Document(
@@ -192,10 +195,10 @@ class DocumentServiceImpl(
     @Transactional(readOnly = true)
     override fun downloadDocument(id: UUID): Resource {
         val entity = requireReadable(findDocument(id), currentActorId())
-        val storageKey = entity.storageKey ?: throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+        val storageKey = entity.storageKey ?: throw DocumentNotFoundException()
         val resource = FileSystemResource(fileFor(storageKey))
         if (!resource.exists() || !resource.isReadable) {
-            throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+            throw DocumentNotFoundException()
         }
         logger.debug("[DOCUMENT] - ACTION: downloadDocument: documentId: {}", id)
 
@@ -203,15 +206,15 @@ class DocumentServiceImpl(
     }
 
     private fun validateUploadReferences(upload: DocumentUpload, actorId: UUID): UploadReferences {
-        if (!referencesPersistence.ownerExists(actorId)) throw AppException(AppErrorMessage.USER_NOT_FOUND)
+        if (!referencesPersistence.ownerExists(actorId)) throw UserNotFoundException()
         val documentType = upload.documentTypeId?.let {
             referencesPersistence.findDocumentType(it)
-                ?: throw AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
+                ?: throw DocumentTypeNotFoundException()
         }
         val teamId = upload.teamId?.let {
             val roles = lockedRoles(setOf(it), actorId)
             if (roles[it]?.canWrite() != true) throw AccessDeniedException("Write access to the team is required")
-            referencesPersistence.findTeam(it)?.id ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+            referencesPersistence.findTeam(it)?.id ?: throw TeamNotFoundException()
         }
 
         return UploadReferences(teamId, documentType)
@@ -219,7 +222,7 @@ class DocumentServiceImpl(
 
     private fun lockedRoles(teamIds: Set<UUID>, actorId: UUID): Map<UUID, Role?> {
         val teams = teamIds.sorted().map { teamId ->
-            referencesPersistence.findLockedTeam(teamId) ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+            referencesPersistence.findLockedTeam(teamId) ?: throw TeamNotFoundException()
         }
 
         return teams.associate { team ->
@@ -235,17 +238,17 @@ class DocumentServiceImpl(
         } else {
             teamMemberRepository.findByTeamIdAndUserId(teamId, actorId) != null
         }
-        if (!canRead) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+        if (!canRead) throw DocumentNotFoundException()
         return entity
     }
 
     private fun requireWritable(entity: Document, actorId: UUID, roles: Map<UUID, Role?>): Document {
         val teamId = entity.teamId
         if (teamId == null) {
-            if (entity.ownerId != actorId) throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+            if (entity.ownerId != actorId) throw DocumentNotFoundException()
         } else {
             val role = roles[teamId]
-                ?: throw AppException(AppErrorMessage.DOCUMENT_NOT_FOUND)
+                ?: throw DocumentNotFoundException()
             if (!role.canWrite()) throw AccessDeniedException("Write access to the document is required")
         }
         return entity
@@ -254,11 +257,11 @@ class DocumentServiceImpl(
     private fun Role.canWrite(): Boolean = this == Role.READ_WRITE || this == Role.ADMIN
 
     private fun findDocument(id: UUID): Document =
-        repository.findById(id).orElseThrow { AppException(AppErrorMessage.DOCUMENT_NOT_FOUND) }
+        repository.findById(id).orElseThrow { DocumentNotFoundException() }
 
     private fun currentActorId(): UUID =
         SecurityContextHolder.getContext().authentication?.name?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: throw AppException(AppErrorMessage.AUTHENTICATION_REQUIRED)
+            ?: throw AuthenticationRequiredException()
 
     private fun validateTitle(title: String) {
         if (title.isBlank() || title.length > MAX_TITLE_LENGTH) {

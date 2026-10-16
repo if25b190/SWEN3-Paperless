@@ -1,8 +1,11 @@
 package at.fhtw.swen3.paperless.user.service
 
 import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.LastTeamAdminException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
+import at.fhtw.swen3.paperless.exception.UserOwnsTeamException
+import at.fhtw.swen3.paperless.exception.UsernameAlreadyExistsException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -15,6 +18,7 @@ import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
@@ -131,7 +135,7 @@ class UserServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.USERNAME_ALREADY_EXISTS) { service.create(user) } },
+            { assertAppError(UsernameAlreadyExistsException::class) { service.create(user) } },
             { verify(userRepository, never()).save(any(User::class.java)) }
         )
     }
@@ -157,7 +161,7 @@ class UserServiceImplTest {
         `when`(userRepository.findById(fixtureId(42))).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.USER_NOT_FOUND) { service.getById(fixtureId(42)) }
+        assertAppError(UserNotFoundException::class) { service.getById(fixtureId(42)) }
     }
 
     @Test
@@ -227,7 +231,7 @@ class UserServiceImplTest {
         `when`(userRepository.findByUsername("bobby")).thenReturn(userFixture(fixtureId(2), "bobby", "hash"))
 
         assertAll(
-            { assertAppError(AppErrorMessage.USERNAME_ALREADY_EXISTS) { service.update(fixtureId(1), "bobby", null) } },
+            { assertAppError(UsernameAlreadyExistsException::class) { service.update(fixtureId(1), "bobby", null) } },
             { verify(userRepository, never()).save(any(User::class.java)) },
             { verify(tokenRepository, never()).deleteByUserId(fixtureId(1)) }
         )
@@ -241,7 +245,7 @@ class UserServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.USER_NOT_FOUND) { service.update(fixtureId(42), null, null) } },
+            { assertAppError(UserNotFoundException::class) { service.update(fixtureId(42), null, null) } },
             { verify(userRepository, never()).save(any(User::class.java)) }
         )
     }
@@ -281,7 +285,7 @@ class UserServiceImplTest {
         `when`(userRepository.findLockedById(fixtureId(42))).thenReturn(null)
 
         // when / then
-        assertAppError(AppErrorMessage.USER_NOT_FOUND) { service.delete(fixtureId(42)) }
+        assertAppError(UserNotFoundException::class) { service.delete(fixtureId(42)) }
     }
 
     @Test
@@ -292,7 +296,7 @@ class UserServiceImplTest {
         `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamFixture(fixtureId(3), "Team"))
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(listOf(membership))
 
-        assertAppError(AppErrorMessage.LAST_TEAM_ADMIN) { service.delete(fixtureId(1)) }
+        assertAppError(LastTeamAdminException::class) { service.delete(fixtureId(1)) }
 
         verify(userRepository, never()).deleteById(fixtureId(1))
     }
@@ -318,7 +322,7 @@ class UserServiceImplTest {
             )
         )
 
-        assertAppError(AppErrorMessage.USER_OWNS_TEAM) { service.delete(fixtureId(1)) }
+        assertAppError(UserOwnsTeamException::class) { service.delete(fixtureId(1)) }
 
         verify(userRepository, never()).deleteById(fixtureId(1))
         verify(teamMemberRepository, never()).deleteAll(any())
@@ -371,12 +375,9 @@ class UserServiceImplTest {
         verify(teamMemberRepository, never()).findByUserId(fixtureId(2))
     }
 
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
+    private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
-        assertAll(
-            { assertThat(thrown).isInstanceOf(AppException::class.java) },
-            { assertThat((thrown as AppException).error).isEqualTo(expected) }
-        )
+        assertThat(thrown).isInstanceOf(expected.java)
     }
 
     private fun assertConstraintViolation(action: () -> Unit) {
