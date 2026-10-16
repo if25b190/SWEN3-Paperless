@@ -18,11 +18,14 @@ import java.net.URI
 import java.util.UUID
 
 @RestController
-class DocumentController(private val documentService: DocumentService) : DocumentsApi {
+class DocumentController(
+    private val documentService: DocumentService,
+    private val documentMapper: DocumentMapper
+) : DocumentsApi {
 
     override fun getDocumentById(id: UUID): ResponseEntity<DocumentResponse> {
         val document = documentService.getDocument(id)
-        val response = DocumentMapper.toDto(document)
+        val response = documentMapper.toDto(document)
         return ResponseEntity.ok(response)
     }
 
@@ -33,7 +36,7 @@ class DocumentController(private val documentService: DocumentService) : Documen
         documentTypeId: UUID?
     ): ResponseEntity<DocumentPageResponse> {
         val documents = documentService.searchDocuments(page, size, sort, documentTypeId)
-        val items = documents.content.map(DocumentMapper::toDto)
+        val items = documents.content.map(documentMapper::toDto)
         val pagination = PageMetadata(page, size, documents.totalElements, documents.totalPages)
         return ResponseEntity.ok(DocumentPageResponse(pagination, items))
     }
@@ -53,7 +56,7 @@ class DocumentController(private val documentService: DocumentService) : Documen
             teamId = teamId
         )
         val created = documentService.uploadDocument(upload)
-        val response = DocumentMapper.toDto(created)
+        val response = documentMapper.toDto(created)
         return ResponseEntity.created(URI.create("/api/v1/documents/${created.id}")).body(response)
     }
 
@@ -61,9 +64,9 @@ class DocumentController(private val documentService: DocumentService) : Documen
         id: UUID,
         updateDocumentRequest: UpdateDocumentRequest
     ): ResponseEntity<DocumentResponse> {
-        val update = DocumentMapper.toUpdateModel(updateDocumentRequest)
+        val update = documentMapper.toUpdateModel(updateDocumentRequest)
         val document = documentService.updateDocument(id, update)
-        val response = DocumentMapper.toDto(document)
+        val response = documentMapper.toDto(document)
         return ResponseEntity.ok(response)
     }
 

@@ -15,17 +15,19 @@ import org.springframework.stereotype.Repository
 @Repository
 class JpaDocumentReferencesPersistence(
     private val entityManager: EntityManager,
-    private val teamRepository: TeamRepository
+    private val teamRepository: TeamRepository,
+    private val teamEntityMapper: TeamEntityMapper,
+    private val documentTypeEntityMapper: DocumentTypeEntityMapper
 ) : DocumentReferencesPersistence {
 
     override fun ownerExists(id: UUID): Boolean = entityManager.find(UserEntity::class.java, id) != null
 
     override fun findTeam(id: UUID): Team? =
-        entityManager.find(TeamEntity::class.java, id)?.let(TeamEntityMapper::toModel)
+        entityManager.find(TeamEntity::class.java, id)?.let(teamEntityMapper::toModel)
 
     override fun findLockedTeam(id: UUID): Team? =
-        teamRepository.findLockedById(id)?.let(TeamEntityMapper::toModel)
+        teamRepository.findLockedById(id)?.let(teamEntityMapper::toModel)
 
     override fun findDocumentType(id: UUID): DocumentType? =
-        entityManager.find(DocumentTypeEntity::class.java, id)?.let(DocumentTypeEntityMapper::toModel)
+        entityManager.find(DocumentTypeEntity::class.java, id)?.let(documentTypeEntityMapper::toModel)
 }

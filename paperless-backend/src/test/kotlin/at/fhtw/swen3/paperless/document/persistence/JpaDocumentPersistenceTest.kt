@@ -1,16 +1,27 @@
 package at.fhtw.swen3.paperless.document.persistence
 
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
+
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
+import at.fhtw.swen3.paperless.document.persistence.mapper.DocumentEntityMapperImpl
+
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.documenttype.persistence.mapper.DocumentTypeEntityMapperImpl
+
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.JpaTeamMemberPersistence
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.persistence.mapper.TeamEntityMapper
+import at.fhtw.swen3.paperless.team.persistence.mapper.TeamEntityMapperImpl
+import at.fhtw.swen3.paperless.team.persistence.mapper.TeamMemberEntityMapperImpl
+
 import at.fhtw.swen3.paperless.team.persistence.repository.TeamMemberRepository
 import at.fhtw.swen3.paperless.user.entity.UserEntity
 import at.fhtw.swen3.paperless.user.persistence.mapper.UserEntityMapper
+import at.fhtw.swen3.paperless.user.persistence.mapper.UserEntityMapperImpl
+
 import jakarta.persistence.EntityManager
 import java.time.Instant
 import org.assertj.core.api.Assertions.assertThat
@@ -23,13 +34,25 @@ import org.springframework.context.annotation.Import
 import jakarta.persistence.OptimisticLockException
 
 @DataJpaTest
-@Import(JpaDocumentPersistence::class, JpaDocumentReferencesPersistence::class, JpaTeamMemberPersistence::class)
+@Import(
+    JpaDocumentPersistence::class,
+    JpaDocumentReferencesPersistence::class,
+    JpaTeamMemberPersistence::class,
+    DocumentEntityMapperImpl::class,
+    DocumentTypeEntityMapperImpl::class,
+    TeamEntityMapperImpl::class,
+    UserEntityMapperImpl::class,
+    TeamMemberEntityMapperImpl::class,
+    MappingConverters::class
+)
 class JpaDocumentPersistenceTest(
     @Autowired private val persistence: DocumentPersistence,
     @Autowired private val references: DocumentReferencesPersistence,
     @Autowired private val memberships: JpaTeamMemberPersistence,
     @Autowired private val memberRepository: TeamMemberRepository,
-    @Autowired private val entityManager: EntityManager
+    @Autowired private val entityManager: EntityManager,
+    @Autowired private val teamEntityMapper: TeamEntityMapper,
+    @Autowired private val userEntityMapper: UserEntityMapper
 ) {
     @Test
     fun document_mapping_resolves_associations_and_preserves_version_ok() {
@@ -84,7 +107,7 @@ class JpaDocumentPersistenceTest(
         val team = TeamEntity(name = "Adapter team", ownerId = requireNotNull(user.id), createdAt = Instant.now())
         entityManager.persist(team)
         val member = TeamMember(
-            TeamEntityMapper.toModel(team), UserEntityMapper.toModel(user), Role.READ_WRITE, Instant.now()
+            teamEntityMapper.toModel(team), userEntityMapper.toModel(user), Role.READ_WRITE, Instant.now()
         )
         val created = memberships.save(member)
         entityManager.flush()

@@ -14,16 +14,18 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 class AuthController(
-    private val authService: AuthService
+    private val authService: AuthService,
+    private val authMapper: AuthMapper,
+    private val userMapper: UserMapper
 ) : AuthApi {
 
     override fun login(loginRequest: LoginRequest): ResponseEntity<LoginResponse> {
-        val credentials = AuthMapper.toCredentials(loginRequest)
+        val credentials = authMapper.toCredentials(loginRequest)
         val authenticated = authService.login(credentials)
         val response = LoginResponse(
             token = authenticated.token,
             tokenType = "Bearer",
-            user = UserMapper.toDto(authenticated.user)
+            user = userMapper.toDto(authenticated.user)
         )
 
         return ResponseEntity.ok(response)
@@ -32,7 +34,7 @@ class AuthController(
     override fun getCurrentUser(): ResponseEntity<UserResponse> {
         val userId = AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
         val user = authService.getCurrentUser(userId)
-        val response = UserMapper.toDto(user)
+        val response = userMapper.toDto(user)
 
         return ResponseEntity.ok(response)
     }

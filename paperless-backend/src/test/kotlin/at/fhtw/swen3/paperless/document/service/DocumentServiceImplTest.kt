@@ -1,12 +1,15 @@
 package at.fhtw.swen3.paperless.document.service
 
-import at.fhtw.swen3.paperless.document.mapper.DocumentMapper
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
+import at.fhtw.swen3.paperless.document.mapper.DocumentMapperImpl
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
+import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
+
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
@@ -62,6 +65,10 @@ class DocumentServiceImplTest {
     lateinit var teamMemberRepository: TeamMemberPersistence
 
     lateinit var service: DocumentServiceImpl
+
+    private val converters = MappingConverters()
+
+    private val documentMapper = DocumentMapperImpl(converters, DocumentTypeMapperImpl(converters))
 
     @TempDir
     lateinit var tempDir: Path
@@ -237,7 +244,7 @@ class DocumentServiceImplTest {
 
         assertThat(repositorySaveArgument().documentType).isEqualTo(documentType)
         assertThat(uploaded.documentType?.name).isEqualTo("Invoice")
-        assertThat(DocumentMapper.toDto(uploaded).documentType?.name).isEqualTo("Invoice")
+        assertThat(documentMapper.toDto(uploaded).documentType?.name).isEqualTo("Invoice")
     }
 
     @Test
@@ -251,7 +258,7 @@ class DocumentServiceImplTest {
         val updated = service.updateDocument(uuid(1), update(documentTypeId = uuid(8)))
 
         assertThat(updated.documentType?.name).isEqualTo("Receipt")
-        assertThat(DocumentMapper.toDto(updated).documentType?.name).isEqualTo("Receipt")
+        assertThat(documentMapper.toDto(updated).documentType?.name).isEqualTo("Receipt")
     }
 
     @Test

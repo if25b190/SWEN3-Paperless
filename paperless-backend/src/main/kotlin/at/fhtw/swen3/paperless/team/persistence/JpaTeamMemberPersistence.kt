@@ -12,30 +12,31 @@ import org.springframework.stereotype.Repository
 @Repository
 class JpaTeamMemberPersistence(
     private val repository: TeamMemberRepository,
-    private val entityManager: EntityManager
+    private val entityManager: EntityManager,
+    private val teamMemberEntityMapper: TeamMemberEntityMapper
 ) : TeamMemberPersistence {
 
     override fun findByTeamId(teamId: UUID): List<TeamMember> =
-        repository.findByTeamId(teamId).map(TeamMemberEntityMapper::toModel)
+        repository.findByTeamId(teamId).map(teamMemberEntityMapper::toModel)
 
     override fun findByUserId(userId: UUID): List<TeamMember> =
-        repository.findByUserId(userId).map(TeamMemberEntityMapper::toModel)
+        repository.findByUserId(userId).map(teamMemberEntityMapper::toModel)
 
     override fun findByTeamIdAndUserId(teamId: UUID, userId: UUID): TeamMember? =
-        repository.findByTeamIdAndUserId(teamId, userId)?.let(TeamMemberEntityMapper::toModel)
+        repository.findByTeamIdAndUserId(teamId, userId)?.let(teamMemberEntityMapper::toModel)
 
     override fun existsByTeamIdAndUserId(teamId: UUID, userId: UUID): Boolean =
         repository.existsByTeamIdAndUserId(teamId, userId)
 
     override fun save(member: TeamMember): TeamMember {
         val existing = repository.findByTeamIdAndUserId(requireNotNull(member.team.id), requireNotNull(member.user.id))
-        val entity = existing?.also { it.role = member.role } ?: TeamMemberEntityMapper.toEntity(
+        val entity = existing?.also { it.role = member.role } ?: teamMemberEntityMapper.toEntity(
             member,
             entityManager.getReference(TeamEntity::class.java, requireNotNull(member.team.id)),
             entityManager.getReference(UserEntity::class.java, requireNotNull(member.user.id))
         )
 
-        return TeamMemberEntityMapper.toModel(repository.save(entity))
+        return teamMemberEntityMapper.toModel(repository.save(entity))
     }
 
     override fun delete(member: TeamMember) =

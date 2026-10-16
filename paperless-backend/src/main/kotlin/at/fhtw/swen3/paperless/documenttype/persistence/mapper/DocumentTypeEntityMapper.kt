@@ -1,9 +1,22 @@
 package at.fhtw.swen3.paperless.documenttype.persistence.mapper
 
-import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object DocumentTypeEntityMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface DocumentTypeEntityMapper {
+
+    fun toModel(entity: DocumentTypeEntity): DocumentType
 
     fun toEntity(documentType: DocumentType): DocumentTypeEntity =
         DocumentTypeEntity(
@@ -11,13 +24,5 @@ object DocumentTypeEntityMapper {
             name = documentType.name,
             description = documentType.description,
             version = documentType.version
-        )
-
-    fun toModel(entity: DocumentTypeEntity): DocumentType =
-        DocumentType(
-            id = entity.id,
-            name = entity.name,
-            description = entity.description,
-            version = entity.version
         )
 }

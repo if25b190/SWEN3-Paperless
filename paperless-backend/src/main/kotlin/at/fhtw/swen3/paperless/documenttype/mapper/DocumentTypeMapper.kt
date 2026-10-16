@@ -1,18 +1,26 @@
 package at.fhtw.swen3.paperless.documenttype.mapper
 
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.dto.CreateDocumentTypeRequest
 import at.fhtw.swen3.paperless.dto.DocumentTypeResponse
 import at.fhtw.swen3.paperless.dto.UpdateDocumentTypeRequest
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object DocumentTypeMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface DocumentTypeMapper {
 
-    fun toDto(documentType: DocumentType): DocumentTypeResponse =
-        DocumentTypeResponse(
-            id = requireNotNull(documentType.id) { "Cannot map an unpersisted document type to a response" },
-            name = documentType.name,
-            description = documentType.description
-        )
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    fun toDto(documentType: DocumentType): DocumentTypeResponse
 
     fun fromCreateDto(dto: CreateDocumentTypeRequest): DocumentType =
         DocumentType(

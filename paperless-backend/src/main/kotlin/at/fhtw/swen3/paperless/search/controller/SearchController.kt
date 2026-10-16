@@ -9,7 +9,10 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
-class SearchController(private val searchService: SearchService) : SearchApi {
+class SearchController(
+    private val searchService: SearchService,
+    private val searchMapper: SearchMapper
+) : SearchApi {
 
     override fun searchDocumentsFullText(
         query: String,
@@ -18,7 +21,7 @@ class SearchController(private val searchService: SearchService) : SearchApi {
         size: Int
     ): ResponseEntity<SearchResponse> {
         val results = searchService.search(query, fuzzy, page, size)
-        val items = results.content.map(SearchMapper::toDto)
+        val items = results.content.map(searchMapper::toDto)
         val pagination = PageMetadata(page, size, results.totalElements, results.totalPages)
         return ResponseEntity.ok(SearchResponse(pagination, items))
     }

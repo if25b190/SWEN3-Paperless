@@ -1,46 +1,29 @@
 package at.fhtw.swen3.paperless.document.mapper
 
-import at.fhtw.swen3.paperless.dto.DocumentResponse
-import at.fhtw.swen3.paperless.dto.ProcessingStatus as DtoProcessingStatus
-import at.fhtw.swen3.paperless.dto.UpdateDocumentRequest
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapper
-import java.time.Instant
-import java.time.ZoneOffset
+import at.fhtw.swen3.paperless.dto.DocumentResponse
+import at.fhtw.swen3.paperless.dto.UpdateDocumentRequest
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object DocumentMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class, DocumentTypeMapper::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface DocumentMapper {
 
-    fun toDto(document: Document): DocumentResponse =
-        DocumentResponse(
-            id = requireNotNull(document.id),
-            title = document.title,
-            originalFilename = document.originalFilename,
-            contentType = document.contentType,
-            fileSize = document.fileSize,
-            ownerId = document.ownerId,
-            teamId = document.teamId,
-            status = DtoProcessingStatus.valueOf(document.status.name),
-            createdAt = document.createdAt.atOffset(ZoneOffset.UTC),
-            updatedAt = document.updatedAt.atOffset(ZoneOffset.UTC),
-            ocrContent = document.ocrContent,
-            summary = document.summary,
-            storageKey = document.storageKey,
-            documentType = document.documentType?.let(DocumentTypeMapper::toDto)
-        )
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = ["toOffset"])
+    @Mapping(target = "updatedAt", source = "updatedAt", qualifiedByName = ["toOffset"])
+    fun toDto(document: Document): DocumentResponse
 
-    // Document-type reassignment requires a repository lookup and belongs to the service.
-    fun applyUpdate(document: Document, dto: UpdateDocumentRequest, now: Instant): Document =
-        document.copy(
-            title = dto.title ?: document.title,
-            updatedAt = now
-        )
-
-    fun toUpdateModel(dto: UpdateDocumentRequest): DocumentUpdate =
-        DocumentUpdate(
-            teamId = dto.teamId,
-            clearTeam = dto.clearTeam == true,
-            title = dto.title,
-            documentTypeId = dto.documentTypeId
-        )
+    fun toUpdateModel(dto: UpdateDocumentRequest): DocumentUpdate
 }

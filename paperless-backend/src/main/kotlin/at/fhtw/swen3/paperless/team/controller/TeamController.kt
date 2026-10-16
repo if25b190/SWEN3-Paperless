@@ -21,19 +21,23 @@ import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 
 @RestController
-class TeamController(private val teamService: TeamService) : TeamsApi {
+class TeamController(
+    private val teamService: TeamService,
+    private val teamMapper: TeamMapper,
+    private val teamMemberMapper: TeamMemberMapper
+) : TeamsApi {
 
     override fun getTeams(): ResponseEntity<TeamListResponse> {
         val teams = teamService.getTeams()
-        val response = TeamListResponse(teams.map(TeamMapper::toDto))
+        val response = TeamListResponse(teams.map(teamMapper::toDto))
         return ResponseEntity.ok(response)
     }
 
     override fun createTeam(createTeamRequest: CreateTeamRequest): ResponseEntity<TeamResponse> {
         val now = Instant.now()
-        val team = TeamMapper.fromCreateDto(createTeamRequest, now)
+        val team = teamMapper.fromCreateDto(createTeamRequest, now)
         val created = teamService.createTeam(team)
-        val response = TeamMapper.toDto(created)
+        val response = teamMapper.toDto(created)
         return ResponseEntity.status(HttpStatus.CREATED)
             .header(HttpHeaders.LOCATION, "/api/v1/teams/${created.id}")
             .body(response)
@@ -41,13 +45,13 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
 
     override fun getTeamById(id: UUID): ResponseEntity<TeamResponse> {
         val team = teamService.getTeam(id)
-        val response = TeamMapper.toDto(team)
+        val response = teamMapper.toDto(team)
         return ResponseEntity.ok(response)
     }
 
     override fun updateTeam(id: UUID, updateTeamRequest: UpdateTeamRequest): ResponseEntity<TeamResponse> {
         val updated = teamService.updateTeam(id, updateTeamRequest.name, updateTeamRequest.description)
-        val response = TeamMapper.toDto(updated)
+        val response = teamMapper.toDto(updated)
         return ResponseEntity.ok(response)
     }
 
@@ -58,7 +62,7 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
 
     override fun getTeamMembers(id: UUID): ResponseEntity<TeamMemberListResponse> {
         val members = teamService.getTeamMembers(id)
-        val response = TeamMemberListResponse(members.map(TeamMemberMapper::toMemberDto))
+        val response = TeamMemberListResponse(members.map(teamMemberMapper::toMemberDto))
         return ResponseEntity.ok(response)
     }
 
@@ -68,7 +72,7 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
     ): ResponseEntity<TeamMemberResponse> {
         val role = Role.valueOf(addTeamMemberRequest.role.name)
         val member = teamService.addTeamMember(id, addTeamMemberRequest.userId, role)
-        val response = TeamMemberMapper.toMemberDto(member)
+        val response = teamMemberMapper.toMemberDto(member)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
@@ -79,7 +83,7 @@ class TeamController(private val teamService: TeamService) : TeamsApi {
     ): ResponseEntity<TeamMemberResponse> {
         val role = Role.valueOf(updateTeamMemberRoleRequest.role.name)
         val member = teamService.updateTeamMemberRole(id, userId, role)
-        val response = TeamMemberMapper.toMemberDto(member)
+        val response = teamMemberMapper.toMemberDto(member)
         return ResponseEntity.ok(response)
     }
 
