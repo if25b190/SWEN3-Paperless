@@ -160,10 +160,7 @@ class TeamServiceImplTest {
         service.deleteTeam(fixtureId(1))
 
         // then
-        assertAll(
-            { verify(teamMemberRepository).deleteByTeamId(fixtureId(1)) },
-            { verify(teamRepository).deleteById(fixtureId(1)) }
-        )
+        verify(teamRepository).deleteById(fixtureId(1))
     }
 
     @Test
@@ -311,7 +308,6 @@ class TeamServiceImplTest {
             { verify(teamRepository, never()).save(any(Team::class.java)) },
             { verify(teamRepository, never()).deleteById(fixtureId(1)) },
             { verify(teamMemberRepository, never()).save(any(TeamMember::class.java)) },
-            { verify(teamMemberRepository, never()).deleteByTeamId(fixtureId(1)) },
             { verify(teamMemberRepository, never()).delete(any(TeamMember::class.java)) }
         )
     }
@@ -391,7 +387,6 @@ class TeamServiceImplTest {
         assertAccessDenied { service.deleteTeam(fixtureId(1)) }
 
         verify(teamRepository, never()).deleteById(fixtureId(1))
-        verify(teamMemberRepository, never()).deleteByTeamId(fixtureId(1))
     }
 
     @Test

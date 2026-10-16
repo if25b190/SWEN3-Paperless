@@ -11,6 +11,5 @@ interface TeamMemberPersistence {
     fun save(member: TeamMember): TeamMember
     fun delete(member: TeamMember)
     fun deleteAll(members: List<TeamMember>)
-    fun deleteByTeamId(teamId: UUID)
     fun deleteByTeamIdAndUserId(teamId: UUID, userId: UUID)
 }

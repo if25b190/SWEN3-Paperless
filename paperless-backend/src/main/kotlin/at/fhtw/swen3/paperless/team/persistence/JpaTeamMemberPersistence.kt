@@ -46,8 +46,6 @@ class JpaTeamMemberPersistence(
         members.forEach { deleteByTeamIdAndUserId(requireNotNull(it.team.id), requireNotNull(it.user.id)) }
     }
 
-    override fun deleteByTeamId(teamId: UUID) = repository.deleteByTeamId(teamId)
-
     override fun deleteByTeamIdAndUserId(teamId: UUID, userId: UUID) =
         repository.deleteByTeamIdAndUserId(teamId, userId)
 }
