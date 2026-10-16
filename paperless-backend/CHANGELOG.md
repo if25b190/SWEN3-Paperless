@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   implementations are generated at build time.
 - `common/mapper/MappingConverters` — shared `@Named` converters (`toOffset`, `requireNotNull`)
   used by all mappers.
+- 13 dedicated exception classes in `exception/` (one per `AppErrorMessage`, e.g. `UserNotFoundException`).
 
 ### Changed
 - Mappers are now Spring beans obtained via constructor injection: controllers and JPA
@@ -19,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`injectionStrategy = CONSTRUCTOR`), so unit tests can construct them without a Spring context.
 - Pure field mappings (`toDto`, `toModel`, `toCredentials`, `toUpdateModel`) are generated with
   `unmappedTargetPolicy = ERROR`, so unmapped target properties fail the build.
+- Throw sites and tests reference failure modes by exception type (`UserNotFoundException()`,
+  `assertAppError(UserNotFoundException::class)`) instead of `AppErrorMessage` values.
 
 ### Removed
 - Hand-written field-copying mapper bodies, replaced by the generated implementations.

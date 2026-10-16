@@ -2,11 +2,13 @@ package at.fhtw.swen3.paperless.documenttype.service
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.DocumentTypeNameAlreadyExistsException
+import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
 import at.fhtw.swen3.paperless.testsupport.any
 import java.util.Optional
 import java.util.UUID
+import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
@@ -67,7 +69,7 @@ class DocumentTypeServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.createDocumentType(documentType()) } },
+            { assertAppError(DocumentTypeNameAlreadyExistsException::class) { service.createDocumentType(documentType()) } },
             { verify(repository, never()).save(any(DocumentType::class.java)) }
         )
     }
@@ -93,7 +95,7 @@ class DocumentTypeServiceImplTest {
         `when`(repository.findById(MISSING_ID)).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.getDocumentTypeById(MISSING_ID) }
+        assertAppError(DocumentTypeNotFoundException::class) { service.getDocumentTypeById(MISSING_ID) }
     }
 
     @Test
@@ -123,7 +125,7 @@ class DocumentTypeServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
+            { assertAppError(DocumentTypeNameAlreadyExistsException::class) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
             { verify(repository, never()).save(any(DocumentType::class.java)) }
         )
     }
@@ -147,15 +149,12 @@ class DocumentTypeServiceImplTest {
         `when`(repository.findById(MISSING_ID)).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND) { service.deleteDocumentType(MISSING_ID) }
+        assertAppError(DocumentTypeNotFoundException::class) { service.deleteDocumentType(MISSING_ID) }
     }
 
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
+    private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
-        assertAll(
-            { assertThat(thrown).isInstanceOf(AppException::class.java) },
-            { assertThat((thrown as AppException).error).isEqualTo(expected) }
-        )
+        assertThat(thrown).isInstanceOf(expected.java)
     }
 
     private fun documentType() = DocumentType(null, "Invoice", "Bills")

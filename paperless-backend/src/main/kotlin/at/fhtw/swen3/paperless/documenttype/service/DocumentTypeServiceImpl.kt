@@ -2,8 +2,8 @@ package at.fhtw.swen3.paperless.documenttype.service
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.DocumentTypeNameAlreadyExistsException
+import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
 import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -22,7 +22,7 @@ class DocumentTypeServiceImpl(
 
     override fun createDocumentType(documentType: DocumentType): DocumentType {
         if (repository.findByName(documentType.name) != null) {
-            throw AppException(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS)
+            throw DocumentTypeNameAlreadyExistsException()
         }
 
         val saved = repository.save(documentType)
@@ -39,7 +39,7 @@ class DocumentTypeServiceImpl(
         val current = findDocumentType(id)
         val duplicate = repository.findByName(documentType.name)
         if (duplicate != null && duplicate.id != current.id) {
-            throw AppException(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS)
+            throw DocumentTypeNameAlreadyExistsException()
         }
 
         val updated = documentType.copy(id = current.id, version = current.version)
@@ -55,7 +55,5 @@ class DocumentTypeServiceImpl(
     }
 
     private fun findDocumentType(id: UUID) =
-        repository.findById(id).orElseThrow {
-            AppException(AppErrorMessage.DOCUMENT_TYPE_NOT_FOUND)
-        }
+        repository.findById(id).orElseThrow { DocumentTypeNotFoundException() }
 }

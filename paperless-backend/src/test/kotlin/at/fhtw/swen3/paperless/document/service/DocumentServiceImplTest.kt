@@ -11,8 +11,9 @@ import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistenc
 import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
+import at.fhtw.swen3.paperless.exception.TeamNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -26,6 +27,7 @@ import java.nio.file.Path
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
@@ -132,9 +134,9 @@ class DocumentServiceImplTest {
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(documentEntity()))
         setActor(uuid(2))
 
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.getDocument(uuid(1)) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.updateDocument(uuid(1), update(title = "No")) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.deleteDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.getDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.updateDocument(uuid(1), update(title = "No")) }
+        assertAppError(DocumentNotFoundException::class) { service.deleteDocument(uuid(1)) }
     }
 
     @Test
@@ -156,15 +158,15 @@ class DocumentServiceImplTest {
         stubTeamRole(uuid(4), uuid(2), null)
         setActor(uuid(2))
 
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.getDocument(uuid(1)) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.downloadDocument(uuid(1)) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.updateDocument(uuid(1), update(title = "No")) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.deleteDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.getDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.downloadDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.updateDocument(uuid(1), update(title = "No")) }
+        assertAppError(DocumentNotFoundException::class) { service.deleteDocument(uuid(1)) }
         verify(repository, never()).delete(entity)
         verify(repository, never()).save(any(Document::class.java))
 
         setActor(uuid(1))
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.getDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.getDocument(uuid(1)) }
     }
 
     @Test
@@ -325,8 +327,8 @@ class DocumentServiceImplTest {
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
         stubTeamRole(uuid(4), uuid(1), null)
 
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.updateDocument(uuid(1), update(clearTeam = true)) }
-        assertAppError(AppErrorMessage.DOCUMENT_NOT_FOUND) { service.deleteDocument(uuid(1)) }
+        assertAppError(DocumentNotFoundException::class) { service.updateDocument(uuid(1), update(clearTeam = true)) }
+        assertAppError(DocumentNotFoundException::class) { service.deleteDocument(uuid(1)) }
         verify(repository, never()).delete(entity)
     }
 
@@ -380,7 +382,7 @@ class DocumentServiceImplTest {
         assertDenied { service.uploadDocument(upload(teamId = uuid(4))) }
 
         `when`(references.findLockedTeam(uuid(8))).thenReturn(null)
-        assertAppError(AppErrorMessage.TEAM_NOT_FOUND) { service.uploadDocument(upload(teamId = uuid(8))) }
+        assertAppError(TeamNotFoundException::class) { service.uploadDocument(upload(teamId = uuid(8))) }
         assertThat(tempDir.resolve("paperless-documents")).doesNotExist()
     }
 
@@ -486,12 +488,9 @@ class DocumentServiceImplTest {
 
     private fun persistedDocument(document: Document, id: UUID) = document.copy(id = id)
 
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
+    private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
-        assertAll(
-            { assertThat(thrown).isInstanceOf(AppException::class.java) },
-            { assertThat((thrown as AppException).error).isEqualTo(expected) }
-        )
+        assertThat(thrown).isInstanceOf(expected.java)
     }
 
     private fun assertDenied(action: () -> Unit) {

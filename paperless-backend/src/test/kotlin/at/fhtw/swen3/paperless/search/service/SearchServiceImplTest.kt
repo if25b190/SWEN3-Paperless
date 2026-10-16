@@ -3,8 +3,7 @@ package at.fhtw.swen3.paperless.search.service
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -190,8 +189,7 @@ class SearchServiceImplTest {
         SecurityContextHolder.getContext().authentication = TestingAuthenticationToken("not-a-uuid", null)
 
         // when / then
-        val exception = assertThrows<AppException> { service.search("invoice", false, 0, 10) }
-        assertThat(exception.error).isEqualTo(AppErrorMessage.AUTHENTICATION_REQUIRED)
+        assertThrows<AuthenticationRequiredException> { service.search("invoice", false, 0, 10) }
         verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 

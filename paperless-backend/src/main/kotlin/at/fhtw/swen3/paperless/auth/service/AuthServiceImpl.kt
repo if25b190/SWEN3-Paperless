@@ -4,8 +4,8 @@ import at.fhtw.swen3.paperless.auth.model.AccessToken
 import at.fhtw.swen3.paperless.auth.model.AuthenticatedUser
 import at.fhtw.swen3.paperless.auth.model.LoginCredentials
 import at.fhtw.swen3.paperless.auth.persistence.AccessTokenPersistence
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.InvalidCredentialsException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.security.SecureRandom
@@ -30,10 +30,10 @@ class AuthServiceImpl(
 
     override fun login(credentials: LoginCredentials): AuthenticatedUser {
         val user = userRepository.findLockedByUsername(credentials.username)
-            ?: throw AppException(AppErrorMessage.INVALID_CREDENTIALS)
+            ?: throw InvalidCredentialsException()
         if (!user.password.startsWith("{pbkdf2@SpringSecurity_v5_8}") ||
             !passwordEncoder.matches(credentials.password, user.password)) {
-            throw AppException(AppErrorMessage.INVALID_CREDENTIALS)
+            throw InvalidCredentialsException()
         }
         val userId = requireNotNull(user.id)
         val bytes = ByteArray(32).also(random::nextBytes)
@@ -47,5 +47,5 @@ class AuthServiceImpl(
 
     @Transactional(readOnly = true)
     override fun getCurrentUser(userId: UUID): User =
-        userRepository.findById(userId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
+        userRepository.findById(userId).orElseThrow { UserNotFoundException() }
 }

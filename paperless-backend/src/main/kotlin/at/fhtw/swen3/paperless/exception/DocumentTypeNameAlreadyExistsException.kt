@@ -1,0 +1,3 @@
+package at.fhtw.swen3.paperless.exception
+
+class DocumentTypeNameAlreadyExistsException : AppException(AppErrorMessage.DOCUMENT_TYPE_NAME_ALREADY_EXISTS)

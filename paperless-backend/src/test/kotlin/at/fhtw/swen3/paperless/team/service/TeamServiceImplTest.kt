@@ -1,7 +1,11 @@
 package at.fhtw.swen3.paperless.team.service
 
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
+import at.fhtw.swen3.paperless.exception.TeamMemberAlreadyExistsException
+import at.fhtw.swen3.paperless.exception.TeamMemberNotFoundException
+import at.fhtw.swen3.paperless.exception.TeamNotFoundException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -13,6 +17,7 @@ import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
@@ -103,7 +108,7 @@ class TeamServiceImplTest {
         `when`(teamRepository.findById(fixtureId(42))).thenReturn(Optional.empty())
 
         // when / then
-        assertAppError(AppErrorMessage.TEAM_NOT_FOUND) { service.getTeam(fixtureId(42)) }
+        assertAppError(TeamNotFoundException::class) { service.getTeam(fixtureId(42)) }
     }
 
     @Test
@@ -167,7 +172,7 @@ class TeamServiceImplTest {
         `when`(teamRepository.findLockedById(fixtureId(42))).thenReturn(null)
 
         // when / then
-        assertAppError(AppErrorMessage.TEAM_NOT_FOUND) { service.deleteTeam(fixtureId(42)) }
+        assertAppError(TeamNotFoundException::class) { service.deleteTeam(fixtureId(42)) }
     }
 
     @Test
@@ -192,7 +197,7 @@ class TeamServiceImplTest {
         SecurityContextHolder.getContext().authentication =
             UsernamePasswordAuthenticationToken("not-a-uuid", "password", emptyList())
 
-        assertAppError(AppErrorMessage.AUTHENTICATION_REQUIRED) { service.getTeams() }
+        assertAppError(AuthenticationRequiredException::class) { service.getTeams() }
     }
 
     @Test
@@ -201,7 +206,7 @@ class TeamServiceImplTest {
         `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity())
 
         // when / then
-        assertAppError(AppErrorMessage.USER_NOT_FOUND) {
+        assertAppError(UserNotFoundException::class) {
             service.addTeamMember(fixtureId(1), fixtureId(99), Role.READONLY)
         }
         verify(teamMemberRepository, never()).save(any(TeamMember::class.java))
@@ -236,7 +241,7 @@ class TeamServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.TEAM_MEMBER_ALREADY_EXISTS) { service.addTeamMember(fixtureId(1), fixtureId(2), Role.READ_WRITE) } },
+            { assertAppError(TeamMemberAlreadyExistsException::class) { service.addTeamMember(fixtureId(1), fixtureId(2), Role.READ_WRITE) } },
             { verify(teamMemberRepository, never()).save(any(TeamMember::class.java)) }
         )
     }
@@ -267,7 +272,7 @@ class TeamServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(AppErrorMessage.TEAM_MEMBER_NOT_FOUND) { service.updateTeamMemberRole(fixtureId(1), fixtureId(2), Role.ADMIN) } },
+            { assertAppError(TeamMemberNotFoundException::class) { service.updateTeamMemberRole(fixtureId(1), fixtureId(2), Role.ADMIN) } },
             { verify(teamMemberRepository, never()).save(any(TeamMember::class.java)) }
         )
     }
@@ -426,12 +431,9 @@ class TeamServiceImplTest {
         assertThat(thrown).isInstanceOf(AccessDeniedException::class.java)
     }
 
-    private fun assertAppError(expected: AppErrorMessage, action: () -> Unit) {
+    private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
-        assertAll(
-            { assertThat(thrown).isInstanceOf(AppException::class.java) },
-            { assertThat((thrown as AppException).error).isEqualTo(expected) }
-        )
+        assertThat(thrown).isInstanceOf(expected.java)
     }
 
     private fun team() = Team(fixtureId(1), "Team", null, Instant.EPOCH, null, ownerId = fixtureId(99))

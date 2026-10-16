@@ -1,5 +1,5 @@
 package at.fhtw.swen3.paperless.exception
 
-class AppException(
+sealed class AppException(
     val error: AppErrorMessage
 ) : RuntimeException(error.detail)

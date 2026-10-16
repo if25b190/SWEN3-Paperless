@@ -31,7 +31,7 @@ class GlobalExceptionHandlerTest {
     @Test
     fun domain_failure_is_logged_once_at_the_boundary_ko(output: CapturedOutput) {
         // when
-        GlobalExceptionHandler().handleAppException(AppException(AppErrorMessage.USER_NOT_FOUND))
+        GlobalExceptionHandler().handleAppException(UserNotFoundException())
 
         // then
         assertThat(Regex("\\[API] - ACTION: rejectRequest").findAll(output.all).count()).isEqualTo(1)

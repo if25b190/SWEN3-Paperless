@@ -1,8 +1,10 @@
 package at.fhtw.swen3.paperless.team.service
 
 import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
-import at.fhtw.swen3.paperless.exception.AppErrorMessage
-import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.TeamMemberAlreadyExistsException
+import at.fhtw.swen3.paperless.exception.TeamMemberNotFoundException
+import at.fhtw.swen3.paperless.exception.TeamNotFoundException
+import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -34,7 +36,7 @@ class TeamServiceImpl(
     override fun createTeam(team: Team): Team {
         val actorId = currentActorId()
         val createdTeam = teamRepository.save(team.copy(ownerId = actorId))
-        val creator = userRepository.findById(actorId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
+        val creator = userRepository.findById(actorId).orElseThrow { UserNotFoundException() }
         val membership = TeamMember(createdTeam, creator, Role.ADMIN, Instant.now())
         teamMemberRepository.save(membership)
         log.info("[TEAM] - ACTION: createTeam: teamId: {}, actorId: {}", createdTeam.id, actorId)
@@ -45,14 +47,14 @@ class TeamServiceImpl(
     @Transactional(readOnly = true)
     override fun getTeam(id: UUID): Team {
         val entity = teamRepository.findById(id)
-            .orElseThrow { AppException(AppErrorMessage.TEAM_NOT_FOUND) }
+            .orElseThrow { TeamNotFoundException() }
         requireTeamMember(entity)
         return entity
     }
 
     override fun updateTeam(id: UUID, name: String?, description: String?): Team {
         val entity = teamRepository.findById(id)
-            .orElseThrow { AppException(AppErrorMessage.TEAM_NOT_FOUND) }
+            .orElseThrow { TeamNotFoundException() }
         requireAdmin(id, entity.ownerId)
         val updated = entity.copy(
             name = name ?: entity.name,
@@ -88,9 +90,9 @@ class TeamServiceImpl(
         if (userId == team.ownerId && role != Role.ADMIN) {
             throw AccessDeniedException("The team owner must remain an admin")
         }
-        val user = userRepository.findById(userId).orElseThrow { AppException(AppErrorMessage.USER_NOT_FOUND) }
+        val user = userRepository.findById(userId).orElseThrow { UserNotFoundException() }
         if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
-            throw AppException(AppErrorMessage.TEAM_MEMBER_ALREADY_EXISTS)
+            throw TeamMemberAlreadyExistsException()
         }
 
         val member = TeamMember(team, user, role, Instant.now())
@@ -132,7 +134,7 @@ class TeamServiceImpl(
 
     private fun findLockedTeam(teamId: UUID) =
         teamRepository.findLockedById(teamId)
-            ?: throw AppException(AppErrorMessage.TEAM_NOT_FOUND)
+            ?: throw TeamNotFoundException()
 
     private fun requireAnotherAdmin(teamId: UUID, member: TeamMember) {
         val anotherAdminExists = teamMemberRepository.findByTeamId(teamId).any {
@@ -165,5 +167,5 @@ class TeamServiceImpl(
 
     private fun findMember(teamId: UUID, userId: UUID) =
         teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
-            ?: throw AppException(AppErrorMessage.TEAM_MEMBER_NOT_FOUND)
+            ?: throw TeamMemberNotFoundException()
 }
