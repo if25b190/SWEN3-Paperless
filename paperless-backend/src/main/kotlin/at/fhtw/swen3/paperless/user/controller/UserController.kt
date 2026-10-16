@@ -17,15 +17,17 @@ import java.util.UUID
 
 @RestController
 class UserController(
-    private val userService: UserService
+    private val userService: UserService,
+    private val userMapper: UserMapper,
+    private val teamMemberMapper: TeamMemberMapper
 ) : UsersApi {
 
     override fun createUser(
         createUserRequest: CreateUserRequest
     ): ResponseEntity<UserResponse> {
-        val user = UserMapper.fromCreateDto(createUserRequest, Instant.now())
+        val user = userMapper.fromCreateDto(createUserRequest, Instant.now())
         val created = userService.create(user)
-        val response = UserMapper.toDto(created)
+        val response = userMapper.toDto(created)
 
         return ResponseEntity.created(URI.create("/api/v1/users/${created.id}")).body(response)
     }
@@ -38,14 +40,14 @@ class UserController(
 
     override fun getUserById(id: UUID): ResponseEntity<UserResponse> {
         val user = userService.getById(id)
-        val response = UserMapper.toDto(user)
+        val response = userMapper.toDto(user)
 
         return ResponseEntity.ok(response)
     }
 
     override fun getUserTeams(id: UUID): ResponseEntity<UserTeamMembershipListResponse> {
         val memberships = userService.getTeams(id)
-        val items = memberships.map(TeamMemberMapper::toMembershipDto)
+        val items = memberships.map(teamMemberMapper::toMembershipDto)
         val response = UserTeamMembershipListResponse(items)
 
         return ResponseEntity.ok(response)
@@ -53,7 +55,7 @@ class UserController(
 
     override fun getUsers(): ResponseEntity<UserListResponse> {
         val users = userService.searchUsers()
-        val items = users.map(UserMapper::toDto)
+        val items = users.map(userMapper::toDto)
         val response = UserListResponse(items)
 
         return ResponseEntity.ok(response)
@@ -68,7 +70,7 @@ class UserController(
             updateUserRequest.username,
             updateUserRequest.password
         )
-        val response = UserMapper.toDto(updated)
+        val response = userMapper.toDto(updated)
 
         return ResponseEntity.ok(response)
     }

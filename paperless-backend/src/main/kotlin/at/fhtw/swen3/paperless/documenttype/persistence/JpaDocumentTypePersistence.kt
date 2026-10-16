@@ -8,18 +8,21 @@ import java.util.UUID
 import org.springframework.stereotype.Repository
 
 @Repository
-class JpaDocumentTypePersistence(private val repository: DocumentTypeRepository) : DocumentTypePersistence {
+class JpaDocumentTypePersistence(
+    private val repository: DocumentTypeRepository,
+    private val documentTypeEntityMapper: DocumentTypeEntityMapper
+) : DocumentTypePersistence {
 
-    override fun findAll(): List<DocumentType> = repository.findAll().map(DocumentTypeEntityMapper::toModel)
+    override fun findAll(): List<DocumentType> = repository.findAll().map(documentTypeEntityMapper::toModel)
 
     override fun findById(id: UUID): Optional<DocumentType> =
-        repository.findById(id).map(DocumentTypeEntityMapper::toModel)
+        repository.findById(id).map(documentTypeEntityMapper::toModel)
 
     override fun findByName(name: String): DocumentType? =
-        repository.findByName(name)?.let(DocumentTypeEntityMapper::toModel)
+        repository.findByName(name)?.let(documentTypeEntityMapper::toModel)
 
     override fun save(documentType: DocumentType): DocumentType =
-        DocumentTypeEntityMapper.toModel(repository.save(DocumentTypeEntityMapper.toEntity(documentType)))
+        documentTypeEntityMapper.toModel(repository.save(documentTypeEntityMapper.toEntity(documentType)))
 
     override fun delete(documentType: DocumentType) = repository.deleteById(requireNotNull(documentType.id))
 }

@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "at.fhtw.swen3"
-version = "0.0.1-SNAPSHOT"
+version = "0.0.2-SNAPSHOT"
 
 java {
     toolchain {
@@ -33,6 +33,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("org.mapstruct:mapstruct:1.6.3")
 
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
     implementation("org.openapitools:jackson-databind-nullable:0.2.6")
@@ -43,6 +44,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     kapt("org.springframework.boot:spring-boot-configuration-processor")
+    kapt("org.mapstruct:mapstruct-processor:1.6.3")
 
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")

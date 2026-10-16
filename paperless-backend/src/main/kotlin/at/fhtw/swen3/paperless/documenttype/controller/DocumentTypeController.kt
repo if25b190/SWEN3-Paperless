@@ -14,27 +14,28 @@ import java.util.UUID
 
 @RestController
 class DocumentTypeController(
-    private val service: DocumentTypeService
+    private val service: DocumentTypeService,
+    private val documentTypeMapper: DocumentTypeMapper
 ) : DocumentTypesApi {
 
     override fun searchDocumentTypes(): ResponseEntity<DocumentTypeListResponse> {
         val documentTypes = service.searchDocumentTypes()
-        val items = documentTypes.map(DocumentTypeMapper::toDto)
+        val items = documentTypes.map(documentTypeMapper::toDto)
         return ResponseEntity.ok(DocumentTypeListResponse(items = items))
     }
 
     override fun createDocumentType(
         createDocumentTypeRequest: CreateDocumentTypeRequest
     ): ResponseEntity<DocumentTypeResponse> {
-        val documentType = DocumentTypeMapper.fromCreateDto(createDocumentTypeRequest)
+        val documentType = documentTypeMapper.fromCreateDto(createDocumentTypeRequest)
         val created = service.createDocumentType(documentType)
-        val response = DocumentTypeMapper.toDto(created)
+        val response = documentTypeMapper.toDto(created)
         return ResponseEntity.created(URI.create("/api/v1/document-types/${created.id}")).body(response)
     }
 
     override fun getDocumentTypeById(id: UUID): ResponseEntity<DocumentTypeResponse> {
         val documentType = service.getDocumentTypeById(id)
-        val response = DocumentTypeMapper.toDto(documentType)
+        val response = documentTypeMapper.toDto(documentType)
         return ResponseEntity.ok(response)
     }
 
@@ -43,9 +44,9 @@ class DocumentTypeController(
         updateDocumentTypeRequest: UpdateDocumentTypeRequest
     ): ResponseEntity<DocumentTypeResponse> {
         val current = service.getDocumentTypeById(id)
-        val documentType = DocumentTypeMapper.applyUpdate(current, updateDocumentTypeRequest)
+        val documentType = documentTypeMapper.applyUpdate(current, updateDocumentTypeRequest)
         val updated = service.updateDocumentType(id, documentType)
-        val response = DocumentTypeMapper.toDto(updated)
+        val response = documentTypeMapper.toDto(updated)
         return ResponseEntity.ok(response)
     }
 

@@ -1,23 +1,29 @@
 package at.fhtw.swen3.paperless.team.mapper
 
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.dto.CreateTeamRequest
 import at.fhtw.swen3.paperless.dto.TeamResponse
-import at.fhtw.swen3.paperless.dto.UpdateTeamRequest
 import at.fhtw.swen3.paperless.team.model.Team
 import java.time.Instant
-import java.time.ZoneOffset
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object TeamMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface TeamMapper {
 
-    fun toDto(team: Team): TeamResponse =
-        TeamResponse(
-            id = requireNotNull(team.id),
-            name = team.name,
-            description = team.description,
-            ownerId = requireNotNull(team.ownerId),
-            createdAt = team.createdAt.atOffset(ZoneOffset.UTC),
-            updatedAt = team.updatedAt?.atOffset(ZoneOffset.UTC)
-        )
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    @Mapping(target = "ownerId", source = "ownerId", qualifiedByName = ["requireNotNull"])
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = ["toOffset"])
+    @Mapping(target = "updatedAt", source = "updatedAt", qualifiedByName = ["toOffset"])
+    fun toDto(team: Team): TeamResponse
 
     fun fromCreateDto(dto: CreateTeamRequest, now: Instant): Team =
         Team(
@@ -27,12 +33,5 @@ object TeamMapper {
             createdAt = now,
             updatedAt = null,
             ownerId = null
-        )
-
-    fun applyUpdate(team: Team, dto: UpdateTeamRequest, now: Instant): Team =
-        team.copy(
-            name = dto.name ?: team.name,
-            description = dto.description ?: team.description,
-            updatedAt = now
         )
 }

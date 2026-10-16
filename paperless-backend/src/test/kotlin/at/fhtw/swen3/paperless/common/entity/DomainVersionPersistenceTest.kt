@@ -1,13 +1,21 @@
 package at.fhtw.swen3.paperless.common.entity
 
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
+
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
 import at.fhtw.swen3.paperless.documenttype.persistence.JpaDocumentTypePersistence
+import at.fhtw.swen3.paperless.documenttype.persistence.mapper.DocumentTypeEntityMapperImpl
+
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.persistence.JpaTeamPersistence
+import at.fhtw.swen3.paperless.team.persistence.mapper.TeamEntityMapperImpl
+
 import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.JpaUserPersistence
+import at.fhtw.swen3.paperless.user.persistence.mapper.UserEntityMapperImpl
+
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
 import jakarta.persistence.EntityManager
 import java.time.Instant
@@ -21,7 +29,15 @@ import org.springframework.context.annotation.Import
 import org.springframework.dao.OptimisticLockingFailureException
 
 @DataJpaTest
-@Import(JpaUserPersistence::class, JpaTeamPersistence::class, JpaDocumentTypePersistence::class)
+@Import(
+    JpaUserPersistence::class,
+    JpaTeamPersistence::class,
+    JpaDocumentTypePersistence::class,
+    UserEntityMapperImpl::class,
+    TeamEntityMapperImpl::class,
+    DocumentTypeEntityMapperImpl::class,
+    MappingConverters::class
+)
 class DomainVersionPersistenceTest(@Autowired private val entityManager: EntityManager) {
     @Autowired private lateinit var users: UserPersistence
     @Autowired private lateinit var teams: TeamPersistence

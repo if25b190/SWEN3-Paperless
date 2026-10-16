@@ -1,20 +1,28 @@
 package at.fhtw.swen3.paperless.user.mapper
 
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.dto.CreateUserRequest
 import at.fhtw.swen3.paperless.dto.UserResponse
 import at.fhtw.swen3.paperless.user.model.User
 import java.time.Instant
-import java.time.ZoneOffset
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object UserMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface UserMapper {
 
-    fun toDto(user: User): UserResponse =
-        UserResponse(
-            id = requireNotNull(user.id),
-            username = user.username,
-            createdAt = user.createdAt.atOffset(ZoneOffset.UTC),
-            updatedAt = user.updatedAt?.atOffset(ZoneOffset.UTC)
-        )
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = ["toOffset"])
+    @Mapping(target = "updatedAt", source = "updatedAt", qualifiedByName = ["toOffset"])
+    fun toDto(user: User): UserResponse
 
     fun fromCreateDto(dto: CreateUserRequest, now: Instant): User =
         User(
@@ -24,5 +32,4 @@ object UserMapper {
             createdAt = now,
             updatedAt = null
         )
-
 }

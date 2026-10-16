@@ -19,24 +19,25 @@ import org.springframework.stereotype.Repository
 @Repository
 class JpaDocumentPersistence(
     private val repository: DocumentRepository,
-    private val entityManager: EntityManager
+    private val entityManager: EntityManager,
+    private val documentEntityMapper: DocumentEntityMapper
 ) : DocumentPersistence {
 
-    override fun findById(id: UUID): Optional<Document> = repository.findById(id).map(DocumentEntityMapper::toModel)
+    override fun findById(id: UUID): Optional<Document> = repository.findById(id).map(documentEntityMapper::toModel)
 
     override fun findOwnerOnlyDocuments(ownerId: UUID, documentTypeId: UUID?, pageable: Pageable): Page<Document> =
-        repository.findOwnerOnlyDocuments(ownerId, documentTypeId, pageable).map(DocumentEntityMapper::toModel)
+        repository.findOwnerOnlyDocuments(ownerId, documentTypeId, pageable).map(documentEntityMapper::toModel)
 
     override fun findVisibleDocuments(
         ownerId: UUID, teamIds: Set<UUID>, documentTypeId: UUID?, pageable: Pageable
     ): Page<Document> = repository.findVisibleDocuments(ownerId, teamIds, documentTypeId, pageable)
-        .map(DocumentEntityMapper::toModel)
+        .map(documentEntityMapper::toModel)
 
     override fun findOwnerOnlyDocuments(ownerId: UUID): List<Document> =
-        repository.findOwnerOnlyDocuments(ownerId).map(DocumentEntityMapper::toModel)
+        repository.findOwnerOnlyDocuments(ownerId).map(documentEntityMapper::toModel)
 
     override fun findVisibleDocuments(ownerId: UUID, teamIds: Set<UUID>): List<Document> =
-        repository.findVisibleDocuments(ownerId, teamIds).map(DocumentEntityMapper::toModel)
+        repository.findVisibleDocuments(ownerId, teamIds).map(documentEntityMapper::toModel)
 
     override fun save(document: Document): Document {
         val references = DocumentEntityMapper.References(
@@ -46,9 +47,9 @@ class JpaDocumentPersistence(
                 entityManager.getReference(DocumentTypeEntity::class.java, requireNotNull(it.id))
             }
         )
-        val entity = DocumentEntityMapper.toEntity(document, references)
+        val entity = documentEntityMapper.toEntity(document, references)
 
-        return DocumentEntityMapper.toModel(repository.save(entity))
+        return documentEntityMapper.toModel(repository.save(entity))
     }
 
     override fun refreshUnchanged(document: Document): Document {
@@ -66,7 +67,7 @@ class JpaDocumentPersistence(
             throw OptimisticLockException("Document sharing changed concurrently")
         }
 
-        return DocumentEntityMapper.toModel(entity)
+        return documentEntityMapper.toModel(entity)
     }
 
     override fun delete(document: Document) {

@@ -1,9 +1,24 @@
 package at.fhtw.swen3.paperless.user.persistence.mapper
 
-import at.fhtw.swen3.paperless.user.model.User
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.user.entity.UserEntity
+import at.fhtw.swen3.paperless.user.model.User
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object UserEntityMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface UserEntityMapper {
+
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    fun toModel(entity: UserEntity): User
 
     fun toEntity(user: User): UserEntity =
         UserEntity(
@@ -13,15 +28,5 @@ object UserEntityMapper {
             createdAt = user.createdAt,
             updatedAt = user.updatedAt,
             version = user.version
-        )
-
-    fun toModel(entity: UserEntity): User =
-        User(
-            id = requireNotNull(entity.id),
-            username = entity.username,
-            password = entity.password,
-            createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt,
-            version = entity.version
         )
 }

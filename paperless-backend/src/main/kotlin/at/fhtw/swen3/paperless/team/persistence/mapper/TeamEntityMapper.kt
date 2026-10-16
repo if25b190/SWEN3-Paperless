@@ -1,9 +1,24 @@
 package at.fhtw.swen3.paperless.team.persistence.mapper
 
-import at.fhtw.swen3.paperless.team.model.Team
+import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
+import at.fhtw.swen3.paperless.team.model.Team
+import org.mapstruct.InjectionStrategy
+import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingConstants
+import org.mapstruct.ReportingPolicy
 
-object TeamEntityMapper {
+@Mapper(
+    componentModel = MappingConstants.ComponentModel.SPRING,
+    injectionStrategy = InjectionStrategy.CONSTRUCTOR,
+    uses = [MappingConverters::class],
+    unmappedTargetPolicy = ReportingPolicy.ERROR
+)
+interface TeamEntityMapper {
+
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    fun toModel(entity: TeamEntity): Team
 
     fun toEntity(team: Team): TeamEntity =
         TeamEntity(
@@ -14,16 +29,5 @@ object TeamEntityMapper {
             updatedAt = team.updatedAt,
             ownerId = team.ownerId,
             version = team.version
-        )
-
-    fun toModel(entity: TeamEntity): Team =
-        Team(
-            id = requireNotNull(entity.id),
-            name = entity.name,
-            description = entity.description,
-            createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt,
-            ownerId = entity.ownerId,
-            version = entity.version
         )
 }
