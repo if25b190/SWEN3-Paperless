@@ -14,6 +14,8 @@ import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import java.time.Instant
 import java.util.UUID
+import org.hibernate.annotations.OnDelete
+import org.hibernate.annotations.OnDeleteAction
 
 @Entity
 @Table(
@@ -24,6 +26,7 @@ class TeamMemberEntity(
     id: UUID? = null,
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "team_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     val team: TeamEntity = TeamEntity(),
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)

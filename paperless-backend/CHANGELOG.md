@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `common/mapper/MappingConverters` — shared `@Named` converters (`toOffset`, `requireNotNull`)
   used by all mappers.
 - 13 dedicated exception classes in `exception/` (one per `AppErrorMessage`, e.g. `UserNotFoundException`).
+- Flyway V3 migration recreating `fk_team_members_team` with `ON DELETE CASCADE` so deleting a
+  team removes its memberships at the database level.
 
 ### Changed
 - Mappers are now Spring beans obtained via constructor injection: controllers and JPA
@@ -22,7 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `unmappedTargetPolicy = ERROR`, so unmapped target properties fail the build.
 - Throw sites and tests reference failure modes by exception type (`UserNotFoundException()`,
   `assertAppError(UserNotFoundException::class)`) instead of `AppErrorMessage` values.
+- `TeamServiceImpl.deleteTeam` relies on the database cascade for membership removal instead of
+  an explicit `deleteByTeamId` call.
 
 ### Removed
 - Hand-written field-copying mapper bodies, replaced by the generated implementations.
 - Dead code with no call sites: `TeamMapper.applyUpdate`, `DocumentMapper.applyUpdate`.
+- `deleteByTeamId` from `TeamMemberPersistence`, `JpaTeamMemberPersistence`, and
+  `TeamMemberRepository` (no remaining call sites).
