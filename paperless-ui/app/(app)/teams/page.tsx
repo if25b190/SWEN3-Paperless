@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/card";
 
 export default function TeamsPage() {
   const { user } = useAuth();
-  const { memberships, data, reload } = useMemberships();
+  const { memberships, data, loading, error, reload } = useMemberships();
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
@@ -30,12 +30,21 @@ export default function TeamsPage() {
         }
       />
 
-      {data === undefined ? (
+      {data === undefined && loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
             <Skeleton key={index} className="h-32" />
           ))}
         </div>
+      ) : error ? (
+        <Card>
+          <EmptyState
+            icon={<Users className="size-6" />}
+            title="Teams could not be loaded."
+            description="Please try again."
+            action={<Button variant="outline" onClick={reload}>Retry</Button>}
+          />
+        </Card>
       ) : memberships.length === 0 ? (
         <Card>
           <EmptyState

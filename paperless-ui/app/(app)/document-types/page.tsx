@@ -92,7 +92,7 @@ function TypeForm({
 }
 
 export default function DocumentTypesPage() {
-  const { data, reload } = useQuery("document-types-page", () => documentTypesApi.list());
+  const { data, loading, error, reload } = useQuery("document-types-page", () => documentTypesApi.list());
   const [dialog, setDialog] = useState<{ open: boolean; type: DocumentType | null }>({
     open: false,
     type: null,
@@ -127,13 +127,20 @@ export default function DocumentTypesPage() {
       <PageHeader title="Document Types" description="Classify documents, for example invoices or contracts." actions={addButton} />
 
       <Card className="overflow-hidden p-0">
-        {data === undefined ? (
+        {data === undefined && loading ? (
           <div className="grid gap-2 p-5">
             {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton key={index} className="h-12" />
             ))}
           </div>
-        ) : data.length === 0 ? (
+        ) : error ? (
+          <EmptyState
+            icon={<FolderTree className="size-6" />}
+            title="Document types could not be loaded."
+            description="Please try again."
+            action={<Button variant="outline" onClick={reload}>Retry</Button>}
+          />
+        ) : !data || data.length === 0 ? (
           <EmptyState
             icon={<FolderTree className="size-6" />}
             title="No document types yet"
