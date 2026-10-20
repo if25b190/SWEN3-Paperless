@@ -42,6 +42,11 @@ Docker Compose passes `http://backend:8080` as the default build argument.
 Production rewrites are generated during the Next.js build, so rebuild the UI image
 after changing this value. `NEXT_PUBLIC_API_URL` is not used by the API client.
 
+## Tests
+
+Run `pnpm test` for component regression tests using Vitest and React Testing
+Library. Run `pnpm lint` and `pnpm build` for lint and production build checks.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

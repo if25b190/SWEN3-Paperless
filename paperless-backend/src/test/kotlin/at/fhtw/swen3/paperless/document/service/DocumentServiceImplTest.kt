@@ -278,6 +278,59 @@ class DocumentServiceImplTest {
     }
 
     @Test
+    fun update_clears_document_type_only_when_explicitly_requested_ok() {
+        // given
+        val existing = documentEntity()
+        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
+        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+
+        // when
+        val updated = service.updateDocument(uuid(1), update().copy(clearDocumentType = true))
+
+        // then
+        assertAll(
+            { assertThat(updated.documentType).isNull() },
+            { assertThat(repositorySaveArgument().documentType).isNull() },
+            { assertThat(updated.title).isEqualTo(existing.title) },
+            { assertThat(updated.ownerId).isEqualTo(existing.ownerId) },
+            { assertThat(updated.teamId).isEqualTo(existing.teamId) }
+        )
+    }
+
+    @Test
+    fun update_preserves_document_type_when_clear_flag_is_absent_ok() {
+        // given
+        val existing = documentEntity()
+        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
+        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+
+        // when
+        val updated = service.updateDocument(uuid(1), update(title = "Renamed"))
+
+        // then
+        assertAll(
+            { assertThat(updated.title).isEqualTo("Renamed") },
+            { assertThat(updated.documentType).isEqualTo(existing.documentType) },
+            { assertThat(repositorySaveArgument().documentType).isEqualTo(existing.documentType) }
+        )
+    }
+
+    @Test
+    fun update_rejects_replacing_and_clearing_document_type_together_ko() {
+        // given
+        val conflicting = update(documentTypeId = uuid(8)).copy(clearDocumentType = true)
+
+        // when
+        val thrown = catchThrowable { service.updateDocument(uuid(1), conflicting) }
+
+        // then
+        assertAll(
+            { assertThat(thrown).isInstanceOf(ConstraintViolationException::class.java) },
+            { verify(repository, never()).save(any(Document::class.java)) }
+        )
+    }
+
+    @Test
     fun any_current_team_writer_can_edit_metadata_without_changing_owner_or_sharing() {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))

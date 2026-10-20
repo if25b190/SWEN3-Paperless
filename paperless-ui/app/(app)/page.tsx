@@ -127,6 +127,10 @@ export default function DashboardPage() {
   const initialLoading = data === undefined && loading;
   const totalPages = data?.pagination.total_pages ?? 0;
 
+  if (!loading && data && page > Math.max(0, totalPages - 1)) {
+    setPage(Math.max(0, totalPages - 1));
+  }
+
   return (
     <div className="grid gap-6">
       <PageHeader
@@ -218,8 +222,10 @@ export default function DashboardPage() {
         ) : items.length === 0 ? (
           <EmptyState
             icon={<FileText className="size-6" />}
-            title="No documents found"
-            description="Upload your first PDF to get started."
+            title={data?.items.length ? "No matching documents on this page" : "No documents found"}
+            description={data?.items.length
+              ? "Try another page or change the sharing filter."
+              : "Upload your first PDF to get started."}
             action={
               <Button onClick={() => setUploadOpen(true)}>
                 <Upload />
@@ -319,9 +325,9 @@ export default function DashboardPage() {
                 })}
               </TableBody>
             </Table>
-            <Pagination page={page} totalPages={totalPages} onChange={setPage} />
           </>
         )}
+        {data && <Pagination page={page} totalPages={totalPages} onChange={setPage} />}
         {loading && data !== undefined && (
           <div className="flex items-center gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
             <Spinner className="size-3" />

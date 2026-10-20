@@ -192,6 +192,44 @@ class DocumentSecurityIntegrationTest(
         createdDocuments.clear()
     }
 
+    @Test
+    fun document_type_can_be_explicitly_cleared_without_changing_null_update_semantics_ok() {
+        // given
+        val suffix = System.nanoTime()
+        val owner = registerAndLogin("typeowner$suffix")
+        val document = upload(owner, owner, "typeclearprobe")
+        val typeId = mvc.perform(post("/api/v1/document-types").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("""{"name":"Type $suffix"}"""))
+            .andExpect(status().isCreated)
+            .andReturn().response.contentAsString.let { jsonUuid(it, "id") }
+        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":"$typeId"}"""))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
+
+        // when / then
+        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":null}"""))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
+        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("""{"title":"Renamed"}"""))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
+        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""{"document_type_id":"$typeId","clear_document_type":true}"""))
+            .andExpect(status().isBadRequest)
+        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+            .contentType(MediaType.APPLICATION_JSON).content("""{"clear_document_type":true}"""))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.document_type").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.title").value("Renamed"))
+        mvc.perform(get("/api/v1/documents/${document.id}").header("Authorization", owner.bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.document_type").value(org.hamcrest.Matchers.nullValue()))
+    }
+
     private fun registerAndLogin(username: String): Account {
         val password = "document-security-password"
         val registration = mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)

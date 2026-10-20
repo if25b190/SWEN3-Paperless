@@ -67,7 +67,8 @@ function EditForm({
 
     const payload: UpdateDocumentPayload = {
       title: title.trim(),
-      document_type_id: typeId === NONE_VALUE ? null : typeId,
+      document_type_id: typeId === NONE_VALUE ? undefined : typeId,
+      clear_document_type: typeId === NONE_VALUE,
     };
     if (isUploader && teamId !== initialTeam) {
       if (teamId === PRIVATE_VALUE) payload.clear_team = true;

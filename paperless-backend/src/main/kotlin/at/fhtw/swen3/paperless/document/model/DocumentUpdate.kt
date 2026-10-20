@@ -6,5 +6,6 @@ data class DocumentUpdate(
     val teamId: UUID?,
     val clearTeam: Boolean,
     val title: String?,
-    val documentTypeId: UUID?
+    val documentTypeId: UUID?,
+    val clearDocumentType: Boolean = false
 )

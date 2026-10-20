@@ -40,7 +40,7 @@ function TeamForm({
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const body = { name: name.trim(), description: description.trim() || null };
+    const body = { name: name.trim(), description: description.trim() || (team ? "" : null) };
     setSubmitting(true);
     try {
       const saved = team ? await teamsApi.update(team.id, body) : await teamsApi.create(body);
