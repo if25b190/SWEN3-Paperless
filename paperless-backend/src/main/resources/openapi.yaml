@@ -1327,6 +1327,12 @@ components:
     UpdateDocumentRequest:
       type: object
       properties:
+        clear_document_type:
+          type: boolean
+          default: false
+          description: >-
+            Set true without document_type_id to remove the document type.
+            Supplying both a document_type_id and clear_document_type true returns 400.
         team_id:
           type: string
           format: uuid
@@ -1347,6 +1353,9 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: >-
+            Replacement document type ID. Omitting this field or setting it to null
+            leaves the current type unchanged; use clear_document_type to remove it.
           example: "550e8400-e29b-41d4-a716-446655440004"
 
     # --- Search Result Schemas ---

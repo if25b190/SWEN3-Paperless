@@ -123,6 +123,9 @@ class DocumentServiceImpl(
         if (update.teamId != null && update.clearTeam) {
             throw ConstraintViolationException("team_id and clear_team cannot both be set", emptySet())
         }
+        if (update.documentTypeId != null && update.clearDocumentType) {
+            throw ConstraintViolationException("document_type_id and clear_document_type cannot both be set", emptySet())
+        }
 
         val actorId = currentActorId()
         val initial = findDocument(id)
@@ -151,10 +154,12 @@ class DocumentServiceImpl(
             }
         }
 
-        val documentType = update.documentTypeId?.let {
-            referencesPersistence.findDocumentType(it)
+        val documentType = when {
+            update.clearDocumentType -> null
+            update.documentTypeId != null -> referencesPersistence.findDocumentType(update.documentTypeId)
                 ?: throw DocumentTypeNotFoundException()
-        } ?: existing.documentType
+            else -> existing.documentType
+        }
 
         val updated = Document(
             id = existing.id,

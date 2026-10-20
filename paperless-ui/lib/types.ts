@@ -113,6 +113,7 @@ export interface SearchPage {
 export interface UpdateDocumentPayload {
   title?: string;
   document_type_id?: string | null;
+  clear_document_type?: boolean;
   team_id?: string | null;
   clear_team?: boolean;
 }
