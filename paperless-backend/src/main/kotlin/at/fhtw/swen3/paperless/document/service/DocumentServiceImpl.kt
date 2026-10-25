@@ -14,6 +14,8 @@ import at.fhtw.swen3.paperless.exception.TeamNotFoundException
 import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import at.fhtw.swen3.paperless.ocr.model.OcrJob
+import at.fhtw.swen3.paperless.ocr.persistence.OcrJobPersistence
 import jakarta.validation.ConstraintViolationException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -39,7 +41,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 class DocumentServiceImpl(
     private val repository: DocumentPersistence,
     private val referencesPersistence: DocumentReferencesPersistence,
-    private val teamMemberRepository: TeamMemberPersistence
+    private val teamMemberRepository: TeamMemberPersistence,
+    private val ocrJobs: OcrJobPersistence
 ) : DocumentService {
 
     private val storageDirectory: Path = Paths.get(System.getProperty("java.io.tmpdir"), "paperless-documents")
@@ -111,6 +114,7 @@ class DocumentServiceImpl(
                     updatedAt = now
                 )
             )
+            ocrJobs.enqueue(OcrJob(null, requireNotNull(entity.id), storageKey, entity.contentType))
             logger.info("[DOCUMENT] - ACTION: uploadDocument: documentId: {}, actorId: {}", entity.id, actorId)
             entity
         } catch (exception: RuntimeException) {

@@ -13,6 +13,8 @@ import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
+import at.fhtw.swen3.paperless.ocr.model.OcrJob
+import at.fhtw.swen3.paperless.ocr.persistence.OcrJobPersistence
 import at.fhtw.swen3.paperless.exception.TeamNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
@@ -66,6 +68,9 @@ class DocumentServiceImplTest {
     @Mock
     lateinit var teamMemberRepository: TeamMemberPersistence
 
+    @Mock
+    lateinit var ocrJobs: OcrJobPersistence
+
     lateinit var service: DocumentServiceImpl
 
     private val converters = MappingConverters()
@@ -82,7 +87,7 @@ class DocumentServiceImplTest {
         originalTempDirectory = System.getProperty("java.io.tmpdir")
         System.setProperty("java.io.tmpdir", tempDir.toString())
         setActor(uuid(1))
-        service = DocumentServiceImpl(repository, references, teamMemberRepository)
+        service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs)
         org.mockito.Mockito.lenient().`when`(repository.refreshUnchanged(any(Document::class.java)))
             .thenAnswer { it.arguments[0] as Document }
     }
@@ -190,6 +195,7 @@ class DocumentServiceImplTest {
         assertThat(stored.ownerId).isEqualTo(uuid(1))
         assertThat(stored.id).isNull()
         assertThat(stored.teamId).isNull()
+        verify(ocrJobs).enqueue(OcrJob(null, uuid(20), requireNotNull(result.storageKey), "application/pdf"))
     }
 
     @Test

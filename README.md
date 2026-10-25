@@ -70,6 +70,44 @@ for request timing and search diagnostics. Each request returns an `X-Request-ID
 that also appears in its application logs. See [Logging](docs/logging.md) for
 the recorded events and privacy rules.
 
+### OCR Messaging
+
+Each upload saves a pending OCR job alongside the document in one database
+transaction. A background dispatcher publishes it to RabbitMQ and removes the
+pending job only after the broker confirms delivery to a queue. If RabbitMQ is
+unavailable, uploads still succeed and pending jobs retry every second by default.
+Rolled-back uploads never publish OCR requests. Docker stores uploaded files in
+the `document-files` volume.
+
+The durable exchange `paperless.ocr` routes `document.uploaded` to
+`paperless.ocr.requests`. Messages contain JSON fields `jobId`, `documentId`,
+`storageKey`, and `contentType`; the AMQP message ID is the stable `jobId`.
+Delivery is at least once: a confirmation timeout or a crash between publishing
+and deleting the pending job can produce duplicates. The future OCR worker must
+deduplicate by `jobId` and have access to the files identified by `storageKey`.
+
+`OcrWorker` is an empty listener scaffold. `OCR_WORKER_ENABLED=false` keeps it
+stopped so requests accumulate safely in the queue. Implement OCR and idempotency
+before enabling it; the current scaffold only acknowledges requests.
+When enabled, listener failures retry three times before rejection to the durable
+dead-letter queue `paperless.ocr.failed` through `paperless.ocr.dead-letter`.
+Malformed messages may be rejected immediately. Processing status stays `PENDING`
+until OCR processing is implemented.
+
+For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
+and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.
+`OCR_DISPATCH_ENABLED` controls background publishing and `OCR_DISPATCH_DELAY`
+sets its polling delay in milliseconds (default `1000`). The publisher waits up
+to five seconds for confirmation. Exchange, queue, routing key, and confirmation
+timeout can also be overridden through `paperless.ocr.*` Spring properties.
+
+The regular backend test suite runs without RabbitMQ. To run the isolated live
+broker check as well, from `paperless-backend` with broker credentials configured:
+
+```bash
+PAPERLESS_RABBITMQ_TEST=true ./gradlew test --tests '*RabbitOcrMessagePublisherIntegrationTest'
+```
+
 ---
 
 ### 4. Viewing Logs & Status
