@@ -15,6 +15,7 @@ flowchart LR
     Worker -->|fetch original| RustFS
     Worker --> Tesseract
     Tesseract -->|checkpoint| RustFS
+    Worker -->|idempotent text index| Elasticsearch
     Worker -->|confirmed result| Results[Result queue]
     Results -->|text and status| Backend
 ```
@@ -84,5 +85,47 @@ PYTHONPATH=. .venv/bin/python tests/integration_smoke.py
 
 This creates a randomly named private bucket, exchanges, and queues, starts its own
 worker process, checks PDF OCR, checkpoint reuse on duplicate delivery, and dead-letter
-routing, and removes only those test resources. It does not consume the application's
+routing, checks Elasticsearch document content/full-text search and duplicate indexing,
+and removes only those test resources. It does not consume the application's
 queues. From a worker container with the tests mounted, use `PYTHONPATH=/app` instead.
+
+## Indexing and worker layout
+
+One worker service is sufficient for the current pipeline. It checkpoints OCR in
+RustFS, indexes the extracted text with `PUT /<index>/_doc/<documentId>`, confirms
+the backend result event, and then acknowledges the request. Elasticsearch failure
+leaves the checkpoint intact; a retry repeats only indexing and result publication.
+This also lets a dead-lettered job be replayed after a longer outage without OCR.
+The index is created with explicit mappings; creation races between instances are
+handled. The document ID is stable across all deliveries.
+
+This avoids a second broker handoff and a second service to operate at the current
+volume. Separate OCR and indexing consumers become useful if they need independent
+scaling, indexing outages must not delay new OCR, or additional consumers need OCR
+output. The existing RustFS checkpoint is the durable handoff for that future split.
+No text is carried in upload requests; the worker alone retrieves source bytes.
+
+`ELASTICSEARCH_URL` defaults to `http://localhost:9200` for native runs and is
+overridden with the internal endpoint by Compose. `ELASTICSEARCH_INDEX` defaults
+to `paperless-documents`. Native/remote secured clusters can use
+`ELASTICSEARCH_USER` and `ELASTICSEARCH_PASSWORD`; HTTPS uses the system trust store.
+The Compose development cluster uses no authentication and exposes only loopback
+host ports. The backend continues to enforce document authorization.
+
+The document index stores `document_id`, `job_id`, `storage_key`, `content_type`,
+`text`, and `extracted_at`. REST document text/status is updated through the result
+queue as before; REST search continues to use its existing visibility-filtered
+database queries. Index deletion/retention must be managed separately from REST
+document deletion; lifecycle synchronization is not part of these worker tasks.
+
+JSON log events go to stdout and, when `WORKER_LOG_PATH` is set, rotating files
+(5 MiB each, three backups). Compose shares the log volume with Logstash read-only.
+Logstash tails the active file and persists offsets separately; stable event IDs
+prevent duplicates after a log line is replayed. Kibana can inspect both document
+and log indices. Logging is independent of the indexing path, so a Logstash outage
+does not fail an OCR job; files buffer recent events until ingestion resumes.
+
+The worker tests include an HTTP-level Elasticsearch contract check and verify
+that indexing failures preserve the checkpoint and retries do not call OCR again.
+The live smoke test additionally requires Elasticsearch and creates its own
+randomly named document index, removed during cleanup.

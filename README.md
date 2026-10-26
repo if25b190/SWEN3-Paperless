@@ -43,6 +43,7 @@ This starts:
 - **`rabbitmq`**: RabbitMQ broker with the management UI
 - **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
 - **`ocr-worker`**: RabbitMQ consumer that fetches documents from RustFS and extracts text with Tesseract
+- **`elasticsearch`**, **`logstash`**, **`kibana`**: OCR text indexing and worker log ingestion/inspection
 
 ---
 
@@ -59,6 +60,8 @@ Once all services are healthy and running:
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
 | **RabbitMQ Management** | [http://localhost:15672](http://localhost:15672) | Queues and connections (credentials in `.env.local`) |
 | **RustFS Console** | [http://localhost:9001](http://localhost:9001) | Object storage (credentials in `.env.local`) |
+| **Elasticsearch** | [http://localhost:9200](http://localhost:9200) | Indexed OCR text and worker logs |
+| **Kibana** | [http://localhost:5601](http://localhost:5601) | Inspect document and log indices |
 
 ---
 
@@ -109,8 +112,8 @@ Delivery is at least once: a confirmation timeout or a crash between publishing
 and deleting the pending job can produce duplicates. The standalone Python
 `ocr-worker` fetches the exact `storageKey` from RustFS and runs Tesseract on PDF
 pages and images (English and German by default). UTF-8 plain text is also supported.
-It saves a checkpoint at `ocr-results/<jobId>.json` before publishing a confirmed
-result to `paperless.ocr.results`. The backend applies the text to `ocr_content`
+It saves a checkpoint at `ocr-results/<jobId>.json`, indexes the text in Elasticsearch,
+then publishes a confirmed result to `paperless.ocr.results`. The backend applies the text to `ocr_content`
 and sets `COMPLETED`, or sets `FAILED` for permanently failed jobs. The result
 handler ignores deleted documents and duplicate results without changing sharing.
 
@@ -121,6 +124,29 @@ attempts. Invalid input and exhausted jobs go to `paperless.ocr.failed`; operati
 failure messages never include extracted text or credentials. The worker runs
 separately from the backend and keeps AMQP heartbeats active during OCR.
 See [worker setup and tests](paperless-worker/README.md).
+
+### Elasticsearch and worker logs
+
+One worker service performs OCR and indexing. OCR output is checkpointed before
+indexing, so an Elasticsearch outage can retry without repeating Tesseract work.
+The `paperless-documents` index (override with `ELASTICSEARCH_INDEX`) stores text
+under the document UUID with explicit text/keyword/date mappings. Replayed jobs
+overwrite that same document rather than creating duplicates. Indexing must
+succeed before the job's completion event is published and acknowledged.
+
+Worker JSON logs are written to the `worker-logs` volume and tailed by Logstash.
+Logstash persists its read offsets and writes to `paperless-worker-logs-*`, using
+stable event IDs to deduplicate replayed lines. Document text is stored only in
+the document index and private OCR checkpoints, never in operational log events.
+In Kibana, create data views for `paperless-documents` and `paperless-worker-logs-*`;
+use `extracted_at` and `@timestamp` respectively as the time fields.
+
+All three ELK images use version `9.5.5`. The bundled single-node development
+configuration uses HTTP with security disabled and binds Elasticsearch/Kibana host
+ports to `127.0.0.1`. Elasticsearch, Kibana, Logstash offsets, and worker logs have
+separate persistent volumes. Allocate at least 6 GiB to Docker for the full stack.
+REST search continues to enforce visibility through the backend's database.
+Elasticsearch stores OCR output for indexing and inspection in Kibana.
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.

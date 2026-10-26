@@ -6,9 +6,10 @@ logger = logging.getLogger(__name__)
 
 
 class Processor:
-    def __init__(self, objects, extractor):
+    def __init__(self, objects, extractor, index=None):
         self.objects = objects
         self.extractor = extractor
+        self.index = index
 
     def process(self, job: Job) -> Result:
         result = self.objects.checkpoint(job)
@@ -19,4 +20,6 @@ class Processor:
             logger.info("ocrCompleted", extra={"job_id": job.job_id, "document_id": job.document_id})
         else:
             logger.info("checkpointReused", extra={"job_id": job.job_id, "document_id": job.document_id})
+        if self.index is not None:
+            self.index.store(result)
         return result

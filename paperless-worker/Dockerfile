@@ -10,7 +10,9 @@ RUN apt-get update \
         tesseract-ocr tesseract-ocr-eng tesseract-ocr-deu poppler-utils \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 worker \
-    && useradd --uid 10001 --gid worker --create-home worker
+    && useradd --uid 10001 --gid worker --create-home worker \
+    && mkdir -p /var/log/paperless-worker \
+    && chown worker:worker /var/log/paperless-worker
 
 WORKDIR /app
 COPY requirements.txt ./

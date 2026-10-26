@@ -28,6 +28,10 @@ class Settings:
     max_document_bytes: int = 50 * 1024 * 1024
     max_pages: int = 100
     max_text_chars: int = 2_000_000
+    elasticsearch_url: str = "http://localhost:9200"
+    elasticsearch_index: str = "paperless-documents"
+    elasticsearch_user: str = ""
+    elasticsearch_password: str = ""
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -43,6 +47,8 @@ class Settings:
             "s3_secret_key": "RUSTFS_SECRET_KEY", "languages": "OCR_LANGUAGES",
             "page_timeout": "OCR_PAGE_TIMEOUT", "max_document_bytes": "OCR_MAX_DOCUMENT_BYTES",
             "max_pages": "OCR_MAX_PAGES", "max_text_chars": "OCR_MAX_TEXT_CHARS",
+            "elasticsearch_url": "ELASTICSEARCH_URL", "elasticsearch_index": "ELASTICSEARCH_INDEX",
+            "elasticsearch_user": "ELASTICSEARCH_USER", "elasticsearch_password": "ELASTICSEARCH_PASSWORD",
         }
         defaults = cls()
         values = {}

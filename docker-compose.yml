@@ -42,6 +42,8 @@ services:
         condition: service_healthy
       rustfs-init:
         condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
     environment:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
@@ -57,6 +59,11 @@ services:
       OCR_RETRY_DELAY_MS: ${OCR_RETRY_DELAY_MS:-10000}
       OCR_PAGE_TIMEOUT: ${OCR_PAGE_TIMEOUT:-60}
       OCR_MAX_PAGES: ${OCR_MAX_PAGES:-100}
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX: ${ELASTICSEARCH_INDEX:-paperless-documents}
+      WORKER_LOG_PATH: /var/log/paperless-worker/events.jsonl
+    volumes:
+      - worker-logs:/var/log/paperless-worker
 
   ui:
     build:
@@ -116,6 +123,72 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.5
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      ocr-worker:
+        condition: service_started
+    volumes:
+      - ./infra/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - worker-logs:/var/log/paperless-worker:ro
+      - logstash-data:/usr/share/logstash/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/pipelines/main"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.5
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      SERVER_HOST: "0.0.0.0"
+      TELEMETRY_ENABLED: "false"
+      NODE_OPTIONS: "--max-old-space-size=768"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:5601/api/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
   rustfs:
     image: rustfs/rustfs:1.0.4
     restart: unless-stopped
@@ -162,6 +235,10 @@ configs:
     content: "[rabbitmq_management]."
 
 volumes:
+  elasticsearch-data:
+  logstash-data:
+  kibana-data:
+  worker-logs:
   rustfs-data:
   document-files:
   postgres-data:
