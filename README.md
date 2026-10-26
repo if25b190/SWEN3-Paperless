@@ -40,6 +40,7 @@ This starts:
 - **`backend`**: Spring Boot REST API
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 16 database
+- **`rabbitmq`**: RabbitMQ broker with the management UI
 
 ---
 
@@ -54,6 +55,7 @@ Once all services are healthy and running:
 | **Swagger UI** | [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html) | Interactive OpenAPI documentation |
 | **OpenAPI v3 Spec** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Raw OpenAPI JSON definition |
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
+| **RabbitMQ Management** | [http://localhost:15672](http://localhost:15672) | Queues and connections (credentials in `.env.local`) |
 
 ---
 

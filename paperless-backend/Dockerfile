@@ -16,7 +16,9 @@ FROM eclipse-temurin:25-jre AS runner
 WORKDIR /app
 
 # Security: run as non-root user
-RUN groupadd -r spring && useradd -r -g spring spring
+RUN groupadd -r spring && useradd -r -g spring spring \
+    && mkdir -p /tmp/paperless-documents \
+    && chown spring:spring /tmp/paperless-documents
 USER spring:spring
 
 # Copy built artifact from builder stage (Gradle outputs to build/libs)
