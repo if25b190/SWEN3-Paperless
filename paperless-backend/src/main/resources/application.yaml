@@ -1,6 +1,25 @@
 spring:
   application:
     name: paperless
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:paperless}
+    password: ${RABBITMQ_PASS:paperless_secure_password}
+    connection-timeout: 5s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-retries: 3
+          initial-interval: 1s
+          max-interval: 5s
+          multiplier: 2
   servlet:
     multipart:
       max-file-size: ${MAX_UPLOAD_SIZE:50MB}
@@ -19,6 +38,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     open-in-view: false
+
+paperless:
+  ocr:
+    exchange: paperless.ocr
+    queue: paperless.ocr.requests
+    routing-key: document.uploaded
+    dead-letter-exchange: paperless.ocr.dead-letter
+    dead-letter-queue: paperless.ocr.failed
+    confirm-timeout: 5s
+    dispatch-enabled: ${OCR_DISPATCH_ENABLED:true}
+    dispatch-delay: ${OCR_DISPATCH_DELAY:1000}
+    worker-enabled: ${OCR_WORKER_ENABLED:false}
 
 server:
   tomcat:

@@ -1,6 +1,11 @@
 spring:
   application:
     name: paperless-test
+  rabbitmq:
+    dynamic: false
+    listener:
+      simple:
+        auto-startup: false
   flyway:
     enabled: false
   datasource:
@@ -13,6 +18,10 @@ spring:
     hibernate:
       ddl-auto: create-drop
     open-in-view: false
+
+paperless:
+  ocr:
+    dispatch-enabled: false
 
 springdoc:
   api-docs:
