@@ -23,9 +23,13 @@ class RabbitOcrMessagePublisherIntegrationTest {
         // given
         val name = "paperless.test.${UUID.randomUUID()}"
         val properties = OcrMessagingProperties(
-            exchange = name, queue = "$name.requests", deadLetterExchange = "$name.dlx", deadLetterQueue = "$name.failed"
+            exchange = name, queue = "$name.requests", deadLetterExchange = "$name.dlx",
+            deadLetterQueue = "$name.failed", resultQueue = "$name.results"
         )
-        val connection = CachingConnectionFactory(System.getenv("RABBITMQ_HOST") ?: "localhost")
+        val connection = CachingConnectionFactory(
+            System.getenv("RABBITMQ_HOST") ?: "localhost",
+            System.getenv("RABBITMQ_PORT")?.toInt() ?: 5672
+        )
         connection.username = System.getenv("RABBITMQ_USER") ?: "paperless"
         connection.setPassword(System.getenv("RABBITMQ_PASS") ?: "paperless_secure_password")
         connection.setPublisherConfirmType(ConfirmType.CORRELATED)
@@ -69,6 +73,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
         } finally {
             admin.deleteQueue(properties.queue)
             admin.deleteQueue(properties.deadLetterQueue)
+            admin.deleteQueue(properties.resultQueue)
             admin.deleteExchange(properties.exchange)
             admin.deleteExchange(properties.deadLetterExchange)
             context.close()

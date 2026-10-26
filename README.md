@@ -42,6 +42,7 @@ This starts:
 - **`db`**: PostgreSQL 16 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
 - **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
+- **`ocr-worker`**: RabbitMQ consumer that fetches documents from RustFS and extracts text with Tesseract
 
 ---
 
@@ -105,16 +106,21 @@ The durable exchange `paperless.ocr` routes `document.uploaded` to
 `paperless.ocr.requests`. Messages contain JSON fields `jobId`, `documentId`,
 `storageKey`, and `contentType`; the AMQP message ID is the stable `jobId`.
 Delivery is at least once: a confirmation timeout or a crash between publishing
-and deleting the pending job can produce duplicates. The future OCR worker must
-deduplicate by `jobId` and have access to the files identified by `storageKey`.
+and deleting the pending job can produce duplicates. The standalone Python
+`ocr-worker` fetches the exact `storageKey` from RustFS and runs Tesseract on PDF
+pages and images (English and German by default). UTF-8 plain text is also supported.
+It saves a checkpoint at `ocr-results/<jobId>.json` before publishing a confirmed
+result to `paperless.ocr.results`. The backend applies the text to `ocr_content`
+and sets `COMPLETED`, or sets `FAILED` for permanently failed jobs. The result
+handler ignores deleted documents and duplicate results without changing sharing.
 
-`OcrWorker` is an empty listener scaffold. `OCR_WORKER_ENABLED=false` keeps it
-stopped so requests accumulate safely in the queue. Implement OCR and idempotency
-before enabling it; the current scaffold only acknowledges requests.
-When enabled, listener failures retry three times before rejection to the durable
-dead-letter queue `paperless.ocr.failed` through `paperless.ocr.dead-letter`.
-Malformed messages may be rejected immediately. Processing status stays `PENDING`
-until OCR processing is implemented.
+The worker acknowledges only after its output is durable and the result event is
+confirmed. Redelivery reuses the checkpoint, avoiding repeated OCR. Transient
+failures retry through `paperless.ocr.retry` after ten seconds, up to three total
+attempts. Invalid input and exhausted jobs go to `paperless.ocr.failed`; operational
+failure messages never include extracted text or credentials. The worker runs
+separately from the backend and keeps AMQP heartbeats active during OCR.
+See [worker setup and tests](paperless-worker/README.md).
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.
