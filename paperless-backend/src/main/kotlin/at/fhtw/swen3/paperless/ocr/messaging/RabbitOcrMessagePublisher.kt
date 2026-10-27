@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.ocr.messaging
 
+import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import org.springframework.amqp.AmqpException
@@ -27,17 +28,17 @@ class RabbitOcrMessagePublisher(
             }, correlation)
             val confirm = correlation.future.get(properties.confirmTimeout.toMillis(), TimeUnit.MILLISECONDS)
             if (!confirm.ack() || correlation.returned != null) {
-                throw IllegalStateException("OCR request could not be confirmed by the broker.", IllegalStateException("Broker rejected or returned the OCR request."))
+                throw OcrPublishException()
             }
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            throw IllegalStateException("OCR request could not be confirmed by the broker.", exception)
+            throw OcrPublishException(exception)
         } catch (exception: AmqpException) {
-            throw IllegalStateException("OCR request could not be confirmed by the broker.", exception)
+            throw OcrPublishException(exception)
         } catch (exception: TimeoutException) {
-            throw IllegalStateException("OCR request could not be confirmed by the broker.", exception)
+            throw OcrPublishException(exception)
         } catch (exception: ExecutionException) {
-            throw IllegalStateException("OCR request could not be confirmed by the broker.", exception)
+            throw OcrPublishException(exception)
         }
     }
 }

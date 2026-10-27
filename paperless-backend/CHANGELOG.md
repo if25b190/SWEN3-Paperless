@@ -14,6 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 13 dedicated exception classes in `exception/` (one per `AppErrorMessage`, e.g. `UserNotFoundException`).
 - Flyway V3 migration recreating `fk_team_members_team` with `ON DELETE CASCADE` so deleting a
   team removes its memberships at the database level.
+- Layer-specific exceptions for the OCR queue pipeline: `OcrPublishException` (messaging layer,
+  broker publish/confirm failure) and `OcrJobInvalidException` (service layer, outbox job without an
+  id). `AppException` now accepts an optional cause.
+- Boundary logging for the OCR dispatch loop: `OcrDispatchScheduler` logs transient publish failures
+  at `WARN` and unexpected failures at `ERROR` with stack frames; `OcrDispatchServiceImpl` logs
+  successful dispatches and `OcrWorker` logs message receipts at `INFO`.
 
 ### Changed
 - Mappers are now Spring beans obtained via constructor injection: controllers and JPA
@@ -26,6 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `assertAppError(UserNotFoundException::class)`) instead of `AppErrorMessage` values.
 - `TeamServiceImpl.deleteTeam` relies on the database cascade for membership removal instead of
   an explicit `deleteByTeamId` call.
+
+- `RabbitOcrMessagePublisher` throws `OcrPublishException` instead of `IllegalStateException`, and
+  `OcrDispatchServiceImpl` throws `OcrJobInvalidException` instead of relying on `requireNotNull`.
 
 ### Removed
 - Hand-written field-copying mapper bodies, replaced by the generated implementations.

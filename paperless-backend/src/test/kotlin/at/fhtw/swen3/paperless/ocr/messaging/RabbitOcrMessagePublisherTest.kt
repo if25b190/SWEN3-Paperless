@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.ocr.messaging
 
+import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.testsupport.any
@@ -54,7 +55,7 @@ class RabbitOcrMessagePublisherTest {
         stubSend { correlation -> correlation.future.complete(CorrelationData.Confirm(false, "rejected")) }
 
         // then
-        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(OcrPublishException::class.java)
     }
 
     @Test
@@ -66,13 +67,13 @@ class RabbitOcrMessagePublisherTest {
         }
 
         // then
-        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(OcrPublishException::class.java)
     }
 
     @Test
     fun confirmation_timeout_preserves_cause_ko() {
         // then
-        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(OcrPublishException::class.java)
             .hasCauseInstanceOf(TimeoutException::class.java)
     }
 
@@ -85,7 +86,7 @@ class RabbitOcrMessagePublisherTest {
         )
 
         // then
-        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(IllegalStateException::class.java).hasCause(failure)
+        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(OcrPublishException::class.java).hasCause(failure)
     }
 
     @Test
@@ -94,7 +95,7 @@ class RabbitOcrMessagePublisherTest {
         Thread.currentThread().interrupt()
 
         // then
-        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { publisher().publish(request) }.isInstanceOf(OcrPublishException::class.java)
             .hasCauseInstanceOf(InterruptedException::class.java)
         assertThat(Thread.currentThread().isInterrupted).isTrue()
     }
