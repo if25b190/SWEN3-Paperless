@@ -19,5 +19,7 @@ enum class AppErrorMessage(
     DOCUMENT_TYPE_NAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Conflict", "The document type name is already in use."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Unauthorized", "The supplied credentials are invalid."),
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "Unauthorized", "Authentication is required."),
+    OCR_PUBLISH_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable", "The OCR message could not be published to the broker."),
+    OCR_JOB_INVALID(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "The OCR job is in an invalid state."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", "An unexpected error occurred.")
 }

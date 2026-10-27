@@ -1,5 +1,7 @@
 package at.fhtw.swen3.paperless.ocr.service
 
+import at.fhtw.swen3.paperless.exception.OcrJobInvalidException
+import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.messaging.OcrMessagePublisher
 import at.fhtw.swen3.paperless.ocr.model.OcrJob
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
@@ -59,12 +61,22 @@ class OcrDispatchServiceImplTest {
     fun publish_failure_retains_pending_job_for_retry_ko() {
         // given
         `when`(jobs.findNextForDispatch()).thenReturn(job)
-        val failure = IllegalStateException("broker failure", IllegalStateException("broker unavailable"))
+        val failure = OcrPublishException(RuntimeException("broker unavailable"))
         doThrow(failure).`when`(publisher).publish(request)
 
         // then
-        assertThatThrownBy { service.dispatchNext() }.isInstanceOf(IllegalStateException::class.java).isSameAs(failure)
+        assertThatThrownBy { service.dispatchNext() }.isInstanceOf(OcrPublishException::class.java).isSameAs(failure)
         verify(jobs, never()).delete(request.jobId)
+    }
+
+    @Test
+    fun job_without_id_is_rejected_before_publish_ko() {
+        // given
+        `when`(jobs.findNextForDispatch()).thenReturn(OcrJob(null, UUID.randomUUID(), "documents/test.pdf", "application/pdf"))
+
+        // then
+        assertThatThrownBy { service.dispatchNext() }.isInstanceOf(OcrJobInvalidException::class.java)
+        verifyNoInteractions(publisher)
     }
 
     @Test

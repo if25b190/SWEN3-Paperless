@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.repository.DocumentRepository
 import at.fhtw.swen3.paperless.document.service.DocumentService
+import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.messaging.OcrMessagePublisher
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.persistence.repository.OcrJobRepository
@@ -76,11 +77,11 @@ class OcrOutboxIntegrationTest(
         // given
         val document = documents.uploadDocument(upload())
         val jobId = requireNotNull(jobs.findAll().single().id)
-        doThrow(IllegalStateException("broker failure", IllegalStateException("broker unavailable")))
+        doThrow(OcrPublishException())
             .`when`(publisher).publish(any(OcrRequest::class.java))
 
         // when
-        assertThatThrownBy { dispatch.dispatchNext() }.isInstanceOf(IllegalStateException::class.java)
+        assertThatThrownBy { dispatch.dispatchNext() }.isInstanceOf(OcrPublishException::class.java)
 
         // then
         assertThat(jobs.existsById(jobId)).isTrue()

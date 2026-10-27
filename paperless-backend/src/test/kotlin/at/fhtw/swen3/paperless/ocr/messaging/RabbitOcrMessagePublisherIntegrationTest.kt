@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.ocr.messaging
 
+import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
 import at.fhtw.swen3.paperless.ocr.config.OcrRabbitConfiguration
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
@@ -64,7 +65,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
             assertThat(rejected.messageProperties.messageId).isEqualTo(request.jobId.toString())
             assertThatThrownBy {
                 RabbitOcrMessagePublisher(template, properties.copy(routingKey = "missing.binding")).publish(request)
-            }.isInstanceOf(IllegalStateException::class.java)
+            }.isInstanceOf(OcrPublishException::class.java)
         } finally {
             admin.deleteQueue(properties.queue)
             admin.deleteQueue(properties.deadLetterQueue)
