@@ -3,7 +3,6 @@ package at.fhtw.swen3.paperless.search.service
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
-import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -12,20 +11,14 @@ import at.fhtw.swen3.paperless.user.model.User
 import java.time.Instant
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
-import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.InjectMocks
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.junit.jupiter.MockitoExtension
-import org.springframework.security.authentication.TestingAuthenticationToken
-import org.springframework.security.core.context.SecurityContextHolder
 
 @ExtendWith(MockitoExtension::class)
 class SearchServiceImplTest {
@@ -39,14 +32,6 @@ class SearchServiceImplTest {
     @InjectMocks
     lateinit var service: SearchServiceImpl
 
-    @BeforeEach
-    fun set_actor() {
-        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken(uuid(1).toString(), null)
-    }
-
-    @AfterEach
-    fun clear_actor() = SecurityContextHolder.clearContext()
-
     @Test
     fun search_multi_term_and_pagination_ok() {
         // given
@@ -58,8 +43,8 @@ class SearchServiceImplTest {
         )
 
         // when
-        val firstPage = service.search("invoice acme", false, 0, 1)
-        val secondPage = service.search("invoice acme", false, 1, 1)
+        val firstPage = service.search(uuid(1), "invoice acme", false, 0, 1)
+        val secondPage = service.search(uuid(1), "invoice acme", false, 1, 1)
 
         // then
         assertAll(
@@ -83,7 +68,7 @@ class SearchServiceImplTest {
         `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
-        val result = service.search("invoic acm", true, 0, 10)
+        val result = service.search(uuid(1), "invoic acm", true, 0, 10)
 
         // then
         assertAll(
@@ -98,7 +83,7 @@ class SearchServiceImplTest {
         `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
-        val result = service.search("passport", false, 0, 10)
+        val result = service.search(uuid(1), "passport", false, 0, 10)
 
         // then
         assertThat(result).isEmpty()
@@ -113,7 +98,7 @@ class SearchServiceImplTest {
         )
 
         // when
-        val result = service.search(hiddenCandidate.ocrContent!!, false, 0, 10)
+        val result = service.search(uuid(1), hiddenCandidate.ocrContent!!, false, 0, 10)
 
         // then
         assertAll(
@@ -130,7 +115,7 @@ class SearchServiceImplTest {
         `when`(documentRepository.findOwnerOnlyDocuments(uuid(1))).thenReturn(listOf(document(uuid(1), "Invoice", "Invoice from Acme")))
 
         // when
-        val result = service.search("invoice", false, Int.MAX_VALUE, 100)
+        val result = service.search(uuid(1), "invoice", false, Int.MAX_VALUE, 100)
 
         // then
         assertAll(
@@ -151,21 +136,11 @@ class SearchServiceImplTest {
             .thenReturn(listOf(document(uuid(3), "Invoice", "Invoice from Acme").copy(teamId = uuid(4))))
 
         // when
-        val result = service.search("invoice", false, 0, 10)
+        val result = service.search(uuid(1), "invoice", false, 0, 10)
 
         // then
         assertThat(result.content.single().document.teamId).isEqualTo(uuid(4))
         verify(documentRepository).findVisibleDocuments(uuid(1), setOf(uuid(4)))
-    }
-
-    @Test
-    fun malformed_principal_fails_before_loading_candidates_ko() {
-        // given
-        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken("not-a-uuid", null)
-
-        // when / then
-        assertThrows<AuthenticationRequiredException> { service.search("invoice", false, 0, 10) }
-        verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 
     private fun uuid(value: Int) = UUID(0L, value.toLong())

@@ -10,19 +10,20 @@ import org.springframework.data.domain.Page
 interface DocumentService {
 
     fun searchDocuments(
+        actorId: UUID,
         page: Int,
         size: Int,
         sort: String,
         documentTypeId: UUID?
     ): Page<Document>
 
-    fun getDocument(id: UUID): Document
+    fun getDocument(actorId: UUID, id: UUID): Document
 
-    fun uploadDocument(upload: DocumentUpload): Document
+    fun uploadDocument(actorId: UUID, upload: DocumentUpload): Document
 
-    fun updateDocument(id: UUID, update: DocumentUpdate): Document
+    fun updateDocument(actorId: UUID, id: UUID, update: DocumentUpdate): Document
 
-    fun deleteDocument(id: UUID)
+    fun deleteDocument(actorId: UUID, id: UUID)
 
-    fun downloadDocument(id: UUID): Resource
+    fun downloadDocument(actorId: UUID, id: UUID): Resource
 }

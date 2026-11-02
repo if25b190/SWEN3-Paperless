@@ -24,12 +24,11 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.nio.file.Path
+import java.util.UUID
 
 @SpringBootTest(properties = ["spring.datasource.url=jdbc:h2:mem:ocr-outbox;DB_CLOSE_DELAY=-1;MODE=PostgreSQL"])
 class OcrOutboxIntegrationTest(
@@ -43,25 +42,24 @@ class OcrOutboxIntegrationTest(
     @MockitoBean
     lateinit var publisher: OcrMessagePublisher
 
+    private lateinit var ownerId: UUID
+
     @BeforeEach
     fun create_actor() {
-        val owner = users.saveAndFlush(UserEntity(username = "ocr-outbox-owner", password = "hash"))
-        SecurityContextHolder.getContext().authentication =
-            UsernamePasswordAuthenticationToken(owner.id.toString(), "test")
+        ownerId = requireNotNull(users.saveAndFlush(UserEntity(username = "ocr-outbox-owner", password = "hash")).id)
     }
 
     @AfterEach
     fun clean_up() {
         jobs.deleteAll()
-        documentRepository.findAll().forEach { documents.deleteDocument(requireNotNull(it.id)) }
+        documentRepository.findAll().forEach { documents.deleteDocument(ownerId, requireNotNull(it.id)) }
         users.deleteAll()
-        SecurityContextHolder.clearContext()
     }
 
     @Test
     fun upload_commits_document_and_job_without_contacting_broker_ok() {
         // when
-        val document = documents.uploadDocument(upload())
+        val document = documents.uploadDocument(ownerId, upload())
 
         // then
         val job = jobs.findAll().single()
@@ -75,7 +73,7 @@ class OcrOutboxIntegrationTest(
     @Test
     fun broker_failure_retains_job_then_retries_same_id_after_recovery_ok() {
         // given
-        val document = documents.uploadDocument(upload())
+        val document = documents.uploadDocument(ownerId, upload())
         val jobId = requireNotNull(jobs.findAll().single().id)
         doThrow(OcrPublishException())
             .`when`(publisher).publish(any(OcrRequest::class.java))
@@ -88,7 +86,7 @@ class OcrOutboxIntegrationTest(
         doNothing().`when`(publisher).publish(any(OcrRequest::class.java))
         dispatch.dispatchNext()
         assertThat(jobs.count()).isZero()
-        assertThat(documents.getDocument(requireNotNull(document.id)).status).isEqualTo(ProcessingStatus.PENDING)
+        assertThat(documents.getDocument(ownerId, requireNotNull(document.id)).status).isEqualTo(ProcessingStatus.PENDING)
         verify(publisher, times(2)).publish(
             OcrRequest(jobId, requireNotNull(document.id), requireNotNull(document.storageKey), document.contentType)
         )
@@ -98,7 +96,7 @@ class OcrOutboxIntegrationTest(
     fun rollback_removes_document_job_and_file_ok() {
         // when
         val rolledBack = requireNotNull(TransactionTemplate(transactionManager).execute { transaction ->
-            val document = documents.uploadDocument(upload())
+            val document = documents.uploadDocument(ownerId, upload())
             transaction.setRollbackOnly()
             document
         })

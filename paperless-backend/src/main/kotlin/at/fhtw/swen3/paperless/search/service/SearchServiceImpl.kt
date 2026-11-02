@@ -1,15 +1,14 @@
 package at.fhtw.swen3.paperless.search.service
 
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.search.model.SearchResult
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,9 +20,8 @@ class SearchServiceImpl(
 ) : SearchService {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun search(query: String, fuzzy: Boolean, page: Int, size: Int): Page<SearchResult> {
+    override fun search(actorId: UUID, query: String, fuzzy: Boolean, page: Int, size: Int): Page<SearchResult> {
         val terms = query.trim().lowercase().split(Regex("\\s+")).filter(String::isNotBlank)
-        val actorId = AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
         val teamIds = teamMemberRepository.findByUserId(actorId).mapTo(mutableSetOf()) { requireNotNull(it.team.id) }
         val documents = if (teamIds.isEmpty()) {
             documentRepository.findOwnerOnlyDocuments(actorId)

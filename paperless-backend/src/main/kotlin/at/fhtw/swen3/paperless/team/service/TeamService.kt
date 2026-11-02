@@ -7,21 +7,21 @@ import java.util.UUID
 
 interface TeamService {
 
-    fun getTeams(): List<Team>
+    fun getTeams(actorId: UUID): List<Team>
 
-    fun createTeam(team: Team): Team
+    fun createTeam(actorId: UUID, team: Team): Team
 
-    fun getTeam(id: UUID): Team
+    fun getTeam(actorId: UUID, id: UUID): Team
 
-    fun updateTeam(id: UUID, name: String?, description: String?): Team
+    fun updateTeam(actorId: UUID, id: UUID, name: String?, description: String?): Team
 
-    fun deleteTeam(id: UUID)
+    fun deleteTeam(actorId: UUID, id: UUID)
 
-    fun getTeamMembers(teamId: UUID): List<TeamMember>
+    fun getTeamMembers(actorId: UUID, teamId: UUID): List<TeamMember>
 
-    fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember
+    fun addTeamMember(actorId: UUID, teamId: UUID, userId: UUID, role: Role): TeamMember
 
-    fun updateTeamMemberRole(teamId: UUID, userId: UUID, role: Role): TeamMember
+    fun updateTeamMemberRole(actorId: UUID, teamId: UUID, userId: UUID, role: Role): TeamMember
 
-    fun removeTeamMember(teamId: UUID, userId: UUID)
+    fun removeTeamMember(actorId: UUID, teamId: UUID, userId: UUID)
 }

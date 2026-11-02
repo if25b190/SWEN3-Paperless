@@ -1,11 +1,13 @@
 package at.fhtw.swen3.paperless.search.controller
 
 import at.fhtw.swen3.paperless.api.SearchApi
+import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.dto.PageMetadata
 import at.fhtw.swen3.paperless.dto.SearchResponse
 import at.fhtw.swen3.paperless.search.mapper.SearchMapper
 import at.fhtw.swen3.paperless.search.service.SearchService
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -18,9 +20,11 @@ class SearchController(
         query: String,
         fuzzy: Boolean,
         page: Int,
-        size: Int
+        size: Int,
+        authentication: Authentication?
     ): ResponseEntity<SearchResponse> {
-        val results = searchService.search(query, fuzzy, page, size)
+        val actorId = AuthenticatedPrincipal.userId(authentication)
+        val results = searchService.search(actorId, query, fuzzy, page, size)
         val items = results.content.map(searchMapper::toDto)
         val pagination = PageMetadata(page, size, results.totalElements, results.totalPages)
         return ResponseEntity.ok(SearchResponse(pagination, items))

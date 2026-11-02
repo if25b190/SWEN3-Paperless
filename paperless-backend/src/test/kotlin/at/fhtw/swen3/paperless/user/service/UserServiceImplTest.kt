@@ -20,8 +20,6 @@ import java.util.UUID
 import kotlin.reflect.KClass
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertAll
 import org.junit.jupiter.api.extension.ExtendWith
@@ -34,8 +32,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Spy
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.authentication.TestingAuthenticationToken
-import org.springframework.security.core.context.SecurityContextHolder
+
 import org.springframework.security.crypto.password.PasswordEncoder
 
 @ExtendWith(MockitoExtension::class)
@@ -55,14 +52,6 @@ class UserServiceImplTest {
         "pbkdf2@SpringSecurity_v5_8",
         mapOf("pbkdf2@SpringSecurity_v5_8" to org.springframework.security.crypto.password.Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8())
     )
-
-    @BeforeEach
-    fun actor() {
-        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken(fixtureId(1).toString(), null, "ROLE_USER")
-    }
-
-    @AfterEach
-    fun clearActor() = SecurityContextHolder.clearContext()
 
     @InjectMocks
     lateinit var service: UserServiceImpl
@@ -160,7 +149,7 @@ class UserServiceImplTest {
         `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
         // when
-        val result = service.update(fixtureId(1), null, null)
+        val result = service.update(fixtureId(1), fixtureId(1), null, null)
 
         // then
         assertAll(
@@ -177,7 +166,7 @@ class UserServiceImplTest {
         `when`(userRepository.findByUsername("alice-renamed")).thenReturn(null)
         `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
-        val result = service.update(fixtureId(1), "alice-renamed", null)
+        val result = service.update(fixtureId(1), fixtureId(1), "alice-renamed", null)
 
         assertAll(
             { assertThat(result.username).isEqualTo("alice-renamed") },
@@ -193,7 +182,7 @@ class UserServiceImplTest {
         `when`(userRepository.findByUsername("abcd")).thenReturn(null)
         `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
-        val result = service.update(fixtureId(1), "abcd", "12345678")
+        val result = service.update(fixtureId(1), fixtureId(1), "abcd", "12345678")
 
         assertAll(
             { assertThat(result.username).isEqualTo("abcd") },
@@ -207,7 +196,7 @@ class UserServiceImplTest {
         `when`(userRepository.findByUsername("bobby")).thenReturn(userFixture(fixtureId(2), "bobby", "hash"))
 
         assertAll(
-            { assertAppError(UsernameAlreadyExistsException::class) { service.update(fixtureId(1), "bobby", null) } },
+            { assertAppError(UsernameAlreadyExistsException::class) { service.update(fixtureId(1), fixtureId(1), "bobby", null) } },
             { verify(userRepository, never()).save(any(User::class.java)) },
             { verify(tokenRepository, never()).deleteByUserId(fixtureId(1)) }
         )
@@ -215,13 +204,12 @@ class UserServiceImplTest {
 
     @Test
     fun update_user_not_found_ko() {
-        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken(fixtureId(42).toString(), null, "ROLE_USER")
         // given
         `when`(userRepository.findLockedById(fixtureId(42))).thenReturn(null)
 
         // when / then
         assertAll(
-            { assertAppError(UserNotFoundException::class) { service.update(fixtureId(42), null, null) } },
+            { assertAppError(UserNotFoundException::class) { service.update(fixtureId(42), fixtureId(42), null, null) } },
             { verify(userRepository, never()).save(any(User::class.java)) }
         )
     }
@@ -231,7 +219,7 @@ class UserServiceImplTest {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
 
-        val result = service.update(fixtureId(1), null, "new secret")
+        val result = service.update(fixtureId(1), fixtureId(1), null, "new secret")
 
         assertAll(
             { assertThat(encoder.matches("new secret", result.password)).isTrue() },
@@ -248,7 +236,7 @@ class UserServiceImplTest {
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(emptyList())
 
         // when
-        service.delete(fixtureId(1))
+        service.delete(fixtureId(1), fixtureId(1))
 
         // then
         verify(userRepository).deleteById(fixtureId(1))
@@ -256,12 +244,11 @@ class UserServiceImplTest {
 
     @Test
     fun delete_user_not_found_ko() {
-        SecurityContextHolder.getContext().authentication = TestingAuthenticationToken(fixtureId(42).toString(), null, "ROLE_USER")
         // given
         `when`(userRepository.findLockedById(fixtureId(42))).thenReturn(null)
 
         // when / then
-        assertAppError(UserNotFoundException::class) { service.delete(fixtureId(42)) }
+        assertAppError(UserNotFoundException::class) { service.delete(fixtureId(42), fixtureId(42)) }
     }
 
     @Test
@@ -272,7 +259,7 @@ class UserServiceImplTest {
         `when`(teamRepository.findLockedById(fixtureId(3))).thenReturn(teamFixture(fixtureId(3), "Team"))
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(listOf(membership))
 
-        assertAppError(LastTeamAdminException::class) { service.delete(fixtureId(1)) }
+        assertAppError(LastTeamAdminException::class) { service.delete(fixtureId(1), fixtureId(1)) }
 
         verify(userRepository, never()).deleteById(fixtureId(1))
     }
@@ -298,7 +285,7 @@ class UserServiceImplTest {
             )
         )
 
-        assertAppError(UserOwnsTeamException::class) { service.delete(fixtureId(1)) }
+        assertAppError(UserOwnsTeamException::class) { service.delete(fixtureId(1), fixtureId(1)) }
 
         verify(userRepository, never()).deleteById(fixtureId(1))
         verify(teamMemberRepository, never()).deleteAll(any())
@@ -315,7 +302,7 @@ class UserServiceImplTest {
         `when`(teamMemberRepository.findByTeamId(fixtureId(3))).thenReturn(listOf(secondMembership))
         `when`(teamMemberRepository.findByTeamId(fixtureId(9))).thenReturn(listOf(firstMembership))
 
-        service.delete(fixtureId(1))
+        service.delete(fixtureId(1), fixtureId(1))
 
         val ordered = inOrder(teamRepository, teamMemberRepository)
         ordered.verify(teamRepository).findLockedById(fixtureId(3))
@@ -332,7 +319,7 @@ class UserServiceImplTest {
         `when`(teamMemberRepository.findByUserId(fixtureId(1))).thenReturn(listOf(membership))
 
         // when
-        val result = service.getTeams(fixtureId(1))
+        val result = service.getTeams(fixtureId(1), fixtureId(1))
 
         // then
         assertAll(
@@ -344,7 +331,7 @@ class UserServiceImplTest {
 
     @Test
     fun get_other_user_teams_is_forbidden() {
-        val thrown = catchThrowable { service.getTeams(fixtureId(2)) }
+        val thrown = catchThrowable { service.getTeams(fixtureId(1), fixtureId(2)) }
 
         assertThat(thrown).isInstanceOf(AccessDeniedException::class.java)
         verify(userRepository, never()).findById(fixtureId(2))
