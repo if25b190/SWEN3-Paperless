@@ -1,6 +1,7 @@
 package at.fhtw.swen3.paperless.document.controller
 
 import at.fhtw.swen3.paperless.api.DocumentsApi
+import at.fhtw.swen3.paperless.dto.DocumentDetailResponse
 import at.fhtw.swen3.paperless.dto.DocumentResponse
 import at.fhtw.swen3.paperless.dto.DocumentPageResponse
 import at.fhtw.swen3.paperless.dto.UpdateDocumentRequest
@@ -23,9 +24,9 @@ class DocumentController(
     private val documentMapper: DocumentMapper
 ) : DocumentsApi {
 
-    override fun getDocumentById(id: UUID): ResponseEntity<DocumentResponse> {
+    override fun getDocumentById(id: UUID): ResponseEntity<DocumentDetailResponse> {
         val document = documentService.getDocument(id)
-        val response = documentMapper.toDto(document)
+        val response = documentMapper.toDetailDto(document)
         return ResponseEntity.ok(response)
     }
 

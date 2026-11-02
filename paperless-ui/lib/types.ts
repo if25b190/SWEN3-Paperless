@@ -86,12 +86,14 @@ export interface DocumentItem {
   content_type: string;
   file_size: number;
   status: ProcessingStatus;
-  ocr_content?: string | null;
-  summary?: string | null;
-  storage_key?: string;
   document_type?: DocumentType | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DocumentDetail extends DocumentItem {
+  ocr_content?: string | null;
+  summary?: string | null;
 }
 
 export interface DocumentPage {
