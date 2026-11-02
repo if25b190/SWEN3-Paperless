@@ -36,17 +36,20 @@ class DocumentTypeServiceImpl(
         findDocumentType(id)
 
     override fun updateDocumentType(id: UUID, documentType: DocumentType): DocumentType {
-        val current = findDocumentType(id)
+        val current = repository.findLockedById(id)
+            ?: throw DocumentTypeNotFoundException()
         val duplicate = repository.findByName(documentType.name)
         if (duplicate != null && duplicate.id != current.id) {
             throw DocumentTypeNameAlreadyExistsException()
         }
 
-        val updated = documentType.copy(id = current.id, version = current.version)
-        val saved = repository.save(updated)
+        val updated = current.copy(
+            name = documentType.name,
+            description = documentType.description
+        )
         log.info("[DOCUMENT_TYPE] - ACTION: updateDocumentType: documentTypeId: {}", id)
 
-        return saved
+        return repository.update(id, updated)
     }
 
     override fun deleteDocumentType(id: UUID) {

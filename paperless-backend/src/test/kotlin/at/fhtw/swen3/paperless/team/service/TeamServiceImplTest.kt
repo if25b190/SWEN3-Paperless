@@ -120,8 +120,9 @@ class TeamServiceImplTest {
     fun update_team_preserves_unmodified_fields_ok() {
         // given
         val entity = Team(fixtureId(1), "Old", "Description", Instant.EPOCH, null)
-        `when`(teamRepository.findById(fixtureId(1))).thenReturn(Optional.of(entity))
-        `when`(teamRepository.save(any(Team::class.java))).thenAnswer { it.arguments[0] as Team }
+        `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(entity)
+        `when`(teamRepository.update(any(), any(Team::class.java)))
+            .thenAnswer { it.arguments[1] as Team }
         stubAdminMembership()
 
         // when
@@ -131,7 +132,6 @@ class TeamServiceImplTest {
         assertAll(
             { assertThat(result.name).isEqualTo("Old") },
             { assertThat(result.description).isEqualTo("New description") },
-            { assertThat(result.updatedAt).isNotNull() }
         )
     }
 
@@ -268,7 +268,6 @@ class TeamServiceImplTest {
     fun admin_of_another_team_cannot_mutate_target_team_ko() {
         // given
         val adminMemberships = mapOf(fixtureId(2) to adminMemberEntity(fixtureId(2)))
-        `when`(teamRepository.findById(fixtureId(1))).thenReturn(Optional.of(teamEntity(ownerId = fixtureId(3))))
         `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity(ownerId = fixtureId(3)))
         `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(1))).thenAnswer {
             adminMemberships[it.getArgument<UUID>(0)]
@@ -281,7 +280,7 @@ class TeamServiceImplTest {
             { assertAccessDenied { service.addTeamMember(fixtureId(1), fixtureId(1), fixtureId(2), Role.READ_WRITE) } },
             { assertAccessDenied { service.updateTeamMemberRole(fixtureId(1), fixtureId(1), fixtureId(2), Role.ADMIN) } },
             { assertAccessDenied { service.removeTeamMember(fixtureId(1), fixtureId(1), fixtureId(2)) } },
-            { verify(teamRepository, never()).save(any(Team::class.java)) },
+            { verify(teamRepository, never()).update(any(), any(Team::class.java)) },
             { verify(teamRepository, never()).deleteById(fixtureId(1)) },
             { verify(teamMemberRepository, never()).save(any(TeamMember::class.java)) },
             { verify(teamMemberRepository, never()).delete(any(TeamMember::class.java)) }
@@ -368,7 +367,6 @@ class TeamServiceImplTest {
     @Test
     fun readonly_member_cannot_mutate_team_ko() {
         val readOnlyMember = memberEntity(userId = fixtureId(1), role = Role.READONLY, ownerId = fixtureId(3))
-        `when`(teamRepository.findById(fixtureId(1))).thenReturn(Optional.of(teamEntity(ownerId = fixtureId(3))))
         `when`(teamRepository.findLockedById(fixtureId(1))).thenReturn(teamEntity(ownerId = fixtureId(3)))
         `when`(teamMemberRepository.findByTeamIdAndUserId(fixtureId(1), fixtureId(1))).thenReturn(readOnlyMember)
 
@@ -378,7 +376,7 @@ class TeamServiceImplTest {
             { assertAccessDenied { service.updateTeamMemberRole(fixtureId(1), fixtureId(1), fixtureId(2), Role.ADMIN) } },
             { assertAccessDenied { service.removeTeamMember(fixtureId(1), fixtureId(1), fixtureId(2)) } },
             { assertAccessDenied { service.deleteTeam(fixtureId(1), fixtureId(1)) } },
-            { verify(teamRepository, never()).save(any(Team::class.java)) },
+            { verify(teamRepository, never()).update(any(), any(Team::class.java)) },
             { verify(teamRepository, never()).deleteById(fixtureId(1)) },
             { verify(teamMemberRepository, never()).save(any(TeamMember::class.java)) },
             { verify(teamMemberRepository, never()).delete(any(TeamMember::class.java)) }

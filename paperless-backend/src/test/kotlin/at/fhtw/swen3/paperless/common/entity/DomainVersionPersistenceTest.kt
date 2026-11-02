@@ -21,12 +21,10 @@ import jakarta.persistence.EntityManager
 import java.time.Instant
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.context.annotation.Import
-import org.springframework.dao.OptimisticLockingFailureException
 
 @DataJpaTest
 @Import(
@@ -52,17 +50,15 @@ class DomainVersionPersistenceTest(@Autowired private val entityManager: EntityM
         val initial = users.findById(id).orElseThrow()
 
         // when
-        users.save(initial.copy(username = "version-user-1"))
+        val updated = users.update(id, initial.copy(username = "version-user-1"))
         flushAndClear()
-        val updated = users.findById(id).orElseThrow()
-        users.save(updated.copy(username = "version-user-2"))
+        val updatedAgain = users.update(id, updated.copy(username = "version-user-2"))
         flushAndClear()
 
         // then
         assertThat(updated.version).isEqualTo(initial.version + 1)
-        assertThat(users.findById(id).orElseThrow().version).isEqualTo(initial.version + 2)
-        assertThatThrownBy { users.save(initial.copy(username = "stale-user")) }
-            .isInstanceOf(OptimisticLockingFailureException::class.java)
+        assertThat(updatedAgain.version).isEqualTo(initial.version + 2)
+        assertThat(users.findById(id).orElseThrow().username).isEqualTo("version-user-2")
     }
 
     @Test
@@ -74,17 +70,15 @@ class DomainVersionPersistenceTest(@Autowired private val entityManager: EntityM
         val initial = teams.findById(id).orElseThrow()
 
         // when
-        teams.save(initial.copy(name = "Version team 1"))
+        val updated = teams.update(id, initial.copy(name = "Version team 1"))
         flushAndClear()
-        val updated = teams.findById(id).orElseThrow()
-        teams.save(updated.copy(name = "Version team 2"))
+        val updatedAgain = teams.update(id, updated.copy(name = "Version team 2"))
         flushAndClear()
 
         // then
         assertThat(updated.version).isEqualTo(initial.version + 1)
-        assertThat(teams.findById(id).orElseThrow().version).isEqualTo(initial.version + 2)
-        assertThatThrownBy { teams.save(initial.copy(name = "Stale team")) }
-            .isInstanceOf(OptimisticLockingFailureException::class.java)
+        assertThat(updatedAgain.version).isEqualTo(initial.version + 2)
+        assertThat(teams.findById(id).orElseThrow().name).isEqualTo("Version team 2")
     }
 
     @Test
@@ -96,17 +90,15 @@ class DomainVersionPersistenceTest(@Autowired private val entityManager: EntityM
         val initial = types.findById(id).orElseThrow()
 
         // when
-        types.save(initial.copy(name = "Version type 1"))
+        val updated = types.update(id, initial.copy(name = "Version type 1"))
         flushAndClear()
-        val updated = types.findById(id).orElseThrow()
-        types.save(updated.copy(name = "Version type 2"))
+        val updatedAgain = types.update(id, updated.copy(name = "Version type 2"))
         flushAndClear()
 
         // then
         assertThat(updated.version).isEqualTo(initial.version + 1)
-        assertThat(types.findById(id).orElseThrow().version).isEqualTo(initial.version + 2)
-        assertThatThrownBy { types.save(initial.copy(name = "Stale type")) }
-            .isInstanceOf(OptimisticLockingFailureException::class.java)
+        assertThat(updatedAgain.version).isEqualTo(initial.version + 2)
+        assertThat(types.findById(id).orElseThrow().name).isEqualTo("Version type 2")
     }
 
     private fun flushAndClear() {

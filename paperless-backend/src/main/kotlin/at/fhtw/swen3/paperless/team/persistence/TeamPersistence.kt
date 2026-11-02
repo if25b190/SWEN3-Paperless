@@ -9,5 +9,6 @@ interface TeamPersistence {
     fun findById(id: UUID): Optional<Team>
     fun findLockedById(id: UUID): Team?
     fun save(team: Team): Team
+    fun update(id: UUID, update: Team): Team
     fun deleteById(id: UUID)
 }

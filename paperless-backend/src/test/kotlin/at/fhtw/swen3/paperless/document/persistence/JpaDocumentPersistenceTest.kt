@@ -56,7 +56,7 @@ class JpaDocumentPersistenceTest(
 ) {
     @Test
     fun document_mapping_resolves_associations_and_preserves_version_ok() {
-        val user = UserEntity(username = "adapter-user", password = "hash", createdAt = Instant.now())
+        val user = UserEntity(username = "adapter-user", password = "hash")
         val type = DocumentTypeEntity(name = "Invoice", description = "Bills")
         entityManager.persist(user)
         entityManager.persist(type)
@@ -75,36 +75,28 @@ class JpaDocumentPersistenceTest(
             { assertThat(loaded.documentType?.description).isEqualTo("Bills") },
             { assertThat(loaded.ownerId).isEqualTo(user.id) }
         )
-        persistence.save(loaded.copy(title = "Updated"))
-        persistence.flush()
+        val updated = persistence.update(requireNotNull(saved.id), loaded.copy(title = "Updated"))
         entityManager.clear()
-        val updated = persistence.findById(requireNotNull(saved.id)).orElseThrow()
+        val reloaded = persistence.findById(requireNotNull(saved.id)).orElseThrow()
 
         assertAll(
             { assertThat(updated.version).isEqualTo(loaded.version + 1) },
-            { assertThat(updated.title).isEqualTo("Updated") }
+            { assertThat(updated.title).isEqualTo("Updated") },
+            { assertThat(reloaded.title).isEqualTo("Updated") }
         )
     }
 
     @Test
-    fun refreshed_document_with_changed_version_ko() {
-        val user = UserEntity(username = "stale-user", password = "hash", createdAt = Instant.now())
-        entityManager.persist(user)
-        val saved = persistence.save(document(requireNotNull(user.id)))
-        persistence.flush()
-        val initial = persistence.findById(requireNotNull(saved.id)).orElseThrow()
-        persistence.save(initial.copy(title = "Concurrent update"))
-        persistence.flush()
-
-        assertThatThrownBy { persistence.refreshUnchanged(initial) }
+    fun update_of_missing_document_ko() {
+        assertThatThrownBy { persistence.update(java.util.UUID.randomUUID(), document(java.util.UUID.randomUUID())) }
             .isInstanceOf(OptimisticLockException::class.java)
     }
 
     @Test
     fun membership_role_update_keeps_identity_and_full_domain_relationships_ok() {
-        val user = UserEntity(username = "member-user", password = "hash", createdAt = Instant.now())
+        val user = UserEntity(username = "member-user", password = "hash")
         entityManager.persist(user)
-        val team = TeamEntity(name = "Adapter team", ownerId = requireNotNull(user.id), createdAt = Instant.now())
+        val team = TeamEntity(name = "Adapter team", ownerId = requireNotNull(user.id))
         entityManager.persist(team)
         val member = TeamMember(
             teamEntityMapper.toModel(team), userEntityMapper.toModel(user), Role.READ_WRITE, Instant.now()

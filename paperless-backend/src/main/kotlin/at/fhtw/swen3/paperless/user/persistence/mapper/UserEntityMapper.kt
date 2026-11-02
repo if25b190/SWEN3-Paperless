@@ -6,6 +6,7 @@ import at.fhtw.swen3.paperless.user.model.User
 import org.mapstruct.InjectionStrategy
 import org.mapstruct.Mapper
 import org.mapstruct.Mapping
+import org.mapstruct.MappingTarget
 import org.mapstruct.MappingConstants
 import org.mapstruct.ReportingPolicy
 
@@ -22,11 +23,13 @@ interface UserEntityMapper {
 
     fun toEntity(user: User): UserEntity =
         UserEntity(
-            id = user.id,
             username = user.username,
-            password = user.password,
-            createdAt = user.createdAt,
-            updatedAt = user.updatedAt,
-            version = user.version
+            password = user.password
         )
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    fun applyTo(@MappingTarget target: UserEntity, source: User): UserEntity
 }

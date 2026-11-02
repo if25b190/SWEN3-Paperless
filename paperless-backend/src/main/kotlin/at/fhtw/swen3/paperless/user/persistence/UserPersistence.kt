@@ -11,5 +11,6 @@ interface UserPersistence {
     fun findLockedById(id: UUID): User?
     fun findLockedByUsername(username: String): User?
     fun save(user: User): User
+    fun update(id: UUID, update: User): User
     fun deleteById(id: UUID)
 }

@@ -131,8 +131,9 @@ class DocumentServiceImpl(
             throw ConstraintViolationException("document_type_id and clear_document_type cannot both be set", emptySet())
         }
 
-        val initial = findDocument(id)
-        val sourceTeamId = initial.teamId
+        val existing = repository.findLockedById(id)
+            ?: throw DocumentNotFoundException()
+        val sourceTeamId = existing.teamId
         val hasSharingUpdate = update.teamId != null || update.clearTeam
         val requestedTeamId = when {
             update.clearTeam -> null
@@ -140,7 +141,7 @@ class DocumentServiceImpl(
             else -> sourceTeamId
         }
         val roles = lockedRoles(setOfNotNull(sourceTeamId, requestedTeamId), actorId)
-        val existing = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
+        requireWritable(existing, actorId, roles)
         var updatedTeamId = existing.teamId
 
         if (hasSharingUpdate) {
@@ -163,38 +164,25 @@ class DocumentServiceImpl(
             else -> existing.documentType
         }
 
-        val updated = Document(
-            id = existing.id,
+        val updated = existing.copy(
             title = update.title ?: existing.title,
-            originalFilename = existing.originalFilename,
-            contentType = existing.contentType,
-            fileSize = existing.fileSize,
-            ownerId = existing.ownerId,
             teamId = updatedTeamId,
-            status = existing.status,
-            ocrContent = existing.ocrContent,
-            summary = existing.summary,
-            storageKey = existing.storageKey,
-            documentType = documentType,
-            createdAt = existing.createdAt,
-            updatedAt = Instant.now(),
-            version = existing.version
+            documentType = documentType
         )
-        val result = repository.save(updated)
-        repository.flush()
+        val result = repository.update(id, updated)
         logger.info("[DOCUMENT] - ACTION: updateDocument: documentId: {}, actorId: {}", id, actorId)
 
         return result
     }
 
     override fun deleteDocument(actorId: UUID, id: UUID) {
-        val initial = findDocument(id)
-        val sourceTeamId = initial.teamId
-        val roles = lockedRoles(setOfNotNull(sourceTeamId), actorId)
-        val entity = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
-        repository.delete(entity)
+        val existing = repository.findLockedById(id)
+            ?: throw DocumentNotFoundException()
+        val roles = lockedRoles(setOfNotNull(existing.teamId), actorId)
+        requireWritable(existing, actorId, roles)
+        repository.delete(existing)
         repository.flush()
-        entity.storageKey?.let { deleteAfterCommit(fileFor(it)) }
+        existing.storageKey?.let { deleteAfterCommit(fileFor(it)) }
         logger.info("[DOCUMENT] - ACTION: deleteDocument: documentId: {}, actorId: {}", id, actorId)
     }
 

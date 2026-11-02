@@ -14,8 +14,9 @@ interface DocumentPersistence {
     ): Page<Document>
     fun findOwnerOnlyDocuments(ownerId: UUID): List<Document>
     fun findVisibleDocuments(ownerId: UUID, teamIds: Set<UUID>): List<Document>
+    fun findLockedById(id: UUID): Document?
     fun save(document: Document): Document
-    fun refreshUnchanged(document: Document): Document
+    fun update(id: UUID, update: Document): Document
     fun delete(document: Document)
     fun flush()
 }

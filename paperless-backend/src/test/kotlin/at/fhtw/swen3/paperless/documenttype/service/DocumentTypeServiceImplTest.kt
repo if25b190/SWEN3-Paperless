@@ -101,9 +101,9 @@ class DocumentTypeServiceImplTest {
     @Test
     fun update_document_type_ok() {
         // given
-        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity().copy(version = 7)))
+        `when`(repository.findLockedById(DOCUMENT_TYPE_ID)).thenReturn(entity().copy(version = 7))
         `when`(repository.findByName("Receipt")).thenReturn(null)
-        `when`(repository.save(any(DocumentType::class.java))).thenAnswer { it.arguments[0] as DocumentType }
+        `when`(repository.update(any(), any(DocumentType::class.java))).thenAnswer { it.arguments[1] as DocumentType }
 
         // when
         val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(OTHER_ID, "Receipt", "Proof"))
@@ -120,13 +120,13 @@ class DocumentTypeServiceImplTest {
     @Test
     fun update_duplicate_document_type_ko() {
         // given
-        `when`(repository.findById(DOCUMENT_TYPE_ID)).thenReturn(Optional.of(entity()))
+        `when`(repository.findLockedById(DOCUMENT_TYPE_ID)).thenReturn(entity())
         `when`(repository.findByName("Receipt")).thenReturn(DocumentType(OTHER_ID, "Receipt", null))
 
         // when / then
         assertAll(
             { assertAppError(DocumentTypeNameAlreadyExistsException::class) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
-            { verify(repository, never()).save(any(DocumentType::class.java)) }
+            { verify(repository, never()).update(any(), any(DocumentType::class.java)) }
         )
     }
 

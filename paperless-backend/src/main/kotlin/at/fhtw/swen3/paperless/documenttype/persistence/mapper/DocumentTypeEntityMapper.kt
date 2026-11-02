@@ -5,6 +5,8 @@ import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import org.mapstruct.InjectionStrategy
 import org.mapstruct.Mapper
+import org.mapstruct.Mapping
+import org.mapstruct.MappingTarget
 import org.mapstruct.MappingConstants
 import org.mapstruct.ReportingPolicy
 
@@ -20,9 +22,13 @@ interface DocumentTypeEntityMapper {
 
     fun toEntity(documentType: DocumentType): DocumentTypeEntity =
         DocumentTypeEntity(
-            id = documentType.id,
             name = documentType.name,
-            description = documentType.description,
-            version = documentType.version
+            description = documentType.description
         )
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    fun applyTo(@MappingTarget target: DocumentTypeEntity, source: DocumentType): DocumentTypeEntity
 }

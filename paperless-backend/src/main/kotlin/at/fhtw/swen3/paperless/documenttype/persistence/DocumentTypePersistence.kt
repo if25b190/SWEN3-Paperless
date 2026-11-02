@@ -8,6 +8,8 @@ interface DocumentTypePersistence {
     fun findAll(): List<DocumentType>
     fun findById(id: UUID): Optional<DocumentType>
     fun findByName(name: String): DocumentType?
+    fun findLockedById(id: UUID): DocumentType?
     fun save(documentType: DocumentType): DocumentType
+    fun update(id: UUID, update: DocumentType): DocumentType
     fun delete(documentType: DocumentType)
 }

@@ -6,6 +6,7 @@ import at.fhtw.swen3.paperless.team.model.Team
 import org.mapstruct.InjectionStrategy
 import org.mapstruct.Mapper
 import org.mapstruct.Mapping
+import org.mapstruct.MappingTarget
 import org.mapstruct.MappingConstants
 import org.mapstruct.ReportingPolicy
 
@@ -22,12 +23,14 @@ interface TeamEntityMapper {
 
     fun toEntity(team: Team): TeamEntity =
         TeamEntity(
-            id = team.id,
             name = team.name,
             description = team.description,
-            createdAt = team.createdAt,
-            updatedAt = team.updatedAt,
-            ownerId = team.ownerId,
-            version = team.version
+            ownerId = team.ownerId
         )
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    fun applyTo(@MappingTarget target: TeamEntity, source: Team): TeamEntity
 }

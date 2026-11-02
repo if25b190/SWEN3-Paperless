@@ -8,7 +8,6 @@ import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.EntityManager
-import jakarta.persistence.EntityNotFoundException
 import jakarta.persistence.OptimisticLockException
 import java.util.Optional
 import java.util.UUID
@@ -52,20 +51,15 @@ class JpaDocumentPersistence(
         return documentEntityMapper.toModel(repository.save(entity))
     }
 
-    override fun refreshUnchanged(document: Document): Document {
-        val entity = repository.findById(requireNotNull(document.id)).orElseThrow {
-            OptimisticLockException("Document was deleted concurrently")
-        }
-        try {
-            entityManager.refresh(entity)
-        } catch (exception: EntityNotFoundException) {
-            throw OptimisticLockException("Document was deleted concurrently", exception)
-        }
-        val changed = entity.version != document.version || entity.team?.id != document.teamId ||
-            entity.owner.id != document.ownerId
-        if (changed) {
-            throw OptimisticLockException("Document sharing changed concurrently")
-        }
+    override fun findLockedById(id: UUID): Document? = repository.findLockedById(id)?.let(documentEntityMapper::toModel)
+
+    override fun update(id: UUID, update: Document): Document {
+        val entity = repository.findLockedById(id)
+            ?: throw OptimisticLockException("Document was deleted concurrently")
+        documentEntityMapper.applyTo(entity, update)
+        entity.team = update.teamId?.let { entityManager.getReference(TeamEntity::class.java, it) }
+        entity.documentType = update.documentType?.id?.let { entityManager.getReference(DocumentTypeEntity::class.java, it) }
+        entityManager.flush()
 
         return documentEntityMapper.toModel(entity)
     }
