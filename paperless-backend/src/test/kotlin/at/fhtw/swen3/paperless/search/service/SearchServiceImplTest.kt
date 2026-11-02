@@ -9,7 +9,6 @@ import at.fhtw.swen3.paperless.team.model.Team
 import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.user.model.User
-import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
@@ -138,30 +137,6 @@ class SearchServiceImplTest {
             { assertThat(result.content).isEmpty() },
             { assertThat(result.totalElements).isEqualTo(1) }
         )
-    }
-
-    @Test
-    fun search_rejects_negative_page() {
-        assertThrows<ConstraintViolationException> {
-            service.search("invoice", false, -1, 10)
-        }
-        verifyNoInteractions(documentRepository, teamMemberRepository)
-    }
-
-    @Test
-    fun search_rejects_zero_size() {
-        assertThrows<ConstraintViolationException> {
-            service.search("invoice", false, 0, 0)
-        }
-        verifyNoInteractions(documentRepository, teamMemberRepository)
-    }
-
-    @Test
-    fun search_rejects_size_above_maximum() {
-        assertThrows<ConstraintViolationException> {
-            service.search("invoice", false, 0, 101)
-        }
-        verifyNoInteractions(documentRepository, teamMemberRepository)
     }
 
     @Test

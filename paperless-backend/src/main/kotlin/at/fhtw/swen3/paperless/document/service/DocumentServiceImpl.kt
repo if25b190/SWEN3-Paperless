@@ -78,6 +78,9 @@ class DocumentServiceImpl(
     override fun uploadDocument(upload: DocumentUpload): Document {
         val actorId = currentActorId()
         val references = validateUploadReferences(upload, actorId)
+        // The OpenAPI generator does not propagate schema constraints to inlined multipart
+        // request params, so the upload title cannot be validated declaratively via
+        // the generated interface — enforce it here before the file is written.
         validateTitle(upload.title)
         val storageKey = "documents/${UUID.randomUUID()}_${safeFilename(upload.originalFilename)}"
         val file = fileFor(storageKey)
@@ -142,7 +145,6 @@ class DocumentServiceImpl(
         }
         val roles = lockedRoles(setOfNotNull(sourceTeamId, requestedTeamId), actorId)
         val existing = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
-        update.title?.let(::validateTitle)
         var updatedTeamId = existing.teamId
 
         if (hasSharingUpdate) {

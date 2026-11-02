@@ -11,7 +11,6 @@ import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
-import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.UUID
 import org.slf4j.LoggerFactory
@@ -37,8 +36,6 @@ class UserServiceImpl(
         userRepository.findAll()
 
     override fun create(user: User): User {
-        validateUsername(user.username)
-        validatePassword(user.password)
         ensureUsernameAvailable(user.username)
 
         val encodedUser = user.copy(password = requireNotNull(passwordEncoder.encode(user.password)))
@@ -55,8 +52,6 @@ class UserServiceImpl(
 
     override fun update(id: UUID, username: String?, password: String?): User {
         requireSelf(id)
-        username?.let(::validateUsername)
-        password?.let(::validatePassword)
         val current = userRepository.findLockedById(id)
             ?: throw UserNotFoundException()
         val updatedUsername = username ?: current.username
@@ -116,21 +111,6 @@ class UserServiceImpl(
         val duplicate = userRepository.findByUsername(username)
         if (duplicate != null) {
             throw UsernameAlreadyExistsException()
-        }
-    }
-
-    private fun validateUsername(username: String) {
-        if (username.isBlank() || username.length !in 4..50) {
-            throw ConstraintViolationException(
-                "Username must be non-blank and between 4 and 50 characters.",
-                emptySet()
-            )
-        }
-    }
-
-    private fun validatePassword(password: String) {
-        if (password.length !in 8..100) {
-            throw ConstraintViolationException("Password must be between 8 and 100 characters.", emptySet())
         }
     }
 

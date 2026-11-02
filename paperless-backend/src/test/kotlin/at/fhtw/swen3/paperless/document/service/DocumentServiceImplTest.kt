@@ -355,19 +355,6 @@ class DocumentServiceImplTest {
     }
 
     @Test
-    fun update_rejects_blank_or_overlong_title_without_saving() {
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(documentEntity()))
-
-        listOf(" \t\n", "x".repeat(256)).forEach { title ->
-            assertThrows<ConstraintViolationException> {
-                service.updateDocument(uuid(1), update(title = title))
-            }
-        }
-
-        verify(repository, never()).save(any(Document::class.java))
-    }
-
-    @Test
     fun stale_document_version_cannot_restore_sharing_or_delete_document() {
         val entity = documentEntity(teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))

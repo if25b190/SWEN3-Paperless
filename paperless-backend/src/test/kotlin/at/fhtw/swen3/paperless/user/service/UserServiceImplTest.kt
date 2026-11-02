@@ -14,7 +14,6 @@ import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
-import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
@@ -117,17 +116,6 @@ class UserServiceImplTest {
     }
 
     @Test
-    fun create_user_rejects_invalid_username_and_password_lengths() {
-        assertConstraintViolation { service.create(user(username = "abc")) }
-        assertConstraintViolation { service.create(user(username = "   ")) }
-        assertConstraintViolation { service.create(user(username = "u".repeat(51))) }
-        assertConstraintViolation { service.create(user(password = "1234567")) }
-        assertConstraintViolation { service.create(user(password = "p".repeat(101))) }
-
-        verify(userRepository, never()).save(any(User::class.java))
-    }
-
-    @Test
     fun create_duplicate_username_ko() {
         // given
         val user = user()
@@ -211,18 +199,6 @@ class UserServiceImplTest {
             { assertThat(result.username).isEqualTo("abcd") },
             { assertThat(encoder.matches("12345678", result.password)).isTrue() }
         )
-    }
-
-    @Test
-    fun update_rejects_invalid_provided_username_and_password_lengths() {
-        assertConstraintViolation { service.update(fixtureId(1), "abc", null) }
-        assertConstraintViolation { service.update(fixtureId(1), "u".repeat(51), null) }
-        assertConstraintViolation { service.update(fixtureId(1), "   ", null) }
-        assertConstraintViolation { service.update(fixtureId(1), null, "1234567") }
-        assertConstraintViolation { service.update(fixtureId(1), null, "p".repeat(101)) }
-
-        verify(userRepository, never()).findLockedById(fixtureId(1))
-        verify(userRepository, never()).save(any(User::class.java))
     }
 
     @Test
@@ -378,11 +354,6 @@ class UserServiceImplTest {
     private fun assertAppError(expected: KClass<out AppException>, action: () -> Unit) {
         val thrown = catchThrowable(action)
         assertThat(thrown).isInstanceOf(expected.java)
-    }
-
-    private fun assertConstraintViolation(action: () -> Unit) {
-        val thrown = catchThrowable(action)
-        assertThat(thrown).isInstanceOf(ConstraintViolationException::class.java)
     }
 
     private fun userFixture(

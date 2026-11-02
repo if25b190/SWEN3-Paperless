@@ -1026,9 +1026,10 @@ components:
       properties:
         username:
           type: string
-          description: Required unique username of at least 4 characters; usernames may later be changed by the account owner to another unused username.
+          description: Required unique username of at least 4 characters; must contain at least one non-whitespace character. Usernames may later be changed by the account owner to another unused username.
           minLength: 4
           maxLength: 50
+          pattern: '^\s*\S[\s\S]*$'
           example: john_doe
         password:
           type: string
@@ -1043,9 +1044,10 @@ components:
       properties:
         username:
           type: string
-          description: Optional new username of at least 4 characters; it must be unique across accounts or the update returns 409 Conflict.
+          description: Optional new username of at least 4 characters; must contain at least one non-whitespace character. It must be unique across accounts or the update returns 409 Conflict.
           minLength: 4
           maxLength: 50
+          pattern: '^\s*\S[\s\S]*$'
           example: john_doe
         password:
           type: string
@@ -1348,6 +1350,7 @@ components:
           description: Optional nonblank replacement document title.
           minLength: 1
           maxLength: 255
+          pattern: '^\s*\S[\s\S]*$'
           example: "Updated Invoice Title"
         document_type_id:
           type: string
