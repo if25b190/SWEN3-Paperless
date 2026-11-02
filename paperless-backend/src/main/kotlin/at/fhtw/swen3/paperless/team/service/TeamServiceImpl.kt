@@ -1,6 +1,5 @@
 package at.fhtw.swen3.paperless.team.service
 
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.exception.TeamMemberAlreadyExistsException
 import at.fhtw.swen3.paperless.exception.TeamMemberNotFoundException
 import at.fhtw.swen3.paperless.exception.TeamNotFoundException
@@ -15,7 +14,6 @@ import java.time.Instant
 import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -29,12 +27,11 @@ class TeamServiceImpl(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional(readOnly = true)
-    override fun getTeams(): List<Team> =
-        teamMemberRepository.findByUserId(currentActorId())
+    override fun getTeams(actorId: UUID): List<Team> =
+        teamMemberRepository.findByUserId(actorId)
             .map { it.team }
 
-    override fun createTeam(team: Team): Team {
-        val actorId = currentActorId()
+    override fun createTeam(actorId: UUID, team: Team): Team {
         val createdTeam = teamRepository.save(team.copy(ownerId = actorId))
         val creator = userRepository.findById(actorId).orElseThrow { UserNotFoundException() }
         val membership = TeamMember(createdTeam, creator, Role.ADMIN, Instant.now())
@@ -45,17 +42,17 @@ class TeamServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun getTeam(id: UUID): Team {
+    override fun getTeam(actorId: UUID, id: UUID): Team {
         val entity = teamRepository.findById(id)
             .orElseThrow { TeamNotFoundException() }
-        requireTeamMember(entity)
+        requireTeamMember(actorId, entity)
         return entity
     }
 
-    override fun updateTeam(id: UUID, name: String?, description: String?): Team {
+    override fun updateTeam(actorId: UUID, id: UUID, name: String?, description: String?): Team {
         val entity = teamRepository.findById(id)
             .orElseThrow { TeamNotFoundException() }
-        requireAdmin(id, entity.ownerId)
+        requireAdmin(actorId, id, entity.ownerId)
         val updated = entity.copy(
             name = name ?: entity.name,
             description = description ?: entity.description,
@@ -68,9 +65,9 @@ class TeamServiceImpl(
         return saved
     }
 
-    override fun deleteTeam(id: UUID) {
+    override fun deleteTeam(actorId: UUID, id: UUID) {
         val team = findLockedTeam(id)
-        if (currentActorId() != team.ownerId) {
+        if (actorId != team.ownerId) {
             throw AccessDeniedException("Only the team owner can delete this team")
         }
         teamRepository.deleteById(id)
@@ -78,14 +75,14 @@ class TeamServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun getTeamMembers(teamId: UUID): List<TeamMember> {
-        getTeam(teamId)
+    override fun getTeamMembers(actorId: UUID, teamId: UUID): List<TeamMember> {
+        getTeam(actorId, teamId)
         return teamMemberRepository.findByTeamId(teamId)
     }
 
-    override fun addTeamMember(teamId: UUID, userId: UUID, role: Role): TeamMember {
+    override fun addTeamMember(actorId: UUID, teamId: UUID, userId: UUID, role: Role): TeamMember {
         val team = findLockedTeam(teamId)
-        requireAdmin(teamId, team.ownerId)
+        requireAdmin(actorId, teamId, team.ownerId)
         if (userId == team.ownerId && role != Role.ADMIN) {
             throw AccessDeniedException("The team owner must remain an admin")
         }
@@ -101,9 +98,9 @@ class TeamServiceImpl(
         return member
     }
 
-    override fun updateTeamMemberRole(teamId: UUID, userId: UUID, role: Role): TeamMember {
+    override fun updateTeamMemberRole(actorId: UUID, teamId: UUID, userId: UUID, role: Role): TeamMember {
         val team = findLockedTeam(teamId)
-        requireAdmin(teamId, team.ownerId)
+        requireAdmin(actorId, teamId, team.ownerId)
         if (userId == team.ownerId && role != Role.ADMIN) {
             throw AccessDeniedException("The team owner must remain an admin")
         }
@@ -117,9 +114,9 @@ class TeamServiceImpl(
         return saved
     }
 
-    override fun removeTeamMember(teamId: UUID, userId: UUID) {
+    override fun removeTeamMember(actorId: UUID, teamId: UUID, userId: UUID) {
         val team = findLockedTeam(teamId)
-        requireAdmin(teamId, team.ownerId)
+        requireAdmin(actorId, teamId, team.ownerId)
         if (userId == team.ownerId) {
             throw AccessDeniedException("The team owner cannot be removed")
         }
@@ -144,8 +141,7 @@ class TeamServiceImpl(
         }
     }
 
-    private fun requireAdmin(teamId: UUID, ownerId: UUID?) {
-        val actorId = currentActorId()
+    private fun requireAdmin(actorId: UUID, teamId: UUID, ownerId: UUID?) {
         val isAdmin = actorId == ownerId ||
             teamMemberRepository.findByTeamIdAndUserId(teamId, actorId)?.role == Role.ADMIN
         if (!isAdmin) {
@@ -153,16 +149,12 @@ class TeamServiceImpl(
         }
     }
 
-    private fun requireTeamMember(team: Team) {
-        val actorId = currentActorId()
+    private fun requireTeamMember(actorId: UUID, team: Team) {
         val isMember = actorId == team.ownerId || teamMemberRepository.existsByTeamIdAndUserId(requireNotNull(team.id), actorId)
         if (!isMember) {
             throw AccessDeniedException("Team membership required to read this team")
         }
     }
-
-    private fun currentActorId(): UUID =
-        AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
 
     private fun findMember(teamId: UUID, userId: UUID) =
         teamMemberRepository.findByTeamIdAndUserId(teamId, userId)

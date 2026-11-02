@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.document.model.Document
 import at.fhtw.swen3.paperless.document.model.DocumentUpdate
 import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapper
+import at.fhtw.swen3.paperless.dto.DocumentDetailResponse
 import at.fhtw.swen3.paperless.dto.DocumentResponse
 import at.fhtw.swen3.paperless.dto.UpdateDocumentRequest
 import org.mapstruct.InjectionStrategy
@@ -24,6 +25,11 @@ interface DocumentMapper {
     @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = ["toOffset"])
     @Mapping(target = "updatedAt", source = "updatedAt", qualifiedByName = ["toOffset"])
     fun toDto(document: Document): DocumentResponse
+
+    @Mapping(target = "id", source = "id", qualifiedByName = ["requireNotNull"])
+    @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = ["toOffset"])
+    @Mapping(target = "updatedAt", source = "updatedAt", qualifiedByName = ["toOffset"])
+    fun toDetailDto(document: Document): DocumentDetailResponse
 
     fun toUpdateModel(dto: UpdateDocumentRequest): DocumentUpdate
 }

@@ -11,12 +11,10 @@ import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.team.persistence.TeamPersistence
 import at.fhtw.swen3.paperless.user.model.User
 import at.fhtw.swen3.paperless.user.persistence.UserPersistence
-import jakarta.validation.ConstraintViolationException
 import java.time.Instant
 import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -37,8 +35,6 @@ class UserServiceImpl(
         userRepository.findAll()
 
     override fun create(user: User): User {
-        validateUsername(user.username)
-        validatePassword(user.password)
         ensureUsernameAvailable(user.username)
 
         val encodedUser = user.copy(password = requireNotNull(passwordEncoder.encode(user.password)))
@@ -53,10 +49,8 @@ class UserServiceImpl(
         userRepository.findById(id)
             .orElseThrow { UserNotFoundException() }
 
-    override fun update(id: UUID, username: String?, password: String?): User {
-        requireSelf(id)
-        username?.let(::validateUsername)
-        password?.let(::validatePassword)
+    override fun update(actorId: UUID, id: UUID, username: String?, password: String?): User {
+        requireSelf(actorId, id)
         val current = userRepository.findLockedById(id)
             ?: throw UserNotFoundException()
         val updatedUsername = username ?: current.username
@@ -76,8 +70,8 @@ class UserServiceImpl(
         return saved
     }
 
-    override fun delete(id: UUID) {
-        requireSelf(id)
+    override fun delete(actorId: UUID, id: UUID) {
+        requireSelf(actorId, id)
         userRepository.findLockedById(id)
             ?: throw UserNotFoundException()
 
@@ -105,8 +99,8 @@ class UserServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun getTeams(id: UUID): List<TeamMember> {
-        requireSelf(id)
+    override fun getTeams(actorId: UUID, id: UUID): List<TeamMember> {
+        requireSelf(actorId, id)
         getById(id)
 
         return teamMemberRepository.findByUserId(id)
@@ -119,23 +113,8 @@ class UserServiceImpl(
         }
     }
 
-    private fun validateUsername(username: String) {
-        if (username.isBlank() || username.length !in 4..50) {
-            throw ConstraintViolationException(
-                "Username must be non-blank and between 4 and 50 characters.",
-                emptySet()
-            )
-        }
-    }
-
-    private fun validatePassword(password: String) {
-        if (password.length !in 8..100) {
-            throw ConstraintViolationException("Password must be between 8 and 100 characters.", emptySet())
-        }
-    }
-
-    private fun requireSelf(id: UUID) {
-        if (SecurityContextHolder.getContext().authentication?.name != id.toString()) {
+    private fun requireSelf(actorId: UUID, id: UUID) {
+        if (actorId != id) {
             throw AccessDeniedException("Only the account owner can modify this user")
         }
     }

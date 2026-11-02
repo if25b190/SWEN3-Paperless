@@ -1,5 +1,6 @@
 import { apiBlob, apiFetch, type RequestOptions } from "@/lib/api/client";
 import type {
+  DocumentDetail,
   DocumentItem,
   DocumentPage,
   DocumentType,
@@ -64,7 +65,7 @@ export interface DocumentListParams {
 export const documentsApi = {
   list: (params: DocumentListParams, opts?: Opts) =>
     apiFetch<DocumentPage>("/documents", { query: { ...params }, ...opts }),
-  get: (id: string, opts?: Opts) => apiFetch<DocumentItem>(`/documents/${id}`, opts),
+  get: (id: string, opts?: Opts) => apiFetch<DocumentDetail>(`/documents/${id}`, opts),
   upload: (
     input: { file: File; title: string; documentTypeId?: string; teamId?: string },
     opts?: Opts,

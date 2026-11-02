@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "at.fhtw.swen3"
-version = "0.0.2-SNAPSHOT"
+version = "0.0.3-SNAPSHOT"
 
 java {
     toolchain {
@@ -74,6 +74,7 @@ allOpen {
 
 openApiGenerate {
     generatorName.set("kotlin-spring")
+    templateDir.set(layout.projectDirectory.dir("openapi-templates").asFile.path)
     inputSpec.set("$projectDir/src/main/resources/openapi.yaml")
     outputDir.set(layout.buildDirectory.dir("generated/openapi").get().asFile.path)
     apiPackage.set("at.fhtw.swen3.paperless.api")

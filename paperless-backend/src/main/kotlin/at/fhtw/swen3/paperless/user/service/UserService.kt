@@ -12,9 +12,9 @@ interface UserService {
 
     fun getById(id: UUID): User
 
-    fun update(id: UUID, username: String?, password: String?): User
+    fun update(actorId: UUID, id: UUID, username: String?, password: String?): User
 
-    fun delete(id: UUID)
+    fun delete(actorId: UUID, id: UUID)
 
-    fun getTeams(id: UUID): List<TeamMember>
+    fun getTeams(actorId: UUID, id: UUID): List<TeamMember>
 }

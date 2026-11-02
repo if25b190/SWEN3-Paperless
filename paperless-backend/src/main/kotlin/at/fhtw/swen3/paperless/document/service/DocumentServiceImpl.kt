@@ -7,7 +7,6 @@ import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
-import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
 import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
 import at.fhtw.swen3.paperless.exception.TeamNotFoundException
@@ -30,7 +29,6 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.security.access.AccessDeniedException
-import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
@@ -49,12 +47,12 @@ class DocumentServiceImpl(
 
     @Transactional(readOnly = true)
     override fun searchDocuments(
+        actorId: UUID,
         page: Int,
         size: Int,
         sort: String,
         documentTypeId: UUID?
     ): Page<Document> {
-        val actorId = currentActorId()
         val teamIds = teamMemberRepository.findByUserId(actorId).mapTo(mutableSetOf()) { requireNotNull(it.team.id) }
         val pageable = PageRequest.of(page, size, toSort(sort))
         val documents = if (teamIds.isEmpty()) {
@@ -72,12 +70,14 @@ class DocumentServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun getDocument(id: UUID): Document =
-        requireReadable(findDocument(id), currentActorId())
+    override fun getDocument(actorId: UUID, id: UUID): Document =
+        requireReadable(findDocument(id), actorId)
 
-    override fun uploadDocument(upload: DocumentUpload): Document {
-        val actorId = currentActorId()
+    override fun uploadDocument(actorId: UUID, upload: DocumentUpload): Document {
         val references = validateUploadReferences(upload, actorId)
+        // The OpenAPI generator does not propagate schema constraints to inlined multipart
+        // request params, so the upload title cannot be validated declaratively via
+        // the generated interface — enforce it here before the file is written.
         validateTitle(upload.title)
         val storageKey = "documents/${UUID.randomUUID()}_${safeFilename(upload.originalFilename)}"
         val file = fileFor(storageKey)
@@ -123,7 +123,7 @@ class DocumentServiceImpl(
         }
     }
 
-    override fun updateDocument(id: UUID, update: DocumentUpdate): Document {
+    override fun updateDocument(actorId: UUID, id: UUID, update: DocumentUpdate): Document {
         if (update.teamId != null && update.clearTeam) {
             throw ConstraintViolationException("team_id and clear_team cannot both be set", emptySet())
         }
@@ -131,7 +131,6 @@ class DocumentServiceImpl(
             throw ConstraintViolationException("document_type_id and clear_document_type cannot both be set", emptySet())
         }
 
-        val actorId = currentActorId()
         val initial = findDocument(id)
         val sourceTeamId = initial.teamId
         val hasSharingUpdate = update.teamId != null || update.clearTeam
@@ -142,7 +141,6 @@ class DocumentServiceImpl(
         }
         val roles = lockedRoles(setOfNotNull(sourceTeamId, requestedTeamId), actorId)
         val existing = requireWritable(repository.refreshUnchanged(initial), actorId, roles)
-        update.title?.let(::validateTitle)
         var updatedTeamId = existing.teamId
 
         if (hasSharingUpdate) {
@@ -189,8 +187,7 @@ class DocumentServiceImpl(
         return result
     }
 
-    override fun deleteDocument(id: UUID) {
-        val actorId = currentActorId()
+    override fun deleteDocument(actorId: UUID, id: UUID) {
         val initial = findDocument(id)
         val sourceTeamId = initial.teamId
         val roles = lockedRoles(setOfNotNull(sourceTeamId), actorId)
@@ -202,8 +199,8 @@ class DocumentServiceImpl(
     }
 
     @Transactional(readOnly = true)
-    override fun downloadDocument(id: UUID): Resource {
-        val entity = requireReadable(findDocument(id), currentActorId())
+    override fun downloadDocument(actorId: UUID, id: UUID): Resource {
+        val entity = requireReadable(findDocument(id), actorId)
         val storageKey = entity.storageKey ?: throw DocumentNotFoundException()
         val resource = FileSystemResource(fileFor(storageKey))
         if (!resource.exists() || !resource.isReadable) {
@@ -267,10 +264,6 @@ class DocumentServiceImpl(
 
     private fun findDocument(id: UUID): Document =
         repository.findById(id).orElseThrow { DocumentNotFoundException() }
-
-    private fun currentActorId(): UUID =
-        SecurityContextHolder.getContext().authentication?.name?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-            ?: throw AuthenticationRequiredException()
 
     private fun validateTitle(title: String) {
         if (title.isBlank() || title.length > MAX_TITLE_LENGTH) {

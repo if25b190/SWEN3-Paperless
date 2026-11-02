@@ -8,6 +8,7 @@ import at.fhtw.swen3.paperless.dto.DocumentTypeListResponse
 import at.fhtw.swen3.paperless.dto.DocumentTypeResponse
 import at.fhtw.swen3.paperless.dto.UpdateDocumentTypeRequest
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 import java.util.UUID
@@ -18,14 +19,15 @@ class DocumentTypeController(
     private val documentTypeMapper: DocumentTypeMapper
 ) : DocumentTypesApi {
 
-    override fun searchDocumentTypes(): ResponseEntity<DocumentTypeListResponse> {
+    override fun searchDocumentTypes(authentication: Authentication?): ResponseEntity<DocumentTypeListResponse> {
         val documentTypes = service.searchDocumentTypes()
         val items = documentTypes.map(documentTypeMapper::toDto)
         return ResponseEntity.ok(DocumentTypeListResponse(items = items))
     }
 
     override fun createDocumentType(
-        createDocumentTypeRequest: CreateDocumentTypeRequest
+        createDocumentTypeRequest: CreateDocumentTypeRequest,
+        authentication: Authentication?
     ): ResponseEntity<DocumentTypeResponse> {
         val documentType = documentTypeMapper.fromCreateDto(createDocumentTypeRequest)
         val created = service.createDocumentType(documentType)
@@ -33,7 +35,7 @@ class DocumentTypeController(
         return ResponseEntity.created(URI.create("/api/v1/document-types/${created.id}")).body(response)
     }
 
-    override fun getDocumentTypeById(id: UUID): ResponseEntity<DocumentTypeResponse> {
+    override fun getDocumentTypeById(id: UUID, authentication: Authentication?): ResponseEntity<DocumentTypeResponse> {
         val documentType = service.getDocumentTypeById(id)
         val response = documentTypeMapper.toDto(documentType)
         return ResponseEntity.ok(response)
@@ -41,7 +43,8 @@ class DocumentTypeController(
 
     override fun updateDocumentType(
         id: UUID,
-        updateDocumentTypeRequest: UpdateDocumentTypeRequest
+        updateDocumentTypeRequest: UpdateDocumentTypeRequest,
+        authentication: Authentication?
     ): ResponseEntity<DocumentTypeResponse> {
         val current = service.getDocumentTypeById(id)
         val documentType = documentTypeMapper.applyUpdate(current, updateDocumentTypeRequest)
@@ -50,7 +53,7 @@ class DocumentTypeController(
         return ResponseEntity.ok(response)
     }
 
-    override fun deleteDocumentType(id: UUID): ResponseEntity<Unit> {
+    override fun deleteDocumentType(id: UUID, authentication: Authentication?): ResponseEntity<Unit> {
         service.deleteDocumentType(id)
         return ResponseEntity.noContent().build()
     }

@@ -9,7 +9,7 @@ import at.fhtw.swen3.paperless.dto.LoginResponse
 import at.fhtw.swen3.paperless.dto.UserResponse
 import at.fhtw.swen3.paperless.user.mapper.UserMapper
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -19,7 +19,7 @@ class AuthController(
     private val userMapper: UserMapper
 ) : AuthApi {
 
-    override fun login(loginRequest: LoginRequest): ResponseEntity<LoginResponse> {
+    override fun login(loginRequest: LoginRequest, authentication: Authentication?): ResponseEntity<LoginResponse> {
         val credentials = authMapper.toCredentials(loginRequest)
         val authenticated = authService.login(credentials)
         val response = LoginResponse(
@@ -31,8 +31,8 @@ class AuthController(
         return ResponseEntity.ok(response)
     }
 
-    override fun getCurrentUser(): ResponseEntity<UserResponse> {
-        val userId = AuthenticatedPrincipal.userId(SecurityContextHolder.getContext().authentication?.name)
+    override fun getCurrentUser(authentication: Authentication?): ResponseEntity<UserResponse> {
+        val userId = AuthenticatedPrincipal.userId(authentication)
         val user = authService.getCurrentUser(userId)
         val response = userMapper.toDto(user)
 

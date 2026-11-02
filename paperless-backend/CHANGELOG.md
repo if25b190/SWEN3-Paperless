@@ -3,6 +3,38 @@
 All notable changes to the Paperless backend are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.3-SNAPSHOT]
+
+### Added
+- Project-local override of the openapi-generator `kotlin-spring` template
+  (`openapi-templates/apiInterface.mustache`, wired via `templateDir` in `build.gradle.kts`) that
+  appends a nullable `Authentication` parameter to every generated API method.
+- `AuthenticatedPrincipalTest` covering the principal name parsing rules (happy path, uppercase
+  canonical UUID, malformed, non-canonical, missing).
+
+### Changed
+- Principal resolution moved to the controller boundary: controllers extract the actor with
+  `AuthenticatedPrincipal.userId(authentication)` from Spring MVC's injected `Authentication` and
+  pass `actorId` explicitly into the service layer. `DocumentService`, `SearchService`, `TeamService`,
+  and `UserService` signatures now declare `actorId` as their first parameter where authorization
+  needs it, and no main-code class touches `SecurityContextHolder` anymore (a missing or
+  unauthenticated `Authentication` yields 401 instead of 403). Unit tests pass the actor directly
+  instead of stubbing the security context. The template is pinned to openapi-generator 7.11.0 and
+  must be re-diffed against the upstream template on generator upgrades.
+- Redundant service-level format validation removed (`UserServiceImpl.validateUsername`/`validatePassword`,
+  `SearchServiceImpl` page/size checks, `DocumentServiceImpl` update-title check): the constraints
+  live in `openapi.yaml` and are enforced by the generated DTOs/interfaces. New
+  `pattern: '^\s*\S[\s\S]*$'` constraints on `CreateUserRequest.username`,
+  `UpdateUserRequest.username`, and `UpdateDocumentRequest.title` close the whitespace-only gap the
+  service checks used to cover.
+- `GET /api/v1/documents/{id}` now returns `DocumentDetailResponse` (slim `DocumentResponse` fields
+  plus `ocr_content` and `summary`). List, search, upload, and update responses return the slim
+  `DocumentResponse`, so OCR text and summaries are no longer included in collection payloads.
+
+### Removed
+- `storage_key` from `DocumentResponse`: the MinIO object key is an internal implementation detail
+  and was never consumed by the frontend.
+
 ## [0.0.2-SNAPSHOT]
 
 ### Added
@@ -32,7 +64,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `assertAppError(UserNotFoundException::class)`) instead of `AppErrorMessage` values.
 - `TeamServiceImpl.deleteTeam` relies on the database cascade for membership removal instead of
   an explicit `deleteByTeamId` call.
-
 - `RabbitOcrMessagePublisher` throws `OcrPublishException` instead of `IllegalStateException`, and
   `OcrDispatchServiceImpl` throws `OcrJobInvalidException` instead of relying on `requireNotNull`.
 
