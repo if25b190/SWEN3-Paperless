@@ -10,6 +10,7 @@ import at.fhtw.swen3.paperless.user.entity.UserEntity
 import org.mapstruct.InjectionStrategy
 import org.mapstruct.Mapper
 import org.mapstruct.Mapping
+import org.mapstruct.MappingTarget
 import org.mapstruct.MappingConstants
 import org.mapstruct.ReportingPolicy
 
@@ -30,7 +31,6 @@ interface DocumentEntityMapper {
 
     fun toEntity(document: Document, references: References): DocumentEntity =
         DocumentEntity(
-            id = document.id,
             title = document.title,
             originalFilename = document.originalFilename,
             contentType = document.contentType,
@@ -41,9 +41,16 @@ interface DocumentEntityMapper {
             ocrContent = document.ocrContent,
             summary = document.summary,
             storageKey = document.storageKey,
-            documentType = references.documentType,
-            createdAt = document.createdAt,
-            updatedAt = document.updatedAt,
-            version = document.version
+            documentType = references.documentType
         )
+
+    /** Copies scalar fields onto a managed entity; audit fields and associations are ignored. */
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    @Mapping(target = "version", ignore = true)
+    @Mapping(target = "owner", ignore = true)
+    @Mapping(target = "team", ignore = true)
+    @Mapping(target = "documentType", ignore = true)
+    fun applyTo(@MappingTarget target: DocumentEntity, source: Document): DocumentEntity
 }

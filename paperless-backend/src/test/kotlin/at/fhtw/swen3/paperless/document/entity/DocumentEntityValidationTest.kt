@@ -32,7 +32,6 @@ class DocumentEntityValidationTest {
     @Test
     fun generated_id_and_optional_document_fields_remain_valid() {
         val entity = DocumentEntity(
-            id = null,
             title = "x".repeat(255),
             originalFilename = "document.pdf",
             contentType = "application/pdf",
@@ -43,7 +42,6 @@ class DocumentEntityValidationTest {
             documentType = null
         )
 
-        assertThat(entity.id).isNull()
         assertThat(validate(entity)).isEmpty()
     }
 
@@ -55,5 +53,5 @@ class DocumentEntityValidationTest {
         }
     }
 
-    private fun userEntity() = UserEntity(id = UUID(0L, 1L), username = "uploader", password = "hash")
+    private fun userEntity() = UserEntity(username = "uploader", password = "hash")
 }

@@ -60,14 +60,12 @@ class UserServiceImpl(
 
         val updated = current.copy(
             username = updatedUsername,
-            password = password?.let { requireNotNull(passwordEncoder.encode(it)) } ?: current.password,
-            updatedAt = Instant.now()
+            password = password?.let { requireNotNull(passwordEncoder.encode(it)) } ?: current.password
         )
-        val saved = userRepository.save(updated)
         if (password != null) tokenRepository.deleteByUserId(id)
         log.info("[USER] - ACTION: update: userId: {}", id)
 
-        return saved
+        return userRepository.update(id, updated)
     }
 
     override fun delete(actorId: UUID, id: UUID) {

@@ -258,11 +258,11 @@ class SecurityIntegrationTest(
     @Test
     fun persistence_generates_uuid_ids_for_users_teams_and_memberships() {
         val user = users.saveAndFlush(
-            UserEntity(username = "uuid_${UUID.randomUUID()}", password = "unused", createdAt = Instant.now())
+            UserEntity(username = "uuid_${UUID.randomUUID()}", password = "unused")
         )
         val userId = requireNotNull(user.id)
         val team = teams.saveAndFlush(
-            TeamEntity(name = "UUID team", createdAt = Instant.now(), ownerId = userId)
+            TeamEntity(name = "UUID team", ownerId = userId)
         )
         val teamId = requireNotNull(team.id)
         val member = teamMembers.saveAndFlush(TeamMemberEntity(team = team, user = user, role = Role.ADMIN))

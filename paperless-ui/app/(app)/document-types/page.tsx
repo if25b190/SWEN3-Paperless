@@ -42,7 +42,7 @@ function TypeForm({
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const body = { name: name.trim(), description: description.trim() || null };
+    const body = { name: name.trim(), description: description.trim() || (type ? "" : null) };
     setSubmitting(true);
     try {
       if (type) await documentTypesApi.update(type.id, body);

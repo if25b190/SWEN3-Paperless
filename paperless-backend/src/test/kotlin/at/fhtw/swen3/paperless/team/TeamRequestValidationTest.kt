@@ -32,8 +32,7 @@ class TeamRequestValidationTest(
         val actorId = requireNotNull(users.saveAndFlush(
             UserEntity(
                 username = "team-${UUID.randomUUID()}",
-                password = "unused",
-                createdAt = Instant.now()
+                password = "unused"
             )
         ).id)
 

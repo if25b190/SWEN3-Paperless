@@ -37,11 +37,11 @@ class JpaTeamPersistenceTest(
     @Test
     fun delete_team_cascades_to_memberships_ok() {
         // given
-        val owner = UserEntity(username = "cascade-owner", password = "hash", createdAt = Instant.now())
+        val owner = UserEntity(username = "cascade-owner", password = "hash")
         entityManager.persist(owner)
-        val member = UserEntity(username = "cascade-member", password = "hash", createdAt = Instant.now())
+        val member = UserEntity(username = "cascade-member", password = "hash")
         entityManager.persist(member)
-        val team = TeamEntity(name = "Cascade team", ownerId = requireNotNull(owner.id), createdAt = Instant.now())
+        val team = TeamEntity(name = "Cascade team", ownerId = requireNotNull(owner.id))
         entityManager.persist(team)
         entityManager.persist(TeamMemberEntity(team = team, user = owner, role = Role.ADMIN, joinedAt = Instant.now()))
         entityManager.persist(TeamMemberEntity(team = team, user = member, role = Role.READ_WRITE, joinedAt = Instant.now()))

@@ -6,11 +6,13 @@ import at.fhtw.swen3.paperless.user.persistence.repository.UserRepository
 import java.util.Optional
 import java.util.UUID
 import org.springframework.stereotype.Repository
+import jakarta.persistence.EntityManager
 
 @Repository
 class JpaUserPersistence(
     private val repository: UserRepository,
-    private val userEntityMapper: UserEntityMapper
+    private val userEntityMapper: UserEntityMapper,
+    private val entityManager: EntityManager,
 ) : UserPersistence {
 
     override fun findAll(): List<User> = repository.findAll().map(userEntityMapper::toModel)
@@ -26,6 +28,14 @@ class JpaUserPersistence(
         repository.findLockedByUsername(username)?.let(userEntityMapper::toModel)
 
     override fun save(user: User): User = userEntityMapper.toModel(repository.save(userEntityMapper.toEntity(user)))
+
+    override fun update(id: UUID, update: User): User {
+        val entity = repository.findLockedById(id) ?: throw NoSuchElementException("User $id not found")
+        userEntityMapper.applyTo(entity, update)
+        entityManager.flush()
+
+        return userEntityMapper.toModel(entity)
+    }
 
     override fun deleteById(id: UUID) = repository.deleteById(id)
 }

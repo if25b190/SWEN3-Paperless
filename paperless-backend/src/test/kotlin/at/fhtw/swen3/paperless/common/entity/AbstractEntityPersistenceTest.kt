@@ -62,15 +62,16 @@ class AbstractEntityPersistenceTest(@Autowired private val entityManager: Entity
         val team = TeamEntity(name = "Original", ownerId = java.util.UUID.randomUUID())
         entityManager.persist(team)
         entityManager.flush()
-        val stale = TeamEntity(
-            id = team.id,
-            name = "Stale update",
-            ownerId = team.ownerId,
-            createdAt = team.createdAt,
-            updatedAt = team.updatedAt,
-            version = team.version
-        )
-        team.name = "Concurrent update"
+        val id = requireNotNull(team.id)
+        entityManager.clear()
+
+        val stale = entityManager.find(TeamEntity::class.java, id)!!
+        entityManager.detach(stale)
+        stale.name = "Stale update"
+
+        // simulate a concurrent committed update through another managed instance
+        val concurrent = entityManager.find(TeamEntity::class.java, id)!!
+        concurrent.name = "Concurrent update"
         entityManager.flush()
         entityManager.clear()
 

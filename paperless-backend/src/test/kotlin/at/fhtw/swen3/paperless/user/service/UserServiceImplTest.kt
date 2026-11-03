@@ -146,7 +146,7 @@ class UserServiceImplTest {
         // given
         val originalHash = encoder.encode("stored password")!!
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity(originalHash))
-        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
+        `when`(userRepository.update(any(), any(User::class.java))).thenAnswer { it.arguments[1] as User }
 
         // when
         val result = service.update(fixtureId(1), fixtureId(1), null, null)
@@ -155,7 +155,6 @@ class UserServiceImplTest {
         assertAll(
             { assertThat(result.username).isEqualTo("alice") },
             { assertThat(result.password).isEqualTo(originalHash) },
-            { assertThat(result.updatedAt).isNotNull() }
         )
     }
 
@@ -164,7 +163,7 @@ class UserServiceImplTest {
         val originalHash = encoder.encode("stored password")!!
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity(originalHash))
         `when`(userRepository.findByUsername("alice-renamed")).thenReturn(null)
-        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
+        `when`(userRepository.update(any(), any(User::class.java))).thenAnswer { it.arguments[1] as User }
 
         val result = service.update(fixtureId(1), fixtureId(1), "alice-renamed", null)
 
@@ -180,7 +179,7 @@ class UserServiceImplTest {
     fun update_accepts_minimum_username_and_password_lengths() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
         `when`(userRepository.findByUsername("abcd")).thenReturn(null)
-        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
+        `when`(userRepository.update(any(), any(User::class.java))).thenAnswer { it.arguments[1] as User }
 
         val result = service.update(fixtureId(1), fixtureId(1), "abcd", "12345678")
 
@@ -197,7 +196,7 @@ class UserServiceImplTest {
 
         assertAll(
             { assertAppError(UsernameAlreadyExistsException::class) { service.update(fixtureId(1), fixtureId(1), "bobby", null) } },
-            { verify(userRepository, never()).save(any(User::class.java)) },
+            { verify(userRepository, never()).update(any(), any(User::class.java)) },
             { verify(tokenRepository, never()).deleteByUserId(fixtureId(1)) }
         )
     }
@@ -217,7 +216,7 @@ class UserServiceImplTest {
     @Test
     fun update_password_hashes_and_revokes_tokens() {
         `when`(userRepository.findLockedById(fixtureId(1))).thenReturn(entity())
-        `when`(userRepository.save(any(User::class.java))).thenAnswer { it.arguments[0] as User }
+        `when`(userRepository.update(any(), any(User::class.java))).thenAnswer { it.arguments[1] as User }
 
         val result = service.update(fixtureId(1), fixtureId(1), null, "new secret")
 

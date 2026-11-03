@@ -88,8 +88,6 @@ class DocumentServiceImplTest {
         System.setProperty("java.io.tmpdir", tempDir.toString())
         actor = uuid(1)
         service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs)
-        org.mockito.Mockito.lenient().`when`(repository.refreshUnchanged(any(Document::class.java)))
-            .thenAnswer { it.arguments[0] as Document }
     }
 
     @AfterEach
@@ -147,6 +145,7 @@ class DocumentServiceImplTest {
     fun readonly_team_member_can_read_but_cannot_write() {
         val entity = documentEntity(teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(2), Role.READONLY)
         actor = uuid(2)
 
@@ -159,6 +158,7 @@ class DocumentServiceImplTest {
     fun outsider_and_removed_uploader_get_not_found_for_team_documents() {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
         `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(2), null)
         actor = uuid(2)
 
@@ -167,7 +167,7 @@ class DocumentServiceImplTest {
         assertAppError(DocumentNotFoundException::class) { service.updateDocument(actor, uuid(1), update(title = "No")) }
         assertAppError(DocumentNotFoundException::class) { service.deleteDocument(actor, uuid(1)) }
         verify(repository, never()).delete(entity)
-        verify(repository, never()).save(any(Document::class.java))
+        verify(repository, never()).update(any(), any(Document::class.java))
 
         actor = uuid(1)
         assertAppError(DocumentNotFoundException::class) { service.getDocument(actor, uuid(1)) }
@@ -258,9 +258,9 @@ class DocumentServiceImplTest {
     fun update_changes_document_type_metadata_without_correspondent() {
         val existing = documentEntity()
         val updatedType = DocumentType(uuid(8), "Receipt", null)
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(existing)
         `when`(references.findDocumentType(uuid(8))).thenReturn(updatedType)
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
 
         val updated = service.updateDocument(actor, uuid(1), update(documentTypeId = uuid(8)))
 
@@ -286,8 +286,8 @@ class DocumentServiceImplTest {
     fun update_clears_document_type_only_when_explicitly_requested_ok() {
         // given
         val existing = documentEntity()
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.findLockedById(uuid(1))).thenReturn(existing)
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
 
         // when
         val updated = service.updateDocument(actor, uuid(1), update().copy(clearDocumentType = true))
@@ -295,7 +295,7 @@ class DocumentServiceImplTest {
         // then
         assertAll(
             { assertThat(updated.documentType).isNull() },
-            { assertThat(repositorySaveArgument().documentType).isNull() },
+            { assertThat(repositoryUpdateArgument().documentType).isNull() },
             { assertThat(updated.title).isEqualTo(existing.title) },
             { assertThat(updated.ownerId).isEqualTo(existing.ownerId) },
             { assertThat(updated.teamId).isEqualTo(existing.teamId) }
@@ -306,8 +306,8 @@ class DocumentServiceImplTest {
     fun update_preserves_document_type_when_clear_flag_is_absent_ok() {
         // given
         val existing = documentEntity()
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.findLockedById(uuid(1))).thenReturn(existing)
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
 
         // when
         val updated = service.updateDocument(actor, uuid(1), update(title = "Renamed"))
@@ -316,7 +316,7 @@ class DocumentServiceImplTest {
         assertAll(
             { assertThat(updated.title).isEqualTo("Renamed") },
             { assertThat(updated.documentType).isEqualTo(existing.documentType) },
-            { assertThat(repositorySaveArgument().documentType).isEqualTo(existing.documentType) }
+            { assertThat(repositoryUpdateArgument().documentType).isEqualTo(existing.documentType) }
         )
     }
 
@@ -331,16 +331,16 @@ class DocumentServiceImplTest {
         // then
         assertAll(
             { assertThat(thrown).isInstanceOf(ConstraintViolationException::class.java) },
-            { verify(repository, never()).save(any(Document::class.java)) }
+            { verify(repository, never()).update(any(), any(Document::class.java)) }
         )
     }
 
     @Test
     fun any_current_team_writer_can_edit_metadata_without_changing_owner_or_sharing() {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(2), Role.READ_WRITE)
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
         actor = uuid(2)
 
         val result = service.updateDocument(actor, uuid(1), update(title = "Updated"))
@@ -349,27 +349,25 @@ class DocumentServiceImplTest {
             { assertThat(result.title).isEqualTo("Updated") },
             { assertThat(result.ownerId).isEqualTo(uuid(1)) },
             { assertThat(result.teamId).isEqualTo(uuid(4)) },
-            { assertThat(repositorySaveArgument().version).isEqualTo(entity.version) }
+            { assertThat(repositoryUpdateArgument().version).isEqualTo(entity.version) }
         )
     }
 
     @Test
     fun stale_document_version_cannot_restore_sharing_or_delete_document() {
         val entity = documentEntity(teamId = uuid(4))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(1), Role.ADMIN)
-        `when`(repository.refreshUnchanged(entity)).thenThrow(OptimisticLockException("Concurrent update"))
+        `when`(repository.update(any(), any(Document::class.java))).thenThrow(OptimisticLockException("Concurrent update"))
 
         assertThrows<OptimisticLockException> { service.updateDocument(actor, uuid(1), update(title = "Stale")) }
-        assertThrows<OptimisticLockException> { service.deleteDocument(actor, uuid(1)) }
-        verify(repository, never()).save(any(Document::class.java))
         verify(repository, never()).delete(entity)
     }
 
     @Test
     fun revoked_writer_is_rejected_after_team_lock_even_if_previous_role_was_writer() {
         val entity = documentEntity(teamId = uuid(4))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(1), null)
 
         assertAppError(DocumentNotFoundException::class) { service.updateDocument(actor, uuid(1), update(clearTeam = true)) }
@@ -380,11 +378,11 @@ class DocumentServiceImplTest {
     @Test
     fun uploader_can_move_or_clear_sharing_with_write_access_to_source_and_destination() {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(1), Role.READ_WRITE)
         stubTeamRole(uuid(5), uuid(1), Role.ADMIN)
         `when`(references.findTeam(uuid(5))).thenReturn(teamEntity(uuid(5)))
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
 
         val moved = service.updateDocument(actor, uuid(1), update(teamId = uuid(5)))
         val madePrivate = service.updateDocument(actor, uuid(1), update(clearTeam = true))
@@ -399,13 +397,13 @@ class DocumentServiceImplTest {
     @Test
     fun current_writer_may_not_change_sharing_and_same_sharing_target_conflicts() {
         val entity = documentEntity(ownerId = uuid(1), teamId = uuid(4))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(2), Role.READ_WRITE)
         stubTeamRole(uuid(5), uuid(2), null)
         actor = uuid(2)
 
         assertDenied { service.updateDocument(actor, uuid(1), update(teamId = uuid(5))) }
-        verify(repository, never()).save(any(Document::class.java))
+        verify(repository, never()).update(any(), any(Document::class.java))
 
         actor = uuid(1)
         stubTeamRole(uuid(4), uuid(1), Role.ADMIN)
@@ -438,7 +436,7 @@ class DocumentServiceImplTest {
         val file = directory.resolve("delete.pdf")
         Files.write(file, byteArrayOf(1))
         val entity = documentEntity().withStorageKey("documents/delete.pdf")
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         TransactionSynchronizationManager.initSynchronization()
 
         service.deleteDocument(actor, uuid(1))
@@ -455,7 +453,7 @@ class DocumentServiceImplTest {
         Files.createDirectories(blocked)
         Files.write(blocked.resolve("child"), byteArrayOf(1))
         val entity = documentEntity().withStorageKey("documents/not-a-file.pdf")
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(entity))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         TransactionSynchronizationManager.initSynchronization()
 
         service.deleteDocument(actor, uuid(1))
@@ -476,11 +474,11 @@ class DocumentServiceImplTest {
     fun sharing_update_locks_all_teams_in_sorted_order_before_reading_roles_ok() {
         // given
         val existing = documentEntity(teamId = uuid(9))
-        `when`(repository.findById(uuid(1))).thenReturn(Optional.of(existing))
+        `when`(repository.findLockedById(uuid(1))).thenReturn(existing)
         stubTeamRole(uuid(9), uuid(1), Role.READ_WRITE)
         stubTeamRole(uuid(3), uuid(1), Role.ADMIN)
         `when`(references.findTeam(uuid(3))).thenReturn(teamEntity(uuid(3)))
-        `when`(repository.save(any(Document::class.java))).thenAnswer { it.arguments[0] as Document }
+        `when`(repository.update(any(), any(Document::class.java))).thenAnswer { it.arguments[1] as Document }
 
         // when
         val updated = service.updateDocument(actor, uuid(1), update(teamId = uuid(3)))
@@ -492,7 +490,7 @@ class DocumentServiceImplTest {
         ordered.verify(references).findLockedTeam(uuid(9))
         ordered.verify(teamMemberRepository).findByTeamIdAndUserId(uuid(3), uuid(1))
         ordered.verify(teamMemberRepository).findByTeamIdAndUserId(uuid(9), uuid(1))
-        ordered.verify(repository).refreshUnchanged(existing)
+        ordered.verify(repository).update(any(), any(Document::class.java))
     }
 
     private fun upload(
@@ -526,6 +524,10 @@ class DocumentServiceImplTest {
     private fun repositorySaveArgument(): Document =
         org.mockito.Mockito.mockingDetails(repository).getInvocations()
             .last { it.method.name == "save" }.arguments[0] as Document
+
+    private fun repositoryUpdateArgument(): Document =
+        org.mockito.Mockito.mockingDetails(repository).getInvocations()
+            .last { it.method.name == "update" }.arguments[1] as Document
 
     private fun persistedDocument(document: Document, id: UUID) = document.copy(id = id)
 

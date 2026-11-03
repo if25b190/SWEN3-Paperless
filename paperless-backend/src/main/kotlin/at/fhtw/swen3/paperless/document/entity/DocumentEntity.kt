@@ -16,17 +16,14 @@ import jakarta.persistence.Table
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.PositiveOrZero
 import jakarta.validation.constraints.Size
-import java.time.Instant
-import java.util.UUID
 
 @Entity
 @Table(name = "documents")
 class DocumentEntity(
-    id: UUID? = null,
     @field:NotBlank
     @field:Size(max = 255)
     @Column(nullable = false)
-    val title: String = "",
+    var title: String = "",
     @field:NotBlank
     @Column(nullable = false)
     val originalFilename: String = "",
@@ -38,22 +35,19 @@ class DocumentEntity(
     val fileSize: Long = 0,
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false, updatable = false)
-    val owner: UserEntity,
+    val owner: UserEntity = UserEntity(),
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id")
-    val team: TeamEntity? = null,
+    var team: TeamEntity? = null,
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    val status: ProcessingStatus = ProcessingStatus.PENDING,
+    var status: ProcessingStatus = ProcessingStatus.PENDING,
     @Column(columnDefinition = "TEXT")
-    val ocrContent: String? = null,
+    var ocrContent: String? = null,
     @Column(columnDefinition = "TEXT")
-    val summary: String? = null,
-    val storageKey: String? = null,
+    var summary: String? = null,
+    var storageKey: String? = null,
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "document_type_id")
-    val documentType: DocumentTypeEntity? = null,
-    createdAt: Instant = Instant.now(),
-    updatedAt: Instant = Instant.now(),
-    version: Long = 0
-) : AbstractEntity(id, createdAt, updatedAt, version)
+    var documentType: DocumentTypeEntity? = null
+) : AbstractEntity()

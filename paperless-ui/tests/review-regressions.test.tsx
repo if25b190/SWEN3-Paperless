@@ -15,7 +15,7 @@ vi.mock("@/components/providers/auth-provider", () => ({
 
 vi.mock("@/lib/api/services", () => ({
   documentsApi: { list: vi.fn(), update: vi.fn(), remove: vi.fn() },
-  documentTypesApi: { list: vi.fn() },
+  documentTypesApi: { list: vi.fn(), update: vi.fn() },
   teamsApi: { update: vi.fn() },
   usersApi: { teams: vi.fn() },
 }));
@@ -107,6 +107,22 @@ test("clearing a team description sends an empty string to the partial-update AP
 
   await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ description: "" })));
   expect(teamsApi.update).toHaveBeenCalledWith(team.id, { name: team.name, description: "" });
+});
+
+test("clearing a document type description sends an empty string to the partial-update API", async () => {
+  const type = { id: "type-1", name: "Invoice", description: "Old description" };
+  vi.mocked(documentTypesApi.list).mockResolvedValue([type]);
+  vi.mocked(documentTypesApi.update).mockResolvedValue({ ...type, description: "" });
+  render(<DocumentTypesPage />);
+  await screen.findByRole("cell", { name: type.name });
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+  fireEvent.change(screen.getByRole("textbox", { name: /Description/ }), { target: { value: "   " } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => expect(documentTypesApi.update).toHaveBeenCalledWith(type.id, {
+    name: type.name, description: "",
+  }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });
 
 test("a failed teams request shows an error and Retry recovers the list", async () => {

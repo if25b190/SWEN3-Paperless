@@ -50,19 +50,17 @@ class TeamServiceImpl(
     }
 
     override fun updateTeam(actorId: UUID, id: UUID, name: String?, description: String?): Team {
-        val entity = teamRepository.findById(id)
-            .orElseThrow { TeamNotFoundException() }
-        requireAdmin(actorId, id, entity.ownerId)
-        val updated = entity.copy(
-            name = name ?: entity.name,
-            description = description ?: entity.description,
-            updatedAt = Instant.now()
+        val current = teamRepository.findLockedById(id)
+            ?: throw TeamNotFoundException()
+        requireAdmin(actorId, id, current.ownerId)
+        val updated = current.copy(
+            name = name ?: current.name,
+            description = description ?: current.description
         )
 
-        val saved = teamRepository.save(updated)
         log.info("[TEAM] - ACTION: updateTeam: teamId: {}", id)
 
-        return saved
+        return teamRepository.update(id, updated)
     }
 
     override fun deleteTeam(actorId: UUID, id: UUID) {
