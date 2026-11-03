@@ -8,6 +8,7 @@ COPY gradlew settings.gradle.kts build.gradle.kts ./
 RUN chmod +x ./gradlew && ./gradlew dependencies --no-daemon || true
 
 # Copy source code and build bootJar
+COPY openapi-templates/ openapi-templates/
 COPY src/ src/
 RUN ./gradlew bootJar -x test --no-daemon
 
