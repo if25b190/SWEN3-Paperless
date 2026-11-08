@@ -3,6 +3,9 @@ services:
     build:
       context: ./paperless-backend
       dockerfile: Dockerfile
+      # Build on the host network: the buildkit sandbox's default bridge
+      # network has no DNS on hosts whose daemon lacks a bridge network.
+      network: host
     restart: unless-stopped
     depends_on:
       db:
@@ -24,10 +27,42 @@ services:
     volumes:
       - document-files:/tmp/paperless-documents
 
+  worker:
+    build:
+      context: ./paperless-worker
+      dockerfile: Dockerfile
+      network: host
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://db:5432/paperless}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-paperless}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-paperless}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-paperless_secure_password}
+      WORKER_ENABLED: ${WORKER_ENABLED:-true}
+      OCR_TESSERACT_LANGUAGES: ${OCR_TESSERACT_LANGUAGES:-eng}
+      OCR_DPI: ${OCR_DPI:-300}
+      OCR_PROCESS_TIMEOUT: ${OCR_PROCESS_TIMEOUT:-120s}
+      OCR_FINAL_STATUS: ${OCR_FINAL_STATUS:-COMPLETED}
+    volumes:
+      - document-files:/tmp/paperless-documents
+
   ui:
     build:
       context: ./paperless-ui
       dockerfile: Dockerfile
+      network: host
       args:
         BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
     restart: unless-stopped

@@ -2,7 +2,7 @@
 
 ### Philip Duong & Patrick Hornek
 
-A document management and processing platform consisting of a Spring Boot (Kotlin) backend and a Next.js (TypeScript) web interface, backed by PostgreSQL.
+A document management and processing platform consisting of a Spring Boot (Kotlin) backend, a separate OCR worker (Ghostscript + Tesseract), and a Next.js (TypeScript) web interface, backed by PostgreSQL and RabbitMQ.
 
 ---
 
@@ -38,6 +38,7 @@ docker compose --env-file .env.local up --build -d
 
 This starts:
 - **`backend`**: Spring Boot REST API
+- **`worker`**: OCR worker — consumes OCR jobs from RabbitMQ and extracts text with Ghostscript + Tesseract
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 16 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
@@ -83,16 +84,24 @@ The durable exchange `paperless.ocr` routes `document.uploaded` to
 `paperless.ocr.requests`. Messages contain JSON fields `jobId`, `documentId`,
 `storageKey`, and `contentType`; the AMQP message ID is the stable `jobId`.
 Delivery is at least once: a confirmation timeout or a crash between publishing
-and deleting the pending job can produce duplicates. The future OCR worker must
-deduplicate by `jobId` and have access to the files identified by `storageKey`.
+and deleting the pending job can produce duplicates.
 
-`OcrWorker` is an empty listener scaffold. `OCR_WORKER_ENABLED=false` keeps it
-stopped so requests accumulate safely in the queue. Implement OCR and idempotency
-before enabling it; the current scaffold only acknowledges requests.
-When enabled, listener failures retry three times before rejection to the durable
-dead-letter queue `paperless.ocr.failed` through `paperless.ocr.dead-letter`.
-Malformed messages may be rejected immediately. Processing status stays `PENDING`
-until OCR processing is implemented.
+OCR processing runs in the separate **`worker`** application (`paperless-worker`),
+which consumes `paperless.ocr.requests`. Its container image bundles **Ghostscript**
+and **Tesseract** (English by default). For each job the worker reads the file named
+by `storageKey` from the shared `document-files` volume, rasterizes the PDF pages with
+Ghostscript, and extracts text with Tesseract. Idempotency comes from a claim step:
+the document is moved `PENDING → OCR_IN_PROGRESS`, so a duplicate job for an already
+claimed document is skipped rather than reprocessed. On success the worker stores the
+extracted text as the document's `ocr_content` and sets its status to `COMPLETED`
+(configurable via `OCR_FINAL_STATUS`); on failure it sets `FAILED` and rethrows so the
+message is retried and then routed to the durable dead-letter queue `paperless.ocr.failed`
+through `paperless.ocr.dead-letter`.
+
+The backend's built-in `OcrWorker` is an empty listener scaffold kept disabled
+(`OCR_WORKER_ENABLED=false`) because real processing now happens in the worker
+application. Worker behaviour is configured with `WORKER_ENABLED`,
+`OCR_TESSERACT_LANGUAGES`, `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, and `OCR_FINAL_STATUS`.
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.

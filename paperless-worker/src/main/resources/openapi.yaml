@@ -1,0 +1,34 @@
+openapi: 3.0.3
+info:
+  title: Paperless OCR Worker
+  description: |
+    Broker message contract of the `paperless.ocr` queue.
+    The backend publishes `OcrRequestDTO` messages on the `paperless.ocr`
+    exchange (routing key `document.uploaded`) after a document upload;
+    the worker consumes and processes them.
+  version: 1.0.0
+paths: {}
+components:
+  schemas:
+    OcrRequestDTO:
+      type: object
+      required:
+        - jobId
+        - documentId
+        - storageKey
+        - contentType
+      properties:
+        jobId:
+          type: string
+          format: uuid
+          description: Unique OCR job identifier.
+        documentId:
+          type: string
+          format: uuid
+          description: Id of the document to process.
+        storageKey:
+          type: string
+          description: Storage location of the uploaded file.
+        contentType:
+          type: string
+          description: MIME type of the uploaded file.

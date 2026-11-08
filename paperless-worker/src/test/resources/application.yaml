@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: paperless-worker-test
+  rabbitmq:
+    dynamic: false
+    listener:
+      simple:
+        auto-startup: false
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+paperless:
+  worker:
+    storage-dir: /tmp/paperless-worker-test

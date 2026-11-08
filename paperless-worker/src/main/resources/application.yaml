@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: paperless-worker
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:paperless}
+    password: ${RABBITMQ_PASS:paperless_secure_password}
+    connection-timeout: 5s
+    listener:
+      simple:
+        concurrency: ${OCR_WORKER_CONCURRENCY:1}
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-retries: 3
+          initial-interval: 1s
+          max-interval: 5s
+          multiplier: 2
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperless}
+    username: ${SPRING_DATASOURCE_USERNAME:paperless}
+    password: ${SPRING_DATASOURCE_PASSWORD:paperless}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+paperless:
+  ocr:
+    exchange: paperless.ocr
+    queue: paperless.ocr.requests
+    routing-key: document.uploaded
+    dead-letter-exchange: paperless.ocr.dead-letter
+    dead-letter-queue: paperless.ocr.failed
+    confirm-timeout: 5s
+  worker:
+    enabled: ${WORKER_ENABLED:true}
+    storage-dir: ${OCR_STORAGE_DIR:/tmp/paperless-documents}
+    tesseract-languages: ${OCR_TESSERACT_LANGUAGES:eng}
+    dpi: ${OCR_DPI:300}
+    process-timeout: ${OCR_PROCESS_TIMEOUT:120s}
+    final-status: ${OCR_FINAL_STATUS:COMPLETED}
+
+logging:
+  level:
+    at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
+  pattern:
+    level: "%5p"
