@@ -86,5 +86,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Notes
 - The worker shares the `document-files` volume with the backend at
   `/tmp/paperless-documents` and reads uploaded files by `storageKey`.
-- The backend's built-in `OcrWorker` scaffold (`OCR_WORKER_ENABLED`) remains disabled; this
-  application is the one that performs real OCR processing.
+- The backend's built-in `OcrWorker` scaffold (and its `OCR_WORKER_ENABLED` property) was removed
+  from `paperless-backend`; this application is the only consumer of `paperless.ocr.requests`.

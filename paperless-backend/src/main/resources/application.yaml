@@ -49,7 +49,6 @@ paperless:
     confirm-timeout: 5s
     dispatch-enabled: ${OCR_DISPATCH_ENABLED:true}
     dispatch-delay: ${OCR_DISPATCH_DELAY:1000}
-    worker-enabled: ${OCR_WORKER_ENABLED:false}
 
 server:
   tomcat:

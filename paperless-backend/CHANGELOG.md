@@ -34,6 +34,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 - `storage_key` from `DocumentResponse`: the MinIO object key is an internal implementation detail
   and was never consumed by the frontend.
+- The built-in `OcrWorker` listener scaffold (`ocr/worker/OcrWorker.kt`) and the
+  `OCR_WORKER_ENABLED` / `paperless.ocr.worker-enabled` property: real OCR processing happens in
+  the separate `paperless-worker` application, so the disabled scaffold is no longer needed.
 
 ## [0.0.2-SNAPSHOT]
 

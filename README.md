@@ -106,10 +106,8 @@ and then routed to the durable dead-letter queue `paperless.ocr.failed` through
 (`elasticsearch` service, security disabled) that the worker connects to via
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, and `ELASTIC_PASSWORD`.
 
-The backend's built-in `OcrWorker` is an empty listener scaffold kept disabled
-(`OCR_WORKER_ENABLED=false`) because real processing now happens in the worker
-application. Worker behaviour is configured with `WORKER_ENABLED`,
-`OCR_TESSERACT_LANGUAGES`, `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
+Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
+`OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
 and `OCR_INDEX_NAME`.
 
