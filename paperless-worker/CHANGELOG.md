@@ -55,14 +55,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the backend's feature code.
 - Configuration via `paperless.worker.*` (`ocr/config/OcrWorkerProperties.kt`): `enabled`,
   `storage-dir` (default `/tmp/paperless-documents`), `tesseract-languages` (default `eng`), `dpi`
-  (default `300`), `process-timeout` (default `120s`), and `final-status` (default `COMPLETED`).
+  (default `300`), `process-timeout` (default `120s`), `final-status` (default `COMPLETED`), and
+  `index-name` (default `paperless-documents`).
+- Elasticsearch indexing of OCR results for full-text search. After successful text extraction the
+  extracted text is indexed **before** the document is marked complete, so a `COMPLETED` document
+  always has a search entry. Cross-store access follows the repository's layered architecture:
+  `OcrProcessingServiceImpl` depends on the domain-facing `DocumentIndexPersistence` port, and the
+  `ElasticsearchDocumentIndexPersistence` adapter (`ocr/persistence/`) uses the auto-configured
+  `ElasticsearchClient` (`spring-boot-starter-elasticsearch`; connection from
+  `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD` via
+  `spring.elasticsearch.*`). The index `paperless-documents` (configurable via `OCR_INDEX_NAME`)
+  stores one document per `documentId` — `IndexedDocument` (`ocr/model/`) with `id` (keyword),
+  `content` (text), and `indexedAt` (date) — and is created at startup if missing
+  (`ensureIndex`, whose failure is tolerated so a temporarily unavailable cluster does not block
+  worker boot). A failed index run marks the document `FAILED` and the message retry reprocesses
+  and reindexes it; indexing by `documentId` is idempotent. The compose stack adds a single-node
+  `elasticsearch` service (security disabled, data in the `elasticsearch-data` volume) that the
+  worker depends on.
 - RabbitMQ listener configuration (`ocr/config/OcrWorkerRabbitConfiguration.kt`) with retry
   (3 retries, exponential backoff) and `default-requeue-rejected: false` so failed messages reach
   the dead-letter queue rather than looping.
 - `Dockerfile` (multi-stage) installing `tesseract-ocr`, `tesseract-ocr-eng`, and `ghostscript`
   into the runtime image, running as a non-root `spring` user.
 - Test suite: `TesseractOcrEngineTest`, `JpaOcrDocumentPersistenceTest`,
-  `OcrProcessingServiceImplTest`, `OcrPipelineIntegrationTest`, and `WorkerApplicationTests`.
+  `OcrProcessingServiceImplTest`, `OcrPipelineIntegrationTest`, `WorkerApplicationTests`,
+  `ElasticsearchDocumentIndexPersistenceTest` (mocked `ElasticsearchClient`), and the gated
+  `ElasticsearchIndexingIntegrationTest`, which runs against a live Elasticsearch when one is
+  reachable at `ELASTICSEARCH_HOST`/`ELASTICSEARCH_PORT` and is skipped otherwise.
 
 ### Notes
 - The worker shares the `document-files` volume with the backend at

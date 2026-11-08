@@ -8,6 +8,7 @@ import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
+import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.JpaOcrDocumentPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.mapper.WorkerDocumentEntityMapper
 import at.fhtw.swen3.paperless.ocr.persistence.mapper.WorkerDocumentEntityMapperImpl
@@ -37,6 +38,7 @@ class OcrPipelineIntegrationTest(
     @Autowired private val mapper: WorkerDocumentEntityMapper
 ) {
     private var storageDir: Path = Files.createTempDirectory("paperless-pipeline-test")
+    private val indexedDocuments = mutableListOf<Pair<UUID, String>>()
     private lateinit var service: OcrProcessingServiceImpl
     private var documentId: UUID = UUID.randomUUID()
 
@@ -45,7 +47,7 @@ class OcrPipelineIntegrationTest(
         storageDir = Files.createTempDirectory("paperless-pipeline-test")
         Files.copy(TesseractOcrEngineTest.fixture("sample-invoice.pdf"), storageDir.resolve("sample-invoice.pdf"))
         val properties = OcrWorkerProperties(enabled = true, storageDir = storageDir)
-        service = OcrProcessingServiceImpl(persistence, TesseractOcrEngine(properties), properties)
+        service = OcrProcessingServiceImpl(persistence, TesseractOcrEngine(properties), recordingIndex(), properties)
         documentId = UUID.randomUUID()
         saveDocument(ProcessingStatus.PENDING)
     }
@@ -66,6 +68,8 @@ class OcrPipelineIntegrationTest(
         assertThat(content).contains("142.50")
         // Both pages are present and in order.
         assertThat(content!!.indexOf("9821")).isLessThan(content!!.indexOf("73459"))
+        // The extracted text was handed to the index with the document id.
+        assertThat(indexedDocuments).containsExactly(documentId to content!!)
     }
 
     @Test
@@ -101,6 +105,13 @@ class OcrPipelineIntegrationTest(
         entityManager.persist(mapper.toEntity(WorkerDocument(documentId, status, null, 0)))
         entityManager.flush()
     }
+
+    private fun recordingIndex() =
+        object : DocumentIndexPersistence {
+            override fun index(documentId: UUID, ocrContent: String) {
+                indexedDocuments += documentId to ocrContent
+            }
+        }
 
     private fun loadDocument(): WorkerDocumentEntity {
         val entity = requireNotNull(entityManager.find(WorkerDocumentEntity::class.java, documentId))

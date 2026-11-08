@@ -92,16 +92,26 @@ and **Tesseract** (English by default). For each job the worker reads the file n
 by `storageKey` from the shared `document-files` volume, rasterizes the PDF pages with
 Ghostscript, and extracts text with Tesseract. Idempotency comes from a claim step:
 the document is moved `PENDING → OCR_IN_PROGRESS`, so a duplicate job for an already
-claimed document is skipped rather than reprocessed. On success the worker stores the
-extracted text as the document's `ocr_content` and sets its status to `COMPLETED`
-(configurable via `OCR_FINAL_STATUS`); on failure it sets `FAILED` and rethrows so the
-message is retried and then routed to the durable dead-letter queue `paperless.ocr.failed`
-through `paperless.ocr.dead-letter`.
+claimed document is skipped rather than reprocessed. On success the worker indexes the
+extracted text in **Elasticsearch** — one document per `documentId` in the
+`paperless-documents` index (configurable via `OCR_INDEX_NAME`, with fields `id`,
+`content`, and `indexedAt`; the index is created at startup if missing) — and stores
+the text as the document's `ocr_content` and sets its status to `COMPLETED`
+(configurable via `OCR_FINAL_STATUS`). Indexing happens before the document is
+completed, so a `COMPLETED` document always has a search entry; if the index run
+fails, the document is set to `FAILED` and the message is retried and reindexed.
+On any other failure the worker sets `FAILED` and rethrows so the message is retried
+and then routed to the durable dead-letter queue `paperless.ocr.failed` through
+`paperless.ocr.dead-letter`. The compose stack runs a single-node Elasticsearch
+(`elasticsearch` service, security disabled) that the worker connects to via
+`ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, and `ELASTIC_PASSWORD`.
 
 The backend's built-in `OcrWorker` is an empty listener scaffold kept disabled
 (`OCR_WORKER_ENABLED=false`) because real processing now happens in the worker
 application. Worker behaviour is configured with `WORKER_ENABLED`,
-`OCR_TESSERACT_LANGUAGES`, `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, and `OCR_FINAL_STATUS`.
+`OCR_TESSERACT_LANGUAGES`, `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
+`ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
+and `OCR_INDEX_NAME`.
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.

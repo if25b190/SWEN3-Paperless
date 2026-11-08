@@ -6,6 +6,7 @@ import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
+import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.OcrDocumentPersistence
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -32,6 +33,9 @@ class OcrProcessingServiceImplTest {
     @Mock
     lateinit var engine: OcrEngine
 
+    @Mock
+    lateinit var index: DocumentIndexPersistence
+
     private val storageDir = Paths.get("/tmp/paperless-documents")
     private val properties = OcrWorkerProperties(enabled = true, storageDir = storageDir)
     private val documentId = UUID.randomUUID()
@@ -43,7 +47,7 @@ class OcrProcessingServiceImplTest {
 
     @BeforeEach
     fun setUp() {
-        service = OcrProcessingServiceImpl(documents, engine, properties)
+        service = OcrProcessingServiceImpl(documents, engine, index, properties)
     }
 
     @Test
@@ -56,9 +60,10 @@ class OcrProcessingServiceImplTest {
         service.process(request)
 
         // then
-        val ordered: InOrder = inOrder(documents, engine)
+        val ordered: InOrder = inOrder(documents, engine, index)
         ordered.verify(documents).claim(documentId)
         ordered.verify(engine).extractText(storageDir.resolve("abc_invoice.pdf"))
+        ordered.verify(index).index(documentId, "INVOICE #9821")
         ordered.verify(documents).complete(documentId, "INVOICE #9821", ProcessingStatus.COMPLETED)
         verify(documents, never()).fail(documentId)
     }
@@ -73,6 +78,7 @@ class OcrProcessingServiceImplTest {
 
         // then
         verifyNoInteractions(engine)
+        verifyNoInteractions(index)
         verify(documents, never()).complete(any(), any(), any())
         verify(documents, never()).fail(documentId)
     }
@@ -88,6 +94,23 @@ class OcrProcessingServiceImplTest {
         val ordered: InOrder = inOrder(documents, engine)
         assertThatThrownBy { service.process(request) }.isInstanceOf(OcrEngineException::class.java).isSameAs(failure)
         ordered.verify(engine).extractText(any())
+        ordered.verify(documents).fail(documentId)
+        verify(index, never()).index(any(), any())
+        verify(documents, never()).complete(any(), any(), any())
+    }
+
+    @Test
+    fun index_failure_marks_document_failed_and_rethrows_ko() {
+        // given
+        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(engine.extractText(any())).thenReturn("text")
+        val failure = IllegalStateException("elasticsearch unavailable")
+        doThrow(failure).`when`(index).index(documentId, "text")
+
+        // when / then
+        val ordered: InOrder = inOrder(engine, index, documents)
+        assertThatThrownBy { service.process(request) }.isInstanceOf(IllegalStateException::class.java).isSameAs(failure)
+        ordered.verify(index).index(documentId, "text")
         ordered.verify(documents).fail(documentId)
         verify(documents, never()).complete(any(), any(), any())
     }
@@ -121,7 +144,7 @@ class OcrProcessingServiceImplTest {
     fun genai_final_status_is_passed_through_ok() {
         // given
         val genaiProperties = properties.copy(finalStatus = ProcessingStatus.GENAI_IN_PROGRESS)
-        val genaiService = OcrProcessingServiceImpl(documents, engine, genaiProperties)
+        val genaiService = OcrProcessingServiceImpl(documents, engine, index, genaiProperties)
         `when`(documents.claim(documentId)).thenReturn(claimedDocument())
         `when`(engine.extractText(any())).thenReturn("text")
 

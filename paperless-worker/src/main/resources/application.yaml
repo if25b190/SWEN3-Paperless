@@ -17,6 +17,10 @@ spring:
           initial-interval: 1s
           max-interval: 5s
           multiplier: 2
+  elasticsearch:
+    uris: http://${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}
+    username: ${ELASTIC_USER:elastic}
+    password: ${ELASTIC_PASSWORD:}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperless}
     username: ${SPRING_DATASOURCE_USERNAME:paperless}
@@ -45,6 +49,7 @@ paperless:
     dpi: ${OCR_DPI:300}
     process-timeout: ${OCR_PROCESS_TIMEOUT:120s}
     final-status: ${OCR_FINAL_STATUS:COMPLETED}
+    index-name: ${OCR_INDEX_NAME:paperless-documents}
 
 logging:
   level:

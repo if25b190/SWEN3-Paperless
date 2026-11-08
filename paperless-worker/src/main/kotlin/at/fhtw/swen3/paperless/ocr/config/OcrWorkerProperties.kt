@@ -13,5 +13,6 @@ data class OcrWorkerProperties(
     val tesseractLanguages: String = "eng",
     val dpi: Int = 300,
     val processTimeout: Duration = Duration.ofMinutes(2),
-    val finalStatus: ProcessingStatus = ProcessingStatus.COMPLETED
+    val finalStatus: ProcessingStatus = ProcessingStatus.COMPLETED,
+    val indexName: String = "paperless-documents"
 )

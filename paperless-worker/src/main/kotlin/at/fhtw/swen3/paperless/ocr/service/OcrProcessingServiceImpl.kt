@@ -3,6 +3,7 @@ package at.fhtw.swen3.paperless.ocr.service
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
+import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.OcrDocumentPersistence
 import java.util.UUID
 import org.slf4j.LoggerFactory
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service
 class OcrProcessingServiceImpl(
     private val documents: OcrDocumentPersistence,
     private val engine: OcrEngine,
+    private val index: DocumentIndexPersistence,
     private val properties: OcrWorkerProperties
 ) : OcrProcessingService {
     override fun process(request: OcrRequest) {
@@ -27,6 +29,7 @@ class OcrProcessingServiceImpl(
         val source = properties.storageDir.resolve(request.storageKey.substringAfterLast('/'))
         try {
             val text = engine.extractText(source)
+            index.index(request.documentId, text)
             documents.complete(request.documentId, text, properties.finalStatus)
             logger.info(
                 "[OCR] - ACTION: process: completed: jobId: {}, documentId: {}, textLength: {}, finalStatus: {}",

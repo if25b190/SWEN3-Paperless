@@ -3,8 +3,6 @@ services:
     build:
       context: ./paperless-backend
       dockerfile: Dockerfile
-      # Build on the host network: the buildkit sandbox's default bridge
-      # network has no DNS on hosts whose daemon lacks a bridge network.
       network: host
     restart: unless-stopped
     depends_on:
@@ -40,6 +38,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     env_file:
       - .env.local
     environment:
@@ -55,6 +55,11 @@ services:
       OCR_DPI: ${OCR_DPI:-300}
       OCR_PROCESS_TIMEOUT: ${OCR_PROCESS_TIMEOUT:-120s}
       OCR_FINAL_STATUS: ${OCR_FINAL_STATUS:-COMPLETED}
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
     volumes:
       - document-files:/tmp/paperless-documents
 
@@ -74,6 +79,23 @@ services:
       - .env.local
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.5
+    restart: unless-stopped
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9200/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   db:
     image: postgres:16-alpine
@@ -123,6 +145,7 @@ configs:
 
 volumes:
   document-files:
+  elasticsearch-data:
   postgres-data:
   rabbitmq-lib:
     driver: local
