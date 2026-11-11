@@ -9,6 +9,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     env_file:
@@ -21,8 +23,12 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER:-paperless}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-paperless_secure_password}
-    volumes:
-      - document-files:/tmp/paperless-documents
+      DOCUMENT_STORAGE_TYPE: s3
+      S3_ENDPOINT: http://rustfs:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-paperless-documents}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
 
   ui:
     build:
@@ -82,11 +88,53 @@ services:
       timeout: 5s
       retries: 5
 
+  rustfs:
+    image: rustfs/rustfs:1.0.4
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "127.0.0.1:${RUSTFS_PORT:-9000}:9000"
+      - "127.0.0.1:${RUSTFS_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - rustfs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  rustfs-init:
+    image: amazon/aws-cli:2.34.0
+    restart: "no"
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-paperless}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      AWS_EC2_METADATA_DISABLED: "true"
+      S3_ENDPOINT: http://rustfs:9000
+      S3_BUCKET: ${S3_BUCKET:-paperless-documents}
+      MIGRATE_LEGACY_DOCUMENTS: ${MIGRATE_LEGACY_DOCUMENTS:-false}
+    entrypoint: ["/bin/sh", "/init.sh"]
+    volumes:
+      - ./infra/rustfs/init.sh:/init.sh:ro
+      - document-files:/legacy:ro
+
 configs:
   rabbitmq-plugins:
     content: "[rabbitmq_management]."
 
 volumes:
+  rustfs-data:
   document-files:
   postgres-data:
   rabbitmq-lib:

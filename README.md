@@ -41,6 +41,7 @@ This starts:
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 16 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
+- **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
 
 ---
 
@@ -56,6 +57,7 @@ Once all services are healthy and running:
 | **OpenAPI v3 Spec** | [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs) | Raw OpenAPI JSON definition |
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
 | **RabbitMQ Management** | [http://localhost:15672](http://localhost:15672) | Queues and connections (credentials in `.env.local`) |
+| **RustFS Console** | [http://localhost:9001](http://localhost:9001) | Object storage (credentials in `.env.local`) |
 
 ---
 
@@ -76,8 +78,28 @@ Each upload saves a pending OCR job alongside the document in one database
 transaction. A background dispatcher publishes it to RabbitMQ and removes the
 pending job only after the broker confirms delivery to a queue. If RabbitMQ is
 unavailable, uploads still succeed and pending jobs retry every second by default.
-Rolled-back uploads never publish OCR requests. Docker stores uploaded files in
-the `document-files` volume.
+Rolled-back uploads never publish OCR requests. Uploaded files are stored in the
+private RustFS bucket configured by `S3_BUCKET`, persisted in `rustfs-data`.
+Upload, download, and deletion use the same `documents/...` object key sent to
+the OCR queue. Authorization still runs in the backend before accessing storage.
+
+The backend defaults to S3 storage. Native runs use `S3_ENDPOINT` (default
+`http://localhost:9000`); Compose uses `http://rustfs:9000`. Set `RUSTFS_ACCESS_KEY`,
+`RUSTFS_SECRET_KEY`, `S3_BUCKET`, and `S3_REGION` in `.env.local`. The bucket is
+created before the backend starts and is never made public. Rollbacks remove
+newly uploaded objects; document deletion removes the object after database commit.
+
+For an existing installation, stop uploads, set `MIGRATE_LEGACY_DOCUMENTS=true`
+for one Compose startup, and reset it after `rustfs-init` completes. This copies
+the old `document-files` volume into the bucket under the existing object keys.
+The original volume remains intact. Restarting the stack normally does not copy
+legacy files. Tests use `DOCUMENT_STORAGE_TYPE=local` and require no storage server.
+
+To verify the S3 adapter against a running RustFS instance, run from `paperless-backend`:
+
+```bash
+PAPERLESS_S3_TEST=true ./gradlew test --tests '*S3DocumentStorageIntegrationTest'
+```
 
 The durable exchange `paperless.ocr` routes `document.uploaded` to
 `paperless.ocr.requests`. Messages contain JSON fields `jobId`, `documentId`,
