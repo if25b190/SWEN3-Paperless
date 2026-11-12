@@ -1,64 +1,64 @@
 package at.fhtw.swen3.paperless.ocr.service
 
+import at.fhtw.swen3.paperless.exception.AppErrorMessage
+import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
+import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
+import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.OcrDocumentPersistence
-import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(noRollbackFor = [AppException::class])
 class OcrProcessingServiceImpl(
     private val documents: OcrDocumentPersistence,
     private val engine: OcrEngine,
     private val index: DocumentIndexPersistence,
-    private val properties: OcrWorkerProperties
+    private val properties: OcrWorkerProperties,
 ) : OcrProcessingService {
     override fun process(request: OcrRequest) {
-        val claimed = documents.claim(request.documentId)
-        if (claimed == null) {
+        val document = documents.findLockedById(request.documentId) ?: return
+        val retryable = document.status == ProcessingStatus.PENDING || document.status == ProcessingStatus.FAILED
+        if (!retryable) {
             logger.info(
                 "[OCR] - ACTION: process: skipped duplicate: jobId: {}, documentId: {}",
                 request.jobId,
-                request.documentId
+                request.documentId,
             )
+
             return
         }
+        val claimed = documents.update(document.copy(status = ProcessingStatus.OCR_IN_PROGRESS, ocrContent = null))
         val source = properties.storageDir.resolve(request.storageKey.substringAfterLast('/'))
-        try {
-            val text = engine.extractText(source)
-            index.index(request.documentId, text)
-            documents.complete(request.documentId, text, properties.finalStatus)
-            logger.info(
-                "[OCR] - ACTION: process: completed: jobId: {}, documentId: {}, textLength: {}, finalStatus: {}",
-                request.jobId,
-                request.documentId,
-                text.length,
-                properties.finalStatus
-            )
+        val text = try {
+            val extracted = engine.extractText(source)
+            index.index(request.documentId, extracted)
+            extracted
         } catch (exception: Exception) {
-            markFailed(request.documentId)
-            logger.error(
-                "[OCR] - ACTION: process: failed: jobId: {}, documentId: {}, exceptionType: {}",
-                request.jobId,
-                request.documentId,
-                exception.javaClass.name
-            )
-            throw exception
+            markFailed(claimed, exception)
+            throw AppException(AppErrorMessage.OCR_PROCESSING_FAILED, exception)
         }
+        documents.update(claimed.copy(status = properties.finalStatus, ocrContent = text))
+        logger.info(
+            "[OCR] - ACTION: process: completed: jobId: {}, documentId: {}, textLength: {}, finalStatus: {}",
+            request.jobId,
+            request.documentId,
+            text.length,
+            properties.finalStatus,
+        )
     }
 
-    private fun markFailed(documentId: UUID) {
+    private fun markFailed(document: WorkerDocument, failure: Exception) {
         try {
-            documents.fail(documentId)
+            documents.update(document.copy(status = ProcessingStatus.FAILED, ocrContent = null))
         } catch (exception: Exception) {
-            logger.warn(
-                "[OCR] - ACTION: markFailed: documentId: {}, exceptionType: {}",
-                documentId,
-                exception.javaClass.name
-            )
+            exception.addSuppressed(failure)
+            throw exception
         }
     }
 

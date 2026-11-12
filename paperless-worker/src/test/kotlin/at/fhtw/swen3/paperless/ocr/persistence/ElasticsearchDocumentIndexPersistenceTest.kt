@@ -2,6 +2,7 @@ package at.fhtw.swen3.paperless.ocr.persistence
 
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.model.IndexedDocument
+import at.fhtw.swen3.paperless.testsupport.any
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch.core.IndexRequest
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
@@ -16,11 +17,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
 import org.mockito.Mock
-import org.mockito.Mockito.`when`
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
-import at.fhtw.swen3.paperless.testsupport.any
 import java.io.IOException
 import java.nio.file.Paths
 import java.util.UUID
@@ -40,7 +40,7 @@ class ElasticsearchDocumentIndexPersistenceTest {
     fun setUp() {
         persistence = ElasticsearchDocumentIndexPersistence(
             client,
-            OcrWorkerProperties(enabled = true, storageDir = Paths.get("/tmp"))
+            OcrWorkerProperties(enabled = true, storageDir = Paths.get("/tmp")),
         )
     }
 
@@ -59,7 +59,7 @@ class ElasticsearchDocumentIndexPersistenceTest {
             { assertThat(request.index()).isEqualTo("paperless-documents") },
             { assertThat(request.id()).isEqualTo(documentId.toString()) },
             { assertThat(stored.id).isEqualTo(documentId.toString()) },
-            { assertThat(stored.content).isEqualTo("INVOICE #9821") }
+            { assertThat(stored.content).isEqualTo("INVOICE #9821") },
         )
     }
 

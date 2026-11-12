@@ -29,13 +29,13 @@ class OcrWorkerRabbitConfiguration {
             queue,
             deadLetterQueue,
             BindingBuilder.bind(queue).to(exchange).with(properties.routingKey),
-            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.routingKey)
+            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.routingKey),
         )
     }
 
     @Bean
     fun ocrMessageConverter(jsonMapper: JsonMapper): JacksonJsonMessageConverter {
-        val converter = JacksonJsonMessageConverter(jsonMapper)
+        val converter = JacksonJsonMessageConverter(jsonMapper, "at.fhtw.swen3.paperless.ocr.dto")
         converter.typePrecedence = JacksonJavaTypeMapper.TypePrecedence.INFERRED
         return converter
     }

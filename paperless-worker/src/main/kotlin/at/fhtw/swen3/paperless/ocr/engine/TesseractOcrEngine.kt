@@ -1,17 +1,15 @@
 package at.fhtw.swen3.paperless.ocr.engine
 
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Component
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Comparator
 import java.util.concurrent.TimeUnit
-import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Component
 
 @Component
-class TesseractOcrEngine(
-    private val properties: OcrWorkerProperties
-) : OcrEngine {
+class TesseractOcrEngine(private val properties: OcrWorkerProperties) : OcrEngine {
     override fun extractText(source: Path): String {
         if (!Files.isRegularFile(source)) {
             throw OcrEngineException("Source file not found: $source")
@@ -23,7 +21,7 @@ class TesseractOcrEngine(
                 "[OCR] - ACTION: rasterizePdf: pages: {}, dpi: {}, timeout: {}",
                 pages.size,
                 properties.dpi,
-                properties.processTimeout
+                properties.processTimeout,
             )
             return pages.map { ocrPage(workDir, it) }
                 .filter(String::isNotBlank)
@@ -42,13 +40,15 @@ class TesseractOcrEngine(
             workDir = workDir,
             name = "gs",
             args = listOf(
-                "-dNOPAUSE", "-dBATCH", "-dSAFER", "-dQUIET",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dSAFER",
+                "-dQUIET",
                 "-sDEVICE=png16m",
                 "-r${properties.dpi}",
                 "-sOutputFile=${workDir.resolve(PAGE_TEMPLATE)}",
-                source.toString()
+                source.toString(),
             ),
-            stdout = ProcessBuilder.Redirect.DISCARD
         )
         val pages = Files.list(workDir).use { stream ->
             stream.filter { isPageImage(it) }.toList()
@@ -66,7 +66,6 @@ class TesseractOcrEngine(
             workDir = workDir,
             name = "tesseract",
             args = listOf(page.toString(), workDir.resolve(baseName).toString(), "-l", properties.tesseractLanguages),
-            stdout = ProcessBuilder.Redirect.DISCARD
         )
         if (!Files.isRegularFile(textFile)) {
             throw OcrEngineException("Tesseract produced no output for $page")
@@ -74,16 +73,16 @@ class TesseractOcrEngine(
         return Files.readString(textFile).trim()
     }
 
-    private fun runProcess(workDir: Path, name: String, args: List<String>, stdout: ProcessBuilder.Redirect) {
+    private fun runProcess(workDir: Path, name: String, args: List<String>) {
         val stderr = workDir.resolve("$name.stderr.log")
         val process = ProcessBuilder(listOf(name) + args)
-            .redirectOutput(stdout)
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.to(stderr.toFile()))
             .start()
         if (!process.waitFor(properties.processTimeout.toMillis(), TimeUnit.MILLISECONDS)) {
             process.destroyForcibly()
             throw OcrEngineException(
-                "$name timed out after ${properties.processTimeout.toSeconds()}s for args: ${args.joinToString(" ")}"
+                "$name timed out after ${properties.processTimeout.toSeconds()}s for args: ${args.joinToString(" ")}",
             )
         }
         val exit = process.exitValue()
@@ -93,20 +92,18 @@ class TesseractOcrEngine(
         }
     }
 
-    private fun readDetail(stderr: Path): String =
-        if (Files.isRegularFile(stderr)) {
-            Files.readString(stderr).take(MAX_DETAIL_LENGTH).trim()
-        } else {
-            "no output captured"
-        }
+    private fun readDetail(stderr: Path): String = if (Files.isRegularFile(stderr)) {
+        Files.readString(stderr).take(MAX_DETAIL_LENGTH).trim()
+    } else {
+        "no output captured"
+    }
 
     private fun isPageImage(file: Path): Boolean {
         val name = file.fileName.toString()
         return name.startsWith("page-") && name.endsWith(".png")
     }
 
-    private fun pageOrder(file: Path): Int =
-        file.fileName.toString().removePrefix("page-").removeSuffix(".png").toInt()
+    private fun pageOrder(file: Path): Int = file.fileName.toString().removePrefix("page-").removeSuffix(".png").toInt()
 
     private companion object {
         const val TEMP_DIR_PREFIX = "paperless-ocr-"

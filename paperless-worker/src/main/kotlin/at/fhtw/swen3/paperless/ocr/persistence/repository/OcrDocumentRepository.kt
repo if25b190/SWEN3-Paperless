@@ -2,11 +2,11 @@ package at.fhtw.swen3.paperless.ocr.persistence.repository
 
 import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
 import jakarta.persistence.LockModeType
-import java.util.UUID
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.util.UUID
 
 interface OcrDocumentRepository : JpaRepository<WorkerDocumentEntity, UUID> {
 

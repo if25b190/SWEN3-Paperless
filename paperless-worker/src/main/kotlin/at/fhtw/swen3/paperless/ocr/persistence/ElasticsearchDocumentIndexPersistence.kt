@@ -3,23 +3,23 @@ package at.fhtw.swen3.paperless.ocr.persistence
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.model.IndexedDocument
 import co.elastic.clients.elasticsearch.ElasticsearchClient
-import co.elastic.clients.elasticsearch.core.IndexRequest
-import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
-import co.elastic.clients.elasticsearch.indices.ExistsRequest
 import co.elastic.clients.elasticsearch._types.mapping.DateProperty
 import co.elastic.clients.elasticsearch._types.mapping.KeywordProperty
 import co.elastic.clients.elasticsearch._types.mapping.Property
 import co.elastic.clients.elasticsearch._types.mapping.TextProperty
+import co.elastic.clients.elasticsearch.core.IndexRequest
+import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
+import co.elastic.clients.elasticsearch.indices.ExistsRequest
 import jakarta.annotation.PostConstruct
-import java.time.Instant
-import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
+import java.time.Instant
+import java.util.UUID
 
 @Repository
 class ElasticsearchDocumentIndexPersistence(
     private val client: ElasticsearchClient,
-    private val properties: OcrWorkerProperties
+    private val properties: OcrWorkerProperties,
 ) : DocumentIndexPersistence {
 
     @PostConstruct
@@ -36,7 +36,7 @@ class ElasticsearchDocumentIndexPersistence(
                                     .properties(FIELD_CONTENT) { property -> property.text(textProperty()) }
                                     .properties(FIELD_INDEXED_AT) { property -> property.date(dateProperty()) }
                             }
-                    }
+                    },
                 )
                 logger.info("[INDEX] - ACTION: ensureIndex: indexName: {}, created: {}", properties.indexName, true)
             }
@@ -44,7 +44,7 @@ class ElasticsearchDocumentIndexPersistence(
             logger.warn(
                 "[INDEX] - ACTION: ensureIndex: indexName: {}, exceptionType: {}",
                 properties.indexName,
-                exception.javaClass.name
+                exception.javaClass.name,
             )
         }
     }
@@ -56,13 +56,13 @@ class ElasticsearchDocumentIndexPersistence(
                     .index(properties.indexName)
                     .id(documentId.toString())
                     .document(IndexedDocument(documentId.toString(), ocrContent, Instant.now()))
-            }
+            },
         )
         logger.info(
             "[INDEX] - ACTION: index: documentId: {}, indexName: {}, contentLength: {}",
             documentId,
             properties.indexName,
-            ocrContent.length
+            ocrContent.length,
         )
     }
 

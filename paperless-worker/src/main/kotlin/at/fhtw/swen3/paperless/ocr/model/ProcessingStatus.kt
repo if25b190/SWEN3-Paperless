@@ -5,5 +5,5 @@ enum class ProcessingStatus {
     OCR_IN_PROGRESS,
     GENAI_IN_PROGRESS,
     COMPLETED,
-    FAILED
+    FAILED,
 }

@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.ocr
 
+import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
 import at.fhtw.swen3.paperless.ocr.engine.TesseractOcrEngine
@@ -35,7 +36,7 @@ import java.util.UUID
 class OcrPipelineIntegrationTest(
     @Autowired private val persistence: JpaOcrDocumentPersistence,
     @Autowired private val entityManager: EntityManager,
-    @Autowired private val mapper: WorkerDocumentEntityMapper
+    @Autowired private val mapper: WorkerDocumentEntityMapper,
 ) {
     private var storageDir: Path = Files.createTempDirectory("paperless-pipeline-test")
     private val indexedDocuments = mutableListOf<Pair<UUID, String>>()
@@ -62,14 +63,14 @@ class OcrPipelineIntegrationTest(
 
         // then
         val loaded = loadDocument()
-        val content = loaded.ocrContent
+        val content = requireNotNull(loaded.ocrContent)
         assertThat(loaded.status).isEqualTo(ProcessingStatus.COMPLETED)
         assertThat(content).contains("INVOICE #9821")
         assertThat(content).contains("142.50")
         // Both pages are present and in order.
-        assertThat(content!!.indexOf("9821")).isLessThan(content!!.indexOf("73459"))
+        assertThat(content.indexOf("9821")).isLessThan(content.indexOf("73459"))
         // The extracted text was handed to the index with the document id.
-        assertThat(indexedDocuments).containsExactly(documentId to content!!)
+        assertThat(indexedDocuments).containsExactly(documentId to content)
     }
 
     @Test
@@ -95,7 +96,9 @@ class OcrPipelineIntegrationTest(
         val request = OcrRequest(UUID.randomUUID(), documentId, "documents/absent.pdf", "application/pdf")
 
         // when / then
-        assertThatThrownBy { service.process(request) }.isInstanceOf(OcrEngineException::class.java)
+        assertThatThrownBy {
+            service.process(request)
+        }.isInstanceOf(AppException::class.java).hasCauseInstanceOf(OcrEngineException::class.java)
         val loaded = loadDocument()
         assertThat(loaded.status).isEqualTo(ProcessingStatus.FAILED)
         assertThat(loaded.ocrContent).isNull()
@@ -106,12 +109,11 @@ class OcrPipelineIntegrationTest(
         entityManager.flush()
     }
 
-    private fun recordingIndex() =
-        object : DocumentIndexPersistence {
-            override fun index(documentId: UUID, ocrContent: String) {
-                indexedDocuments += documentId to ocrContent
-            }
+    private fun recordingIndex() = object : DocumentIndexPersistence {
+        override fun index(documentId: UUID, ocrContent: String) {
+            indexedDocuments += documentId to ocrContent
         }
+    }
 
     private fun loadDocument(): WorkerDocumentEntity {
         val entity = requireNotNull(entityManager.find(WorkerDocumentEntity::class.java, documentId))

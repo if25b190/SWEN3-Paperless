@@ -23,4 +23,5 @@ spring:
 
 paperless:
   worker:
+    enabled: false
     storage-dir: /tmp/paperless-worker-test

@@ -2,8 +2,8 @@ openapi: 3.0.3
 info:
   title: Paperless OCR Worker
   description: |
-    Broker message contract of the `paperless.ocr` queue.
-    The backend publishes `OcrRequestDTO` messages on the `paperless.ocr`
+    Broker message contract of the `paperless.ocr.requests` queue.
+    The backend publishes JSON `OcrRequest` messages on the `paperless.ocr`
     exchange (routing key `document.uploaded`) after a document upload;
     the worker consumes and processes them.
   version: 1.0.0

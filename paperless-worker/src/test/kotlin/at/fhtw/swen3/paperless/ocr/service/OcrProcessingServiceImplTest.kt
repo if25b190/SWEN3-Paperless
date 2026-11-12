@@ -1,5 +1,6 @@
 package at.fhtw.swen3.paperless.ocr.service
 
+import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
@@ -8,19 +9,19 @@ import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.OcrDocumentPersistence
+import at.fhtw.swen3.paperless.testsupport.any
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import at.fhtw.swen3.paperless.testsupport.any
 import org.mockito.InOrder
 import org.mockito.Mock
-import org.mockito.Mockito.`when`
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
+import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
 import java.nio.file.Paths
 import java.util.UUID
@@ -41,19 +42,29 @@ class OcrProcessingServiceImplTest {
     private val documentId = UUID.randomUUID()
     private val request = OcrRequest(UUID.randomUUID(), documentId, "documents/abc_invoice.pdf", "application/pdf")
 
-    private fun claimedDocument() = WorkerDocument(documentId, ProcessingStatus.OCR_IN_PROGRESS, null, 1)
+    private fun pendingDocument() = WorkerDocument(documentId, ProcessingStatus.PENDING, null, 0)
+
+    private fun claimedDocument() = pendingDocument().copy(status = ProcessingStatus.OCR_IN_PROGRESS, version = 1)
+
+    private fun completedDocument(status: ProcessingStatus = ProcessingStatus.COMPLETED) =
+        claimedDocument().copy(status = status, ocrContent = "text")
+
+    private fun failedDocument() = claimedDocument().copy(status = ProcessingStatus.FAILED)
 
     private lateinit var service: OcrProcessingServiceImpl
 
     @BeforeEach
     fun setUp() {
         service = OcrProcessingServiceImpl(documents, engine, index, properties)
+        org.mockito.Mockito.lenient().doAnswer { invocation ->
+            invocation.getArgument<WorkerDocument>(0).copy(version = 1)
+        }.`when`(documents).update(any())
     }
 
     @Test
     fun claim_then_engine_then_complete_ok() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         `when`(engine.extractText(any())).thenReturn("INVOICE #9821")
 
         // when
@@ -61,83 +72,111 @@ class OcrProcessingServiceImplTest {
 
         // then
         val ordered: InOrder = inOrder(documents, engine, index)
-        ordered.verify(documents).claim(documentId)
+        ordered.verify(documents).findLockedById(documentId)
         ordered.verify(engine).extractText(storageDir.resolve("abc_invoice.pdf"))
         ordered.verify(index).index(documentId, "INVOICE #9821")
-        ordered.verify(documents).complete(documentId, "INVOICE #9821", ProcessingStatus.COMPLETED)
-        verify(documents, never()).fail(documentId)
+        ordered.verify(
+            documents,
+        ).update(claimedDocument().copy(ocrContent = "INVOICE #9821", status = ProcessingStatus.COMPLETED))
+        verify(documents, never()).update(failedDocument())
     }
 
     @Test
-    fun duplicate_message_is_skipped_ok() {
+    fun deleted_document_is_skipped_ok() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(null)
+        `when`(documents.findLockedById(documentId)).thenReturn(null)
 
         // when
         service.process(request)
 
         // then
-        verifyNoInteractions(engine)
-        verifyNoInteractions(index)
-        verify(documents, never()).complete(any(), any(), any())
-        verify(documents, never()).fail(documentId)
+        verifyNoInteractions(engine, index)
+        verify(documents, never()).update(any())
     }
 
     @Test
     fun engine_failure_marks_document_failed_and_rethrows_ko() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         val failure = OcrEngineException("tesseract exited with code 2: no image")
         doThrow(failure).`when`(engine).extractText(any())
 
         // when / then
         val ordered: InOrder = inOrder(documents, engine)
-        assertThatThrownBy { service.process(request) }.isInstanceOf(OcrEngineException::class.java).isSameAs(failure)
+        assertThatThrownBy { service.process(request) }.isInstanceOf(AppException::class.java).hasCause(failure)
         ordered.verify(engine).extractText(any())
-        ordered.verify(documents).fail(documentId)
+        ordered.verify(documents).update(failedDocument())
         verify(index, never()).index(any(), any())
-        verify(documents, never()).complete(any(), any(), any())
+        verify(documents, never()).update(completedDocument())
     }
 
     @Test
     fun index_failure_marks_document_failed_and_rethrows_ko() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         `when`(engine.extractText(any())).thenReturn("text")
         val failure = IllegalStateException("elasticsearch unavailable")
         doThrow(failure).`when`(index).index(documentId, "text")
 
         // when / then
         val ordered: InOrder = inOrder(engine, index, documents)
-        assertThatThrownBy { service.process(request) }.isInstanceOf(IllegalStateException::class.java).isSameAs(failure)
+        assertThatThrownBy { service.process(request) }.isInstanceOf(AppException::class.java).hasCause(failure)
         ordered.verify(index).index(documentId, "text")
-        ordered.verify(documents).fail(documentId)
-        verify(documents, never()).complete(any(), any(), any())
+        ordered.verify(documents).update(failedDocument())
+        verify(documents, never()).update(completedDocument())
     }
 
     @Test
-    fun complete_failure_marks_document_failed_and_rethrows_ko() {
+    fun complete_failure_propagates_for_transaction_rollback_ko() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         `when`(engine.extractText(any())).thenReturn("text")
         val failure = IllegalStateException("database unavailable")
-        doThrow(failure).`when`(documents).complete(documentId, "text", ProcessingStatus.COMPLETED)
+        doThrow(failure).`when`(documents).update(completedDocument())
 
         // when / then
-        assertThatThrownBy { service.process(request) }.isInstanceOf(IllegalStateException::class.java).isSameAs(failure)
-        verify(documents).fail(documentId)
+        assertThatThrownBy { service.process(request) }.isSameAs(failure)
+        verify(documents, never()).update(failedDocument())
     }
 
     @Test
-    fun mark_failed_swallows_persistence_error_ko() {
+    fun failure_to_store_failed_status_rolls_back_attempt_ko() {
         // given
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         val failure = OcrEngineException("gs exited with code 2")
         doThrow(failure).`when`(engine).extractText(any())
-        doThrow(IllegalStateException("database unavailable")).`when`(documents).fail(documentId)
+        val databaseFailure = IllegalStateException("database unavailable")
+        doThrow(databaseFailure).`when`(documents).update(failedDocument())
 
         // when / then
-        assertThatThrownBy { service.process(request) }.isInstanceOf(OcrEngineException::class.java).isSameAs(failure)
+        assertThatThrownBy { service.process(request) }.isSameAs(databaseFailure).hasSuppressedException(failure)
+    }
+
+    @Test
+    fun completed_document_is_skipped_ok() {
+        // given
+        `when`(documents.findLockedById(documentId)).thenReturn(completedDocument())
+
+        // when
+        service.process(request)
+
+        // then
+        verifyNoInteractions(engine, index)
+        verify(documents, never()).update(any())
+    }
+
+    @Test
+    fun failed_document_is_retried_ok() {
+        // given
+        `when`(documents.findLockedById(documentId)).thenReturn(failedDocument())
+        `when`(engine.extractText(any())).thenReturn("text")
+
+        // when
+        service.process(request)
+
+        // then
+        verify(engine).extractText(storageDir.resolve("abc_invoice.pdf"))
+        verify(documents).update(completedDocument())
     }
 
     @Test
@@ -145,13 +184,13 @@ class OcrProcessingServiceImplTest {
         // given
         val genaiProperties = properties.copy(finalStatus = ProcessingStatus.GENAI_IN_PROGRESS)
         val genaiService = OcrProcessingServiceImpl(documents, engine, index, genaiProperties)
-        `when`(documents.claim(documentId)).thenReturn(claimedDocument())
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         `when`(engine.extractText(any())).thenReturn("text")
 
         // when
         genaiService.process(request)
 
         // then
-        verify(documents).complete(documentId, "text", ProcessingStatus.GENAI_IN_PROGRESS)
+        verify(documents).update(completedDocument(ProcessingStatus.GENAI_IN_PROGRESS))
     }
 }

@@ -6,6 +6,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("org.openapi.generator") version "7.11.0"
     kotlin("kapt") version "2.3.21"
+    id("com.diffplug.spotless") version "8.11.0"
 }
 
 group = "at.fhtw.swen3"
@@ -92,4 +93,11 @@ allOpen {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+spotless {
+    kotlin {
+        target("src/**/*.kt")
+        ktlint().editorConfigOverride(mapOf("max_line_length" to "120"))
+    }
 }

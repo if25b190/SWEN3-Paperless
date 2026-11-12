@@ -25,5 +25,5 @@ class WorkerDocumentEntity(
     @Column(nullable = false)
     var version: Long = 0,
     @Column(nullable = false)
-    var updatedAt: Instant = Instant.now()
+    var updatedAt: Instant = Instant.now(),
 )

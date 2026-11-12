@@ -28,7 +28,7 @@ import java.util.UUID
 @EnabledIf("elasticsearchAvailable")
 class ElasticsearchIndexingIntegrationTest(
     @Autowired private val client: ElasticsearchClient,
-    @Autowired private val properties: OcrWorkerProperties
+    @Autowired private val properties: OcrWorkerProperties,
 ) {
     private var indexName: String = ""
     private lateinit var persistence: ElasticsearchDocumentIndexPersistence
@@ -57,11 +57,16 @@ class ElasticsearchIndexingIntegrationTest(
         client.indices().refresh { it.index(indexName) }
 
         // then
-        val stored = client.get(GetRequest.of { it.index(indexName).id(documentId.toString()) }, IndexedDocument::class.java).source()
+        val stored = client.get(
+            GetRequest.of {
+                it.index(indexName).id(documentId.toString())
+            },
+            IndexedDocument::class.java,
+        ).source()
         assertAll(
             { assertThat(stored).isNotNull },
             { assertThat(stored?.id).isEqualTo(documentId.toString()) },
-            { assertThat(stored?.content).isEqualTo("the quick red fox") }
+            { assertThat(stored?.content).isEqualTo("the quick red fox") },
         )
     }
 
@@ -77,11 +82,21 @@ class ElasticsearchIndexingIntegrationTest(
         client.indices().refresh { it.index(indexName) }
 
         // then
-        val firstStored = client.get(GetRequest.of { it.index(indexName).id(first.toString()) }, IndexedDocument::class.java).source()
-        val secondStored = client.get(GetRequest.of { it.index(indexName).id(second.toString()) }, IndexedDocument::class.java).source()
+        val firstStored = client.get(
+            GetRequest.of {
+                it.index(indexName).id(first.toString())
+            },
+            IndexedDocument::class.java,
+        ).source()
+        val secondStored = client.get(
+            GetRequest.of {
+                it.index(indexName).id(second.toString())
+            },
+            IndexedDocument::class.java,
+        ).source()
         assertAll(
             { assertThat(firstStored?.content).isEqualTo("first document") },
-            { assertThat(secondStored?.content).isEqualTo("second document") }
+            { assertThat(secondStored?.content).isEqualTo("second document") },
         )
     }
 

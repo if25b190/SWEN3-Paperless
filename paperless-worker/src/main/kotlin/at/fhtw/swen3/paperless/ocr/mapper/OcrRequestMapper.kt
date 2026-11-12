@@ -10,7 +10,7 @@ import org.mapstruct.ReportingPolicy
 @Mapper(
     componentModel = MappingConstants.ComponentModel.SPRING,
     injectionStrategy = InjectionStrategy.CONSTRUCTOR,
-    unmappedTargetPolicy = ReportingPolicy.ERROR
+    unmappedTargetPolicy = ReportingPolicy.ERROR,
 )
 interface OcrRequestMapper {
     fun fromDto(dto: OcrRequestDTO): OcrRequest

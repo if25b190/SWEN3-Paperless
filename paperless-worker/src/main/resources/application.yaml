@@ -9,6 +9,9 @@ spring:
     connection-timeout: 5s
     listener:
       simple:
+        auto-startup: ${paperless.worker.enabled:true}
+        acknowledge-mode: auto
+        prefetch: 1
         concurrency: ${OCR_WORKER_CONCURRENCY:1}
         default-requeue-rejected: false
         retry:

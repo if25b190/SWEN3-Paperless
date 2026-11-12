@@ -5,6 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.3-SNAPSHOT]
 
+### Changed
+- Listener startup now follows Spring's container configuration, including
+  `paperless.worker.enabled` / `WORKER_ENABLED`, so disabled tests do not contact a broker.
+  AUTO acknowledgment happens after the processing transaction finishes; prefetch is one
+  document per consumer. JSON conversion uses the listener DTO's inferred type and trusts
+  only the worker DTO package.
+- The processing service now owns its transaction and status guards, matching the backend.
+  The JPA adapter only locks, maps, checks versions, updates, and flushes domain values.
+  Each attempt holds the document lock through extraction and indexing, preventing duplicate
+  processing and rolling back an interrupted attempt's claim. This also holds a database
+  connection during OCR; size worker concurrency and the connection pool accordingly.
+- A handled processing failure commits `FAILED` using a domain `AppException` with an explicit
+  rollback exception, then propagates to the listener. Database failures still roll back.
+  The default three retries mean four total attempts before dead lettering.
+- Spotless/ktlint now enforce worker formatting in the Gradle check and CI. Architecture tests
+  check the persistence boundary and prohibit service-to-service dependencies.
+- Broker integration tests cover backend type headers, plain JSON, duplicate delivery,
+  recovery on retry, exhausted retries, and malformed messages using isolated queues and H2.
+  CI runs these against RabbitMQ. Locally, set `PAPERLESS_RABBITMQ_TEST=true` and provide
+  `RABBITMQ_HOST`, `RABBITMQ_USER`, and `RABBITMQ_PASS` before running `./gradlew test`.
+
 ### Added
 - New standalone Spring Boot (Kotlin) application `paperless-worker` that runs the OCR worker
   service. It consumes `OcrRequest` messages from the RabbitMQ queue `paperless.ocr.requests`
@@ -18,7 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`WorkerDocumentEntityMapper` in the same shape as the backend's `TeamEntityMapper`:
   `toModel` / `toEntity` / `applyTo`, `componentModel = "spring"`, constructor injection,
   `unmappedTargetPolicy = ERROR`).
-- `OcrWorker` Rabbit listener (`ocr/worker/`) with `autoStartup` bound to `paperless.worker.enabled`
+- `OcrWorker` Rabbit listener (`ocr/worker/`) with container startup bound to `paperless.worker.enabled`
   so the queue is only consumed when the worker is explicitly enabled. The listener binds the
   wire format `OcrRequestDTO` (`ocr/dto/`) and maps it to the `OcrRequest` model through
   `OcrRequestMapper` (`ocr/mapper/`) in the same style as the backend's `TeamMapper`
@@ -34,17 +55,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (`ApiUtil`, `Exceptions`, `SpringDocConfiguration`), which would not compile without a web
   stack. `swagger-annotations-jakarta` is added for the generated `@Schema` annotations.
 - `OcrProcessingService` / `OcrProcessingServiceImpl` (`ocr/service/`) implementing the
-  claim → extract → complete/fail flow. The service is intentionally **not** `@Transactional`
-  because the Ghostscript/Tesseract run takes seconds to minutes and must not hold a database
-  connection open; each persistence call opens its own short transaction.
-  - `claim(documentId)` moves the document `PENDING → OCR_IN_PROGRESS` under a
-    `PESSIMISTIC_WRITE` row lock (the same `findLockedById` + `applyTo` + flush pattern the
-    backend uses), which gives at-least-once delivery idempotency: a duplicate job for an
-    already-claimed document is skipped instead of reprocessed.
-  - On success the document is written with the extracted `ocrContent` and the configured
-    `finalStatus` (default `COMPLETED`).
-  - On failure the document is marked `FAILED` and the exception is rethrown so the message is
-    retried and, after exhaustion, routed to the `paperless.ocr.failed` dead-letter queue.
+  locked lookup → claim → extract → index → complete/fail flow. Only pending or failed
+  documents are processed; completed and already in-progress documents are skipped.
+  Status changes use immutable domain model copies, and services never receive JPA entities.
 - `TesseractOcrEngine` (`ocr/engine/`) implementing the `OcrEngine` port. It rasterizes each PDF
   page to PNG with **Ghostscript** (`gs -sDEVICE=png16m -r<DPI>`) and then runs **Tesseract**
   (`tesseract <png> <out> -l <languages>`) on each page, concatenating the per-page text. Both

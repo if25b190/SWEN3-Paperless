@@ -8,14 +8,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.stereotype.Component
 
 @Component
-class OcrWorker(
-    private val service: OcrProcessingService,
-    private val mapper: OcrRequestMapper
-) {
-    @RabbitListener(
-        queues = ["\${paperless.ocr.queue:paperless.ocr.requests}"],
-        autoStartup = "\${paperless.worker.enabled:true}"
-    )
+class OcrWorker(private val service: OcrProcessingService, private val mapper: OcrRequestMapper) {
+    @RabbitListener(id = "ocrWorker", queues = ["\${paperless.ocr.queue:paperless.ocr.requests}"])
     fun process(dto: OcrRequestDTO) {
         val request = mapper.fromDto(dto)
         logger.info("[OCR] - ACTION: process: jobId: {}, documentId: {}", request.jobId, request.documentId)

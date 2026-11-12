@@ -1,14 +1,13 @@
 package at.fhtw.swen3.paperless.ocr.persistence
 
-import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
 import at.fhtw.swen3.paperless.ocr.persistence.mapper.WorkerDocumentEntityMapper
 import at.fhtw.swen3.paperless.ocr.persistence.mapper.WorkerDocumentEntityMapperImpl
-import at.fhtw.swen3.paperless.ocr.persistence.repository.OcrDocumentRepository
 import jakarta.persistence.EntityManager
+import jakarta.persistence.OptimisticLockException
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.BeforeEach
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
@@ -17,139 +16,78 @@ import java.util.UUID
 
 @DataJpaTest
 @Import(JpaOcrDocumentPersistence::class, WorkerDocumentEntityMapperImpl::class)
-class JpaOcrDocumentPersistenceTest(
-    @Autowired private val repository: OcrDocumentRepository,
-    @Autowired private val entityManager: EntityManager,
-    @Autowired private val persistence: OcrDocumentPersistence,
-    @Autowired private val mapper: WorkerDocumentEntityMapper
-) {
-    private var documentId: UUID = UUID.randomUUID()
+class JpaOcrDocumentPersistenceTest {
+    @Autowired
+    lateinit var persistence: OcrDocumentPersistence
 
-    @BeforeEach
-    fun setUp() {
-        documentId = UUID.randomUUID()
-    }
+    @Autowired
+    lateinit var entityManager: EntityManager
+
+    @Autowired
+    lateinit var mapper: WorkerDocumentEntityMapper
 
     @Test
-    fun claim_pending_document_ok() {
+    fun locked_lookup_preserves_domain_fields_ok() {
         // given
-        saveDocument(ProcessingStatus.PENDING)
+        val document = saveDocument()
 
         // when
-        val claimed = persistence.claim(documentId)
+        val loaded = persistence.findLockedById(document.id)
 
         // then
-        assertThat(claimed).isNotNull()
-        assertThat(claimed!!.id).isEqualTo(documentId)
-        assertThat(claimed.status).isEqualTo(ProcessingStatus.OCR_IN_PROGRESS)
-        assertThat(claimed.ocrContent).isNull()
-        assertThat(claimed.version).isEqualTo(1)
-        val loaded = loadDocument()
-        assertThat(loaded.status).isEqualTo(ProcessingStatus.OCR_IN_PROGRESS)
-        assertThat(loaded.version).isEqualTo(1)
+        assertThat(loaded).isEqualTo(document)
     }
 
     @Test
-    fun claim_failed_document_allows_retry_ok() {
+    fun unknown_document_returns_null_ok() {
+        // when
+        val loaded = persistence.findLockedById(UUID.randomUUID())
+
+        // then
+        assertThat(loaded).isNull()
+    }
+
+    @Test
+    fun update_maps_content_status_and_version_ok() {
         // given
-        saveDocument(ProcessingStatus.FAILED)
+        val document = saveDocument()
+        val update = document.copy(status = ProcessingStatus.COMPLETED, ocrContent = "INVOICE #9821")
 
         // when
-        val claimed = persistence.claim(documentId)
-
-        // then
-        assertThat(claimed).isNotNull()
-        assertThat(claimed!!.status).isEqualTo(ProcessingStatus.OCR_IN_PROGRESS)
-        assertThat(loadDocument().status).isEqualTo(ProcessingStatus.OCR_IN_PROGRESS)
-    }
-
-    @Test
-    fun claim_in_progress_document_returns_false_ok() {
-        // given
-        saveDocument(ProcessingStatus.OCR_IN_PROGRESS)
-
-        // when
-        val claimed = persistence.claim(documentId)
-
-        // then
-        assertThat(claimed).isNull()
-        assertThat(loadDocument().status).isEqualTo(ProcessingStatus.OCR_IN_PROGRESS)
-    }
-
-    @Test
-    fun claim_completed_document_returns_false_ok() {
-        // given
-        saveDocument(ProcessingStatus.COMPLETED)
-
-        // when
-        val claimed = persistence.claim(documentId)
-
-        // then
-        assertThat(claimed).isNull()
-        assertThat(loadDocument().status).isEqualTo(ProcessingStatus.COMPLETED)
-    }
-
-    @Test
-    fun claim_unknown_document_returns_false_ok() {
-        // when
-        val claimed = persistence.claim(UUID.randomUUID())
-
-        // then
-        assertThat(claimed).isNull()
-    }
-
-    @Test
-    fun complete_stores_text_and_terminal_status_ok() {
-        // given
-        saveDocument(ProcessingStatus.OCR_IN_PROGRESS)
-
-        // when
-        persistence.complete(documentId, "INVOICE #9821", ProcessingStatus.COMPLETED)
-
-        // then
-        val loaded = loadDocument()
-        assertThat(loaded.status).isEqualTo(ProcessingStatus.COMPLETED)
-        assertThat(loaded.ocrContent).isEqualTo("INVOICE #9821")
-        assertThat(loaded.version).isEqualTo(1)
-    }
-
-    @Test
-    fun complete_ignores_document_not_in_progress_ok() {
-        // given
-        saveDocument(ProcessingStatus.PENDING)
-
-        // when
-        persistence.complete(documentId, "text", ProcessingStatus.COMPLETED)
-
-        // then
-        val loaded = loadDocument()
-        assertThat(loaded.status).isEqualTo(ProcessingStatus.PENDING)
-        assertThat(loaded.ocrContent).isNull()
-    }
-
-    @Test
-    fun fail_marks_document_failed_ok() {
-        // given
-        saveDocument(ProcessingStatus.OCR_IN_PROGRESS)
-
-        // when
-        persistence.fail(documentId)
-
-        // then
-        val loaded = loadDocument()
-        assertThat(loaded.status).isEqualTo(ProcessingStatus.FAILED)
-        assertThat(loaded.ocrContent).isNull()
-    }
-
-    private fun saveDocument(status: ProcessingStatus) {
-        entityManager.persist(mapper.toEntity(WorkerDocument(documentId, status, null, 0)))
-        entityManager.flush()
-    }
-
-    private fun loadDocument(): WorkerDocumentEntity {
-        // Evict the cached entity so the read returns the transitioned row
-        // from the database.
+        val saved = persistence.update(update)
         entityManager.clear()
-        return requireNotNull(repository.findById(documentId).orElse(null))
+
+        // then
+        assertThat(saved).isEqualTo(update.copy(version = 1))
+        assertThat(persistence.findLockedById(document.id)).isEqualTo(saved)
+    }
+
+    @Test
+    fun stale_version_is_rejected_ko() {
+        // given
+        val document = saveDocument()
+        persistence.update(document.copy(status = ProcessingStatus.OCR_IN_PROGRESS))
+
+        // when / then
+        assertThatThrownBy { persistence.update(document.copy(status = ProcessingStatus.COMPLETED)) }
+            .isInstanceOf(OptimisticLockException::class.java)
+    }
+
+    @Test
+    fun deleted_document_is_rejected_ko() {
+        // given
+        val document = WorkerDocument(UUID.randomUUID(), ProcessingStatus.PENDING, null, 0)
+
+        // when / then
+        assertThatThrownBy { persistence.update(document) }.isInstanceOf(OptimisticLockException::class.java)
+    }
+
+    private fun saveDocument(): WorkerDocument {
+        val document = WorkerDocument(UUID.randomUUID(), ProcessingStatus.PENDING, null, 0)
+        entityManager.persist(mapper.toEntity(document))
+        entityManager.flush()
+        entityManager.clear()
+
+        return document
     }
 }
