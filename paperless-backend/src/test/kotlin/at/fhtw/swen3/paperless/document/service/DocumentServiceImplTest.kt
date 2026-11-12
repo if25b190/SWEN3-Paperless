@@ -8,6 +8,7 @@ import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
+import at.fhtw.swen3.paperless.document.persistence.FileSystemDocumentStorage
 import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
@@ -87,7 +88,7 @@ class DocumentServiceImplTest {
         originalTempDirectory = System.getProperty("java.io.tmpdir")
         System.setProperty("java.io.tmpdir", tempDir.toString())
         actor = uuid(1)
-        service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs)
+        service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs, FileSystemDocumentStorage())
     }
 
     @AfterEach

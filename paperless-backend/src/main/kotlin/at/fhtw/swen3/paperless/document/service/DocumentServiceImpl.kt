@@ -6,6 +6,7 @@ import at.fhtw.swen3.paperless.document.model.DocumentUpload
 import at.fhtw.swen3.paperless.document.model.ProcessingStatus
 import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
+import at.fhtw.swen3.paperless.document.persistence.DocumentStoragePersistence
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
 import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
@@ -16,13 +17,10 @@ import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.ocr.model.OcrJob
 import at.fhtw.swen3.paperless.ocr.persistence.OcrJobPersistence
 import jakarta.validation.ConstraintViolationException
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import org.slf4j.LoggerFactory
-import org.springframework.core.io.FileSystemResource
+import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Page
@@ -40,10 +38,9 @@ class DocumentServiceImpl(
     private val repository: DocumentPersistence,
     private val referencesPersistence: DocumentReferencesPersistence,
     private val teamMemberRepository: TeamMemberPersistence,
-    private val ocrJobs: OcrJobPersistence
+    private val ocrJobs: OcrJobPersistence,
+    private val storage: DocumentStoragePersistence
 ) : DocumentService {
-
-    private val storageDirectory: Path = Paths.get(System.getProperty("java.io.tmpdir"), "paperless-documents")
 
     @Transactional(readOnly = true)
     override fun searchDocuments(
@@ -80,19 +77,13 @@ class DocumentServiceImpl(
         // the generated interface — enforce it here before the file is written.
         validateTitle(upload.title)
         val storageKey = "documents/${UUID.randomUUID()}_${safeFilename(upload.originalFilename)}"
-        val file = fileFor(storageKey)
-
         try {
-            Files.createDirectories(storageDirectory)
-            Files.write(file, upload.content)
-        } catch (exception: RuntimeException) {
-            Files.deleteIfExists(file)
-            throw exception
-        } catch (exception: java.io.IOException) {
-            Files.deleteIfExists(file)
+            storage.store(storageKey, upload.content, upload.contentType)
+        } catch (exception: Exception) {
+            deleteQuietly(storageKey)
             throw exception
         }
-        registerRollbackCleanup(file)
+        registerRollbackCleanup(storageKey)
 
         return try {
             val now = Instant.now()
@@ -118,7 +109,7 @@ class DocumentServiceImpl(
             logger.info("[DOCUMENT] - ACTION: uploadDocument: documentId: {}, actorId: {}", entity.id, actorId)
             entity
         } catch (exception: RuntimeException) {
-            Files.deleteIfExists(file)
+            deleteQuietly(storageKey)
             throw exception
         }
     }
@@ -182,7 +173,7 @@ class DocumentServiceImpl(
         requireWritable(existing, actorId, roles)
         repository.delete(existing)
         repository.flush()
-        existing.storageKey?.let { deleteAfterCommit(fileFor(it)) }
+        existing.storageKey?.let(::deleteAfterCommit)
         logger.info("[DOCUMENT] - ACTION: deleteDocument: documentId: {}, actorId: {}", id, actorId)
     }
 
@@ -190,9 +181,9 @@ class DocumentServiceImpl(
     override fun downloadDocument(actorId: UUID, id: UUID): Resource {
         val entity = requireReadable(findDocument(id), actorId)
         val storageKey = entity.storageKey ?: throw DocumentNotFoundException()
-        val resource = FileSystemResource(fileFor(storageKey))
-        if (!resource.exists() || !resource.isReadable) {
-            throw DocumentNotFoundException()
+        val content = storage.find(storageKey) ?: throw DocumentNotFoundException()
+        val resource = object : ByteArrayResource(content) {
+            override fun getFilename(): String = storageKey.substringAfterLast('/')
         }
         logger.debug("[DOCUMENT] - ACTION: downloadDocument: documentId: {}", id)
 
@@ -259,36 +250,34 @@ class DocumentServiceImpl(
         }
     }
 
-    private fun registerRollbackCleanup(file: Path) {
+    private fun registerRollbackCleanup(storageKey: String) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) return
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCompletion(status: Int) {
-                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) deleteQuietly(file)
+                if (status == TransactionSynchronization.STATUS_ROLLED_BACK) deleteQuietly(storageKey)
             }
         })
     }
 
-    private fun deleteAfterCommit(file: Path) {
+    private fun deleteAfterCommit(storageKey: String) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            Files.deleteIfExists(file)
+            deleteQuietly(storageKey)
             return
         }
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
-                deleteQuietly(file)
+                deleteQuietly(storageKey)
             }
         })
     }
 
-    private fun deleteQuietly(file: Path) {
+    private fun deleteQuietly(storageKey: String) {
         try {
-            Files.deleteIfExists(file)
+            storage.delete(storageKey)
         } catch (exception: Exception) {
             logger.warn("[DOCUMENT] - ACTION: deleteFileFailed: exceptionType: {}", exception.javaClass.name)
         }
     }
-
-    private fun fileFor(storageKey: String): Path = storageDirectory.resolve(storageKey.substringAfterLast('/'))
 
     private fun toSort(value: String): Sort {
         val parts = value.split(',', limit = 2)

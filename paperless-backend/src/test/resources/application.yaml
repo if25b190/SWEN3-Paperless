@@ -20,6 +20,8 @@ spring:
     open-in-view: false
 
 paperless:
+  storage:
+    type: local
   ocr:
     dispatch-enabled: false
 

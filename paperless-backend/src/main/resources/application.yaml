@@ -40,6 +40,13 @@ spring:
     open-in-view: false
 
 paperless:
+  storage:
+    type: ${DOCUMENT_STORAGE_TYPE:s3}
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:paperless-documents}
+    access-key: ${RUSTFS_ACCESS_KEY:paperless}
+    secret-key: ${RUSTFS_SECRET_KEY:paperless_secure_password}
   ocr:
     exchange: paperless.ocr
     queue: paperless.ocr.requests
