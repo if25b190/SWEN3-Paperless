@@ -60,7 +60,9 @@ services:
       ELASTIC_USER: ${ELASTIC_USER:-elastic}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
       OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
+      WORKER_LOG_PATH: /var/log/paperless-worker/events.jsonl
     volumes:
+      - worker-logs:/var/log/paperless-worker
       - document-files:/tmp/paperless-documents
 
   ui:
@@ -81,7 +83,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.5
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
     restart: unless-stopped
     ports:
       - "${ELASTICSEARCH_PORT:-9200}:9200"
@@ -96,6 +98,53 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.5
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    volumes:
+      - ./infra/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - worker-logs:/var/log/paperless-worker:ro
+      - logstash-data:/usr/share/logstash/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/pipelines/main"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.5
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      SERVER_HOST: "0.0.0.0"
+      TELEMETRY_ENABLED: "false"
+      NODE_OPTIONS: "--max-old-space-size=768"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:5601/api/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
 
   db:
     image: postgres:16-alpine
@@ -146,6 +195,9 @@ configs:
 volumes:
   document-files:
   elasticsearch-data:
+  logstash-data:
+  kibana-data:
+  worker-logs:
   postgres-data:
   rabbitmq-lib:
     driver: local

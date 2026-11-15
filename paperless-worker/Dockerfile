@@ -19,8 +19,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 # Security: run as non-root user
 RUN groupadd -r spring && useradd -r -g spring spring \
-    && mkdir -p /tmp/paperless-documents \
-    && chown spring:spring /tmp/paperless-documents
+    && mkdir -p /tmp/paperless-documents /var/log/paperless-worker \
+    && chown spring:spring /tmp/paperless-documents /var/log/paperless-worker
 USER spring:spring
 # Copy built artifact from builder stage (Gradle outputs to build/libs)
 COPY --from=builder /app/build/libs/*.jar app.jar

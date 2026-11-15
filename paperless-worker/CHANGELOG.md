@@ -72,6 +72,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and reindexes it; indexing by `documentId` is idempotent. The compose stack adds a single-node
   `elasticsearch` service (security disabled, data in the `elasticsearch-data` volume) that the
   worker depends on.
+- Structured event logging: every log event is appended as one JSON line to the
+  file configured by `paperless.worker.log-path` (environment `WORKER_LOG_PATH`,
+  default `/tmp/paperless-worker-events.jsonl`) via a `FileAppender` with the
+  `LogstashEncoder` (`net.logstash.logback:logstash-logback-encoder`) in
+  `src/main/resources/logback-spring.xml`, alongside the regular console output.
+  In the compose stack the file is mounted from the `worker-logs` volume and
+  tailed by the `logstash` service into the `paperless-worker-events`
+  Elasticsearch index for inspection in Kibana. The runtime image creates
+  `/var/log/paperless-worker` owned by the `spring` user so the volume mount is
+  writable.
 - RabbitMQ listener configuration (`ocr/config/OcrWorkerRabbitConfiguration.kt`) with retry
   (3 retries, exponential backoff) and `default-requeue-rejected: false` so failed messages reach
   the dead-letter queue rather than looping.

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+  <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+  <springProperty scope="context" name="workerLogPath"
+                  source="paperless.worker.log-path"
+                  defaultValue="/tmp/paperless-worker-events.jsonl"/>
+
+  <appender name="EVENTS" class="ch.qos.logback.core.FileAppender">
+    <file>${workerLogPath}</file>
+    <immediateFlush>true</immediateFlush>
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <!-- Keep the logback context (e.g. workerLogPath) out of the events. -->
+      <includeContext>false</includeContext>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="EVENTS"/>
+  </root>
+</configuration>

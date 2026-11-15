@@ -50,6 +50,8 @@ paperless:
     process-timeout: ${OCR_PROCESS_TIMEOUT:120s}
     final-status: ${OCR_FINAL_STATUS:COMPLETED}
     index-name: ${OCR_INDEX_NAME:paperless-documents}
+    # Structured event log consumed by Logstash (see infra/logstash/pipeline).
+    log-path: ${WORKER_LOG_PATH:/tmp/paperless-worker-events.jsonl}
 
 logging:
   level:

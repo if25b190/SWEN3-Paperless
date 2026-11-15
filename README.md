@@ -106,10 +106,18 @@ and then routed to the durable dead-letter queue `paperless.ocr.failed` through
 (`elasticsearch` service, security disabled) that the worker connects to via
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, and `ELASTIC_PASSWORD`.
 
+The same Elasticsearch instance also stores the worker's log events. The worker
+appends every log event as a JSON line to the file configured by
+`WORKER_LOG_PATH` (default `/tmp/paperless-worker-events.jsonl`); in the compose
+stack that file lives on the shared `worker-logs` volume, which the `logstash`
+service tails and writes to the `paperless-worker-events` index (pipeline in
+`infra/logstash/`). The `kibana` service (bound to
+`127.0.0.1:${KIBANA_PORT:-5601}`) provides the UI for both indices.
+
 Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
 `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
-and `OCR_INDEX_NAME`.
+`OCR_INDEX_NAME`, and `WORKER_LOG_PATH`.
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.
@@ -138,6 +146,12 @@ Follow container logs:
 ```bash
 docker compose --env-file .env.local logs -f
 ```
+
+Browse the worker's log events and the document search index in Kibana
+(http://localhost:5601 by default, bound to localhost only): in
+*Management → Stack Management → Data Views*, create a view for the
+`paperless-worker-events` or `paperless-documents` index, then open
+*Analytics → Discover*.
 
 ---
 

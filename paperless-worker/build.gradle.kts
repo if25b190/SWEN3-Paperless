@@ -32,6 +32,7 @@ dependencies {
     implementation("org.mapstruct:mapstruct:1.6.3")
     implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.55")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("net.logstash.logback:logstash-logback-encoder:9.0")
     runtimeOnly("org.postgresql:postgresql")
     runtimeOnly("com.h2database:h2")
 
