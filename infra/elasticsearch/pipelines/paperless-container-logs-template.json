@@ -1,0 +1,42 @@
+{
+  "index_patterns": [
+    "paperless-container-logs"
+  ],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.default_pipeline": "paperless-container-logs"
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "message": {
+          "type": "text"
+        },
+        "trace": {
+          "properties": {
+            "id": {
+              "type": "keyword"
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "name": {
+              "type": "keyword"
+            }
+          }
+        },
+        "log": {
+          "properties": {
+            "level": {
+              "type": "keyword"
+            }
+          }
+        }
+      }
+    }
+  }
+}

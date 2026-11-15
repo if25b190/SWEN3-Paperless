@@ -1,0 +1,7 @@
+api.http.host: "0.0.0.0"
+monitoring.enabled: false
+pipeline.ecs_compatibility: v8
+pipeline.workers: 1
+pipeline.batch.size: 50
+queue.type: persisted
+queue.max_bytes: 256mb

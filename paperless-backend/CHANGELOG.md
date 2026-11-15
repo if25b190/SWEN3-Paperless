@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.0.3-SNAPSHOT]
 
 ### Added
+- OpenTelemetry tracing via the OpenTelemetry Java agent
+  (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and
+  started with `-javaagent` through `JAVA_OPTS`): spans for HTTP requests,
+  database access, and RabbitMQ publish are exported as OTLP to the
+  OpenTelemetry collector (`OTEL_EXPORTER_OTLP_ENDPOINT`). The W3C
+  `traceparent` context propagates with OCR messages into the worker. The log
+  pattern now includes the current trace ID as `trace_id` (agent-injected
+  Logback MDC).
 - Project-local override of the openapi-generator `kotlin-spring` template
   (`openapi-templates/apiInterface.mustache`, wired via `templateDir` in `build.gradle.kts`) that
   appends a nullable `Authentication` parameter to every generated API method.

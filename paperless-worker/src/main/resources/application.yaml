@@ -55,7 +55,24 @@ paperless:
     index-name: ${OCR_INDEX_NAME:paperless-documents}
 
 logging:
+  file:
+    name: ${WORKER_LOG_FILE:}
+  structured:
+    format:
+      file: ecs
+    json:
+      rename:
+        trace_id: trace.id
+        span_id: span.id
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${WORKER_LOG_FILE:worker.json}.%d{yyyy-MM-dd}.%i
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
   level:
     at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
   pattern:
-    level: "%5p"
+    # trace_id is injected into the MDC by the OpenTelemetry Java agent's
+    # Logback MDC instrumentation (see Dockerfile).
+    level: "%5p [trace_id=%X{trace_id:-none}]"

@@ -43,6 +43,12 @@ This starts:
 - **`db`**: PostgreSQL 16 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
 - **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
+- **`elasticsearch`**: Elasticsearch — the OCR document search index and the log store
+- **`kibana`**: Kibana UI for browsing the search index and the logs
+- **`elastic-agent`**: [Elastic Agent](https://www.elastic.co/what-is/elastic-agent) — tails every service's container logs and ships them to Elasticsearch
+- **`otel-collector`**: [OpenTelemetry Collector](https://opentelemetry.io/) — receives the OTLP traces exported by the backend and worker
+- **`tempo`**: [Grafana Tempo](https://grafana.com/docs/tempo/) — trace store
+- **`grafana`**: [Grafana](https://grafana.com/) — dashboard for the logs and the traces
 
 ---
 
@@ -59,6 +65,8 @@ Once all services are healthy and running:
 | **PostgreSQL** | `localhost:5432` | Relational database (user/pass in `.env.local`) |
 | **RabbitMQ Management** | [http://localhost:15672](http://localhost:15672) | Queues and connections (credentials in `.env.local`) |
 | **RustFS Console** | [http://localhost:9001](http://localhost:9001) | Object storage (credentials in `.env.local`) |
+| **Grafana** | [http://localhost:3001](http://localhost:3001) | Observability dashboard — logs and traces (admin credentials in `.env.local`) |
+| **Tempo** | `localhost:3200` | Trace store HTTP API (used by the Grafana Tempo data source) |
 
 ---
 
@@ -70,8 +78,11 @@ Public registration (`POST /api/v1/users`) does not grant access to other users'
 
 Application logs default to `INFO`; set `PAPERLESS_LOG_LEVEL=DEBUG` in `.env.local`
 for request timing and search diagnostics. Each request returns an `X-Request-ID`
-that also appears in its application logs. See [Logging](docs/logging.md) for
-the recorded events and privacy rules.
+that also appears in its application logs. The applications additionally export
+distributed traces (OpenTelemetry): logs inside an active span carry a `trace_id` that
+selects the corresponding trace in the [Grafana](#4--viewing-logs--status)
+dashboard. See [Logging](docs/logging.md) for the recorded events and privacy
+rules.
 
 ### OCR Messaging
 
@@ -128,10 +139,49 @@ and then routed to the durable dead-letter queue `paperless.ocr.failed` through
 (`elasticsearch` service, security disabled) that the worker connects to via
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, and `ELASTIC_PASSWORD`.
 
+The same Elasticsearch instance also stores the worker's log events. The worker
+appends every log event as a JSON line to the file configured by
+`WORKER_LOG_FILE` (optional for native runs); in the compose
+stack that file lives on the shared `worker-logs` volume, which the `logstash`
+service tails and writes to the `paperless-worker-logs-*` index (pipeline in
+`infra/logstash/`). The `kibana` service (bound to
+`127.0.0.1:${KIBANA_PORT:-5601}`) provides the UI for both indices.
+
+The **`elastic-agent`** service (a standalone
+[Elastic Agent](https://www.elastic.co/what-is/elastic-agent)) collects a second
+class of logs: it tails the container logs of every service in the stack from the
+Docker log directory and ships them to Elasticsearch as the
+`paperless-container-logs` index. Before indexing, the
+`paperless-container-logs` [ingest pipeline](https://www.elastic.co/docs/reference/enrich-pipelines/ingest-pipelines)
+transforms each event. The pipeline is loaded at startup by the one-shot
+`elasticsearch-bootstrap` service (definition in
+`infra/elasticsearch/pipelines/`); it parses each Spring Boot log line into
+structured ECS fields — `log.level`, `log.logger`, `log.thread.name`,
+`http.request.id`, and `trace.id` — and tags lines that don't match the Spring
+Boot format with `paperless-log-unparsed`.
+
+The **`otel-collector`**, **`tempo`**, and **`grafana`** services provide
+distributed tracing (OpenTelemetry/APM). Both the backend and the worker create
+spans for HTTP requests, database access, and RabbitMQ publish/consume and
+export them as OTLP to the collector
+(`OTEL_EXPORTER_OTLP_ENDPOINT`, default `http://localhost:4317`). The W3C
+`traceparent` context travels with the OCR message in the AMQP headers, so the
+worker's processing joins its publisher's trace. The original upload HTTP trace
+is separate because the database outbox dispatches later without retaining trace
+context. Use `jobId` and `documentId` to correlate upload and dispatch.
+The collector forwards traces to **Tempo**, which stores them in `tempo-data`.
+Logs inside an active span carry the W3C trace ID: `trace_id` in console output,
+and `trace.id` in worker ECS JSON. Container ingestion also normalizes it to
+`trace.id`; startup logs have no active trace. The
+pre-provisioned **Paperless Observability** dashboard in Grafana (
+[http://localhost:3001](http://localhost:3001) by default, admin credentials in
+`.env.local`) shows the logs and the traces side by side; its definition lives
+in `infra/grafana/`.
+
 Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
 `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
-and `OCR_INDEX_NAME`.
+`OCR_INDEX_NAME`, `WORKER_LOG_FILE`, and `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 For a native backend, configure `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`,
 and `RABBITMQ_PASS`; Docker Compose supplies the broker hostname automatically.
@@ -160,6 +210,19 @@ Follow container logs:
 ```bash
 docker compose --env-file .env.local logs -f
 ```
+
+Browse the worker's log events, the document search index, and the container logs
+in Kibana (http://localhost:5601 by default, bound to localhost only): in
+*Management → Stack Management → Data Views*, create a view for the
+`paperless-worker-logs-*`, `paperless-documents`, or `paperless-container-logs`
+index, then open *Analytics → Discover*. In the `paperless-container-logs` view you
+can filter on the parsed `log.level` and `log.logger` fields.
+
+Browse logs and traces in Grafana (http://localhost:3001 by default):
+*Dashboards → Paperless → Paperless Observability*. The **Traces** row lists
+recent traces of both applications and renders their spans; the **Logs** row
+shows the container logs and the structured worker events. A log entry's
+`trace_id` is the trace ID to look up in the trace panels.
 
 ---
 

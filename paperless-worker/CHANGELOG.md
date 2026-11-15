@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.0.3-SNAPSHOT]
 
 ### Changed
+- Merged upstream observability with the RustFS backend and local Logstash fixes.
+  Grafana uses separate indexed log datasources, trace links, a selected-trace
+  panel, and a valid table sort configuration. The collector uses OTLP gRPC and
+  Compose pins the container endpoint independently of native `.env.local` values.
+  `infra/observability/verify.py` checks live parsing, provisioning, and trace lookup.
 - Listener startup now follows Spring's container configuration, including
   `paperless.worker.enabled` / `WORKER_ENABLED`, so disabled tests do not contact a broker.
   AUTO acknowledgment happens after the processing transaction finishes; prefetch is one
@@ -27,6 +32,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `RABBITMQ_HOST`, `RABBITMQ_USER`, and `RABBITMQ_PASS` before running `./gradlew test`.
 
 ### Added
+- OpenTelemetry tracing via the OpenTelemetry Java agent
+  (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and
+  started with `-javaagent` through `JAVA_OPTS`): spans for RabbitMQ consume and
+  database access are exported as OTLP to the OpenTelemetry collector
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`). OCR jobs join the publisher/dispatch trace
+  using W3C AMQP headers. The database outbox does not retain the original upload
+  HTTP trace context. Console logs expose `trace_id`; ECS JSON exposes `trace.id`.
 - New standalone Spring Boot (Kotlin) application `paperless-worker` that runs the OCR worker
   service. It consumes `OcrRequest` messages from the RabbitMQ queue `paperless.ocr.requests`
   (exchange `paperless.ocr`, routing key `document.uploaded`) that the backend's dispatch
@@ -85,6 +97,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and reindexes it; indexing by `documentId` is idempotent. The compose stack adds a single-node
   `elasticsearch` service (security disabled, data in the `elasticsearch-data` volume) that the
   worker depends on.
+- Structured file logging through Spring Boot's ECS formatter, enabled by
+  `WORKER_LOG_FILE`. Compose writes `/var/log/paperless-worker/worker.json` on the
+  `worker-logs` volume. Rotation is bounded at 10 MB per file, seven days, and
+  100 MB total archives. Logstash sends events to `paperless-worker-logs-*` using
+  a stable original-line hash to deduplicate replay. The Java agent's `trace_id`
+  and `span_id` are normalized to ECS `trace.id` and `span.id` for Grafana links.
 - RabbitMQ listener configuration (`ocr/config/OcrWorkerRabbitConfiguration.kt`) with retry
   (3 retries, exponential backoff) and `default-requeue-rejected: false` so failed messages reach
   the dead-letter queue rather than looping.

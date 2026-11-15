@@ -1,0 +1,100 @@
+{
+  "description": "Parse Spring Boot console log lines from the paperless container logs into ECS log.* fields before indexing",
+  "processors": [
+    {
+      "grok": {
+        "field": "message",
+        "patterns": [
+          "%{SPRING_BOOT_LOG}"
+        ],
+        "pattern_definitions": {
+          "SPRING_BOOT_LOG": "^(?<app_timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\S*)\\s+(?<level>TRACE|DEBUG|INFO|WARN|ERROR)\\s+(?:\\[trace_id=(?<trace_id>[^\\]\\s]+)(?:\\s+requestId=(?<request_id>[^\\]]*))?\\]\\s+)?(?:\\d+\\s+)?---\\s+\\[(?<service_name>[^\\]]*)\\]\\s+\\[ *(?<thread>[^\\s\\]]+)\\]\\s+(?<logger>\\S+)\\s*:\\s*(?<raw_message>.*)$"
+        },
+        "on_failure": [
+          {
+            "append": {
+              "field": "tags",
+              "value": "paperless-log-unparsed"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "date": {
+        "field": "app_timestamp",
+        "formats": [
+          "ISO8601"
+        ],
+        "if": "ctx.app_timestamp != null",
+        "ignore_failure": true
+      }
+    },
+    {
+      "set": {
+        "field": "message",
+        "value": "{{raw_message}}",
+        "if": "ctx.raw_message != null",
+        "ignore_failure": true
+      }
+    },
+    {
+      "rename": {
+        "field": "level",
+        "target_field": "log.level",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "thread",
+        "target_field": "log.thread.name",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "logger",
+        "target_field": "log.logger",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "request_id",
+        "target_field": "http.request.id",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "service_name",
+        "target_field": "service.name",
+        "ignore_missing": true
+      }
+    },
+    {
+      "remove": {
+        "field": "trace_id",
+        "if": "ctx.trace_id == 'none' || ctx.trace_id == '00000000000000000000000000000000'",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "trace_id",
+        "target_field": "trace.id",
+        "ignore_missing": true
+      }
+    },
+    {
+      "remove": {
+        "field": [
+          "raw_message",
+          "app_timestamp"
+        ],
+        "ignore_missing": true
+      }
+    }
+  ]
+}
