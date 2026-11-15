@@ -123,6 +123,47 @@ services:
       retries: 12
       start_period: 60s
 
+  elasticsearch-bootstrap:
+    image: curlimages/curl:8.12.1
+    restart: "no"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./infra/elasticsearch/pipelines/paperless-container-logs.json:/pipeline.json:ro
+      - ./infra/elasticsearch/pipelines/paperless-container-logs-template.json:/index-template.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "Waiting for Elasticsearch..."
+        until curl -sf http://elasticsearch:9200/ > /dev/null; do sleep 2; done
+        echo "Loading ingest pipeline paperless-container-logs..."
+        curl -sf -X PUT "http://elasticsearch:9200/_ingest/pipeline/paperless-container-logs" \
+          -H "Content-Type: application/json" \
+          --data-binary @/pipeline.json
+        echo
+        echo "Creating index template paperless-container-logs..."
+        curl -sf -X PUT "http://elasticsearch:9200/_index_template/paperless-container-logs" \
+          -H "Content-Type: application/json" \
+          --data-binary @/index-template.json
+        echo
+        echo "Elasticsearch bootstrap complete."
+
+  elastic-agent:
+    image: docker.elastic.co/elastic-agent/elastic-agent:9.5.5
+    restart: unless-stopped
+    mem_limit: 512m
+    # Root is required to read the host's container log files under
+    # /var/lib/docker/containers (root-only on the host).
+    user: root
+    depends_on:
+      elasticsearch-bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - ./infra/elastic-agent/elastic-agent.yml:/usr/share/elastic-agent/elastic-agent.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
   kibana:
     image: docker.elastic.co/kibana/kibana:9.5.5
     restart: unless-stopped

@@ -42,6 +42,9 @@ This starts:
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 16 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
+- **`elasticsearch`**: Elasticsearch — the OCR document search index and the log store
+- **`kibana`**: Kibana UI for browsing the search index and the logs
+- **`elastic-agent`**: [Elastic Agent](https://www.elastic.co/what-is/elastic-agent) — tails every service's container logs and ships them to Elasticsearch
 
 ---
 
@@ -114,6 +117,19 @@ service tails and writes to the `paperless-worker-events` index (pipeline in
 `infra/logstash/`). The `kibana` service (bound to
 `127.0.0.1:${KIBANA_PORT:-5601}`) provides the UI for both indices.
 
+The **`elastic-agent`** service (a standalone
+[Elastic Agent](https://www.elastic.co/what-is/elastic-agent)) collects a second
+class of logs: it tails the container logs of every service in the stack from the
+Docker log directory and ships them to Elasticsearch as the
+`paperless-container-logs` index. Before indexing, the
+`paperless-container-logs` [ingest pipeline](https://www.elastic.co/docs/reference/enrich-pipelines/ingest-pipelines)
+transforms each event. The pipeline is loaded at startup by the one-shot
+`elasticsearch-bootstrap` service (definition in
+`infra/elasticsearch/pipelines/`); it parses each Spring Boot log line into
+structured ECS fields — `log.level`, `log.logger`, `log.thread.name`, and
+`http.request.id` — and tags lines that don't match the Spring Boot format with
+`paperless-log-unparsed`.
+
 Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
 `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
@@ -147,11 +163,12 @@ Follow container logs:
 docker compose --env-file .env.local logs -f
 ```
 
-Browse the worker's log events and the document search index in Kibana
-(http://localhost:5601 by default, bound to localhost only): in
+Browse the worker's log events, the document search index, and the container logs
+in Kibana (http://localhost:5601 by default, bound to localhost only): in
 *Management → Stack Management → Data Views*, create a view for the
-`paperless-worker-events` or `paperless-documents` index, then open
-*Analytics → Discover*.
+`paperless-worker-events`, `paperless-documents`, or `paperless-container-logs`
+index, then open *Analytics → Discover*. In the `paperless-container-logs` view you
+can filter on the parsed `log.level` and `log.logger` fields.
 
 ---
 

@@ -1,0 +1,9 @@
+{
+  "index_patterns": ["paperless-container-logs"],
+  "priority": 200,
+  "template": {
+    "settings": {
+      "index.default_pipeline": "paperless-container-logs"
+    }
+  }
+}
