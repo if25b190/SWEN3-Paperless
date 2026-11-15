@@ -16,6 +16,17 @@ RUN ./gradlew bootJar -x test --no-daemon
 FROM eclipse-temurin:25-jre AS runner
 WORKDIR /app
 
+# OpenTelemetry Java agent: zero-code distributed tracing (HTTP, JDBC,
+# RabbitMQ publish/consume, trace ids in logback MDC), exported as OTLP via
+# the OTEL_* environment variables (see docker-compose.yml).
+ARG OTEL_AGENT_VERSION=2.33.1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/otel \
+    && curl -fsSL -o /opt/otel/opentelemetry-javaagent.jar \
+       "https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v${OTEL_AGENT_VERSION}/opentelemetry-javaagent.jar"
+
 # Security: run as non-root user
 RUN groupadd -r spring && useradd -r -g spring spring \
     && mkdir -p /tmp/paperless-documents \

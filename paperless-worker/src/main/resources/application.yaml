@@ -57,4 +57,6 @@ logging:
   level:
     at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
   pattern:
-    level: "%5p"
+    # trace_id is injected into the MDC by the OpenTelemetry Java agent's
+    # Logback MDC instrumentation (see Dockerfile).
+    level: "%5p [trace_id=%X{trace_id:-none}]"

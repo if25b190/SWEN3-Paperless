@@ -22,6 +22,19 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER:-paperless}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-paperless_secure_password}
+      # OpenTelemetry Java agent (baked into the image, see Dockerfile).
+      JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: paperless
+      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
+      # an explicit endpoint is configured; the collector receives gRPC on
+      # 4317, so pin the protocol.
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # Only traces are consumed by the stack; metrics and logs stay disabled
+      # (application logs are already collected by the Elastic Agent).
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      # OTLP gRPC endpoint of the OpenTelemetry collector.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
     volumes:
       - document-files:/tmp/paperless-documents
 
@@ -61,6 +74,19 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
       OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
       WORKER_LOG_PATH: /var/log/paperless-worker/events.jsonl
+      # OpenTelemetry Java agent (baked into the image, see Dockerfile).
+      JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: paperless-worker
+      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
+      # an explicit endpoint is configured; the collector receives gRPC on
+      # 4317, so pin the protocol.
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # Only traces are consumed by the stack; metrics and logs stay disabled
+      # (application logs are already collected by the Elastic Agent).
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      # OTLP gRPC endpoint of the OpenTelemetry collector.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
     volumes:
       - worker-logs:/var/log/paperless-worker
       - document-files:/tmp/paperless-documents
@@ -187,6 +213,56 @@ services:
       retries: 12
       start_period: 60s
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.165.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - tempo
+    # 4317 is also published on localhost so natively run applications can
+    # export traces to the same collector.
+    ports:
+      - "127.0.0.1:4317:4317"
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    healthcheck:
+      # The tempo image has no /bin/sh, so the check must use the CMD form.
+      test: ["CMD", "wget", "-qO-", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  grafana:
+    image: grafana/grafana:12.0.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-paperless}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    depends_on:
+      tempo:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -238,6 +314,8 @@ volumes:
   elasticsearch-data:
   logstash-data:
   kibana-data:
+  tempo-data:
+  grafana-data:
   worker-logs:
   postgres-data:
   rabbitmq-lib:

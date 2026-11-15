@@ -6,7 +6,7 @@
         "field": "message",
         "patterns": ["%{SPRING_BOOT_LOG}"],
         "pattern_definitions": {
-          "SPRING_BOOT_LOG": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\S*\\s+(?<level>TRACE|DEBUG|INFO|WARN|ERROR)\\s+(?:\\[requestId=(?<request_id>[^\\]]*)\\]\\s+)?(?:\\d+\\s+)?---\\s+\\[[^\\]]*\\]\\s+\\[ *(?<thread>[^\\s\\]]+)\\]\\s+(?<logger>\\S+)\\s*:\\s*(?<raw_message>.*)$"
+          "SPRING_BOOT_LOG": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\S*\\s+(?<level>TRACE|DEBUG|INFO|WARN|ERROR)\\s+(?:\\[trace_id=(?<trace_id>[^\\]\\s]+)(?:\\s+requestId=(?<request_id>[^\\]]*))?\\]\\s+)?(?:\\d+\\s+)?---\\s+\\[[^\\]]*\\]\\s+\\[ *(?<thread>[^\\s\\]]+)\\]\\s+(?<logger>\\S+)\\s*:\\s*(?<raw_message>.*)$"
         },
         "on_failure": [
           {
@@ -51,6 +51,13 @@
       "rename": {
         "field": "request_id",
         "target_field": "http.request.id",
+        "ignore_missing": true
+      }
+    },
+    {
+      "rename": {
+        "field": "trace_id",
+        "target_field": "trace.id",
         "ignore_missing": true
       }
     },

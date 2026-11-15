@@ -1,0 +1,20 @@
+# Provisioned datasources for the Paperless observability dashboard.
+apiVersion: 1
+
+datasources:
+  - name: Elasticsearch
+    uid: elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    jsonData:
+      timeField: "@timestamp"
+      logMessageField: message
+
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      limit: 25

@@ -46,6 +46,22 @@ available as `requestId` in SLF4J MDC and appears in the default console pattern
 The filter runs before authentication and clears its MDC value after the request,
 including failed requests. Client-provided request IDs are not trusted.
 
+## Distributed Tracing
+
+Both applications run the OpenTelemetry Java agent
+(`-javaagent:/opt/otel/opentelemetry-javaagent.jar`, see the Dockerfiles):
+spans are created for HTTP requests, database access, and RabbitMQ
+publish/consume and exported as OTLP to the collector configured by
+`OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4317`). The W3C
+`traceparent` context is propagated with OCR messages, so the worker's
+processing joins the trace of the request that dispatched it.
+
+The current W3C trace ID is available as `trace_id` in SLF4J MDC (injected by
+the agent's Logback MDC instrumentation) and appears in the console pattern
+next to `requestId`; worker events written to `WORKER_LOG_PATH` carry the same
+value in the `trace_id` field. `trace_id=none` marks log lines written outside
+of an active trace (e.g., startup).
+
 Services record login, resource creation/update/deletion, and membership changes
 with resource IDs. These are operational milestones within a transaction, not a
 durable audit trail or proof of transaction commit. Client errors are logged once

@@ -27,6 +27,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-elasticsearch")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.mapstruct:mapstruct:1.6.3")
@@ -61,9 +62,6 @@ openApiGenerate {
     outputDir.set(layout.buildDirectory.dir("generated/openapi").get().asFile.path)
     apiPackage.set("at.fhtw.swen3.paperless.ocr.api")
     modelPackage.set("at.fhtw.swen3.paperless.ocr.dto")
-    // Models only: the worker has no REST API, so restrict generation to the
-    // single wire DTO and skip the generated API support files
-    // (ApiUtil, Exceptions, SpringDocConfiguration).
     globalProperties.set(mapOf("models" to "OcrRequestDTO"))
     configOptions.set(
         mapOf(

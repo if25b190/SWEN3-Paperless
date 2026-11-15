@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.0.3-SNAPSHOT]
 
 ### Added
+- OpenTelemetry tracing via the OpenTelemetry Java agent
+  (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and
+  started with `-javaagent` through `JAVA_OPTS`): spans for RabbitMQ consume and
+  database access are exported as OTLP to the OpenTelemetry collector
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`). OCR jobs join the trace of the backend request
+  that dispatched them (W3C `traceparent` via the AMQP headers); the `trace_id`
+  appears in the log pattern and in the structured events written to
+  `WORKER_LOG_PATH`.
 - New standalone Spring Boot (Kotlin) application `paperless-worker` that runs the OCR worker
   service. It consumes `OcrRequest` messages from the RabbitMQ queue `paperless.ocr.requests`
   (exchange `paperless.ocr`, routing key `document.uploaded`) that the backend's dispatch
