@@ -12,7 +12,7 @@ A document management and processing platform consisting of a Spring Boot (Kotli
 
 - **[Docker](https://docs.docker.com/get-docker/)** & **[Docker Compose](https://docs.docker.com/compose/)** (v2.24+)
 
-*(Optional for running services natively without Docker: Java 25+, Gradle, Node.js 22+, and pnpm 12+)*
+*(Optional for running services natively without Docker: Java 25 LTS, Gradle 9.9.1, Node.js 26.13.1+, and pnpm 12.21.0)*
 
 ---
 
@@ -40,7 +40,7 @@ This starts:
 - **`backend`**: Spring Boot REST API
 - **`worker`**: OCR worker — consumes OCR jobs from RabbitMQ and extracts text with Ghostscript + Tesseract
 - **`ui`**: Next.js frontend application
-- **`db`**: PostgreSQL 16 database
+- **`db`**: PostgreSQL 18 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
 - **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
 - **`elasticsearch`**: Elasticsearch — the OCR document search index and the log store

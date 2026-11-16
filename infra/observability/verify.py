@@ -93,6 +93,9 @@ def main():
     parser.add_argument("--tempo", default="http://localhost:3200")
     parser.add_argument("--trace-id")
     args = parser.parse_args()
+    with urllib.request.urlopen(args.tempo.rstrip("/") + "/ready", timeout=15) as response:
+        assert response.status == 200, "Tempo is not ready"
+    print("PASS: Tempo readiness")
     verify_ingest(args.elasticsearch.rstrip("/"))
     verify_grafana(args.grafana.rstrip("/"), os.environ.get("GRAFANA_ADMIN_PASSWORD", "paperless"))
     if args.trace_id:

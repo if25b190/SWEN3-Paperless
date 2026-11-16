@@ -67,7 +67,9 @@ fields to ECS objects before indexing. Console ingestion also stores `trace.id`.
 `trace_id=none` marks logs outside an active span (for example startup) and is
 excluded from trace correlation. These lines legitimately have no Tempo trace.
 Trace lookup also requires sampling to retain the span and the trace to be within
-Tempo's configured 72-hour retention.
+Tempo's configured 72-hour retention. Tempo 3 runs in monolithic mode without Kafka;
+its live-store replaces the 2.x ingester, and retention is configured under
+`overrides.defaults.compaction.block_retention`.
 
 Services record login, resource creation/update/deletion, and membership changes
 with resource IDs. These are operational milestones within a transaction, not a

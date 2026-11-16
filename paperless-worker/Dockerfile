@@ -1,5 +1,5 @@
 # Build stage
-FROM eclipse-temurin:25-jdk AS builder
+FROM eclipse-temurin:25.0.5_8-jdk AS builder
 WORKDIR /app
 # Copy Gradle wrapper and build files to leverage layer caching
 COPY gradle/ gradle/
@@ -10,7 +10,7 @@ COPY src/ src/
 RUN ./gradlew bootJar -x test --no-daemon
 
 # Runtime stage
-FROM eclipse-temurin:25-jre AS runner
+FROM eclipse-temurin:25.0.5_8-jre AS runner
 WORKDIR /app
 # OCR toolchain: Tesseract with English language data and Ghostscript for
 # PDF rasterization. Both must stay on the worker's PATH.

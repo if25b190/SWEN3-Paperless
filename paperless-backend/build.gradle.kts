@@ -1,11 +1,11 @@
 plugins {
-    kotlin("jvm") version "2.3.21"
-    kotlin("plugin.spring") version "2.3.21"
-    kotlin("plugin.jpa") version "2.3.21"
-    id("org.springframework.boot") version "4.1.1"
+    kotlin("jvm") version "2.4.21"
+    kotlin("plugin.spring") version "2.4.21"
+    kotlin("plugin.jpa") version "2.4.21"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
-    id("org.openapi.generator") version "7.11.0"
-    kotlin("kapt") version "2.3.21"
+    id("org.openapi.generator") version "7.14.0"
+    kotlin("kapt") version "2.4.21"
 }
 
 group = "at.fhtw.swen3"
@@ -23,7 +23,7 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("software.amazon.awssdk:bom:2.57.3"))
+    implementation(platform("software.amazon.awssdk:bom:2.59.1"))
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:url-connection-client")
     implementation("org.springframework.boot:spring-boot-starter-amqp")
@@ -40,8 +40,8 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
     implementation("org.mapstruct:mapstruct:1.6.3")
 
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
-    implementation("org.openapitools:jackson-databind-nullable:0.2.6")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+    implementation("org.openapitools:jackson-databind-nullable:0.2.13")
 
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     runtimeOnly("com.h2database:h2")
@@ -61,7 +61,7 @@ dependencies {
 
 kotlin {
     compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        freeCompilerArgs.addAll("-Xjsr305=strict")
     }
     sourceSets {
         main {

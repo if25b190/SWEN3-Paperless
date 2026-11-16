@@ -7,13 +7,17 @@ import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
+import at.fhtw.swen3.paperless.ocr.persistence.DocumentFilePersistence
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.OcrDocumentPersistence
+import at.fhtw.swen3.paperless.ocr.persistence.exception.DocumentFilePersistenceException
 import at.fhtw.swen3.paperless.testsupport.any
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.io.TempDir
 import org.mockito.InOrder
 import org.mockito.Mock
 import org.mockito.Mockito.doThrow
@@ -23,6 +27,8 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.UUID
 
@@ -36,6 +42,9 @@ class OcrProcessingServiceImplTest {
 
     @Mock
     lateinit var index: DocumentIndexPersistence
+
+    @Mock
+    lateinit var files: DocumentFilePersistence
 
     private val storageDir = Paths.get("/tmp/paperless-documents")
     private val properties = OcrWorkerProperties(enabled = true, storageDir = storageDir)
@@ -55,7 +64,7 @@ class OcrProcessingServiceImplTest {
 
     @BeforeEach
     fun setUp() {
-        service = OcrProcessingServiceImpl(documents, engine, index, properties)
+        service = OcrProcessingServiceImpl(documents, engine, index, properties, files)
         org.mockito.Mockito.lenient().doAnswer { invocation ->
             invocation.getArgument<WorkerDocument>(0).copy(version = 1)
         }.`when`(documents).update(any())
@@ -183,7 +192,7 @@ class OcrProcessingServiceImplTest {
     fun genai_final_status_is_passed_through_ok() {
         // given
         val genaiProperties = properties.copy(finalStatus = ProcessingStatus.GENAI_IN_PROGRESS)
-        val genaiService = OcrProcessingServiceImpl(documents, engine, index, genaiProperties)
+        val genaiService = OcrProcessingServiceImpl(documents, engine, index, genaiProperties, files)
         `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
         `when`(engine.extractText(any())).thenReturn("text")
 
@@ -192,5 +201,80 @@ class OcrProcessingServiceImplTest {
 
         // then
         verify(documents).update(completedDocument(ProcessingStatus.GENAI_IN_PROGRESS))
+    }
+
+    @Test
+    fun existing_local_file_is_used_without_storage_lookup_ok(@TempDir tempDir: Path) {
+        // given
+        val localService =
+            OcrProcessingServiceImpl(documents, engine, index, properties.copy(storageDir = tempDir), files)
+        val localFile = Files.write(tempDir.resolve("abc_invoice.pdf"), byteArrayOf(9, 9, 9))
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
+        `when`(engine.extractText(any())).thenReturn("local text")
+
+        // when
+        localService.process(request)
+
+        // then
+        verify(engine).extractText(localFile)
+        verify(files, never()).find(any())
+        verify(index).index(documentId, "local text")
+        verify(documents).update(claimedDocument().copy(ocrContent = "local text", status = ProcessingStatus.COMPLETED))
+    }
+
+    @Test
+    fun missing_local_file_is_downloaded_from_storage_and_cleaned_up_ok(@TempDir tempDir: Path) {
+        // given
+        val s3Service = OcrProcessingServiceImpl(documents, engine, index, properties.copy(storageDir = tempDir), files)
+        val payload = byteArrayOf(1, 2, 3)
+        val downloaded = mutableListOf<Path>()
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
+        `when`(files.find(request.storageKey)).thenReturn(payload)
+        `when`(engine.extractText(any())).thenAnswer { invocation ->
+            val source = invocation.getArgument<Path>(0)
+            assertThat(Files.readAllBytes(source)).isEqualTo(payload)
+            downloaded.add(source)
+            "s3 text"
+        }
+
+        // when
+        s3Service.process(request)
+
+        // then
+        assertThat(downloaded).hasSize(1)
+        assertThat(downloaded[0]).isNotEqualTo(tempDir.resolve("abc_invoice.pdf"))
+        assertThat(Files.exists(downloaded[0])).isFalse()
+        verify(index).index(documentId, "s3 text")
+        verify(documents).update(claimedDocument().copy(ocrContent = "s3 text", status = ProcessingStatus.COMPLETED))
+    }
+
+    @Test
+    fun storage_failure_marks_document_failed_and_rethrows_ko(@TempDir tempDir: Path) {
+        // given
+        val s3Service = OcrProcessingServiceImpl(documents, engine, index, properties.copy(storageDir = tempDir), files)
+        val failure = DocumentFilePersistenceException(RuntimeException("rustfs unreachable"))
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
+        `when`(files.find(request.storageKey)).thenThrow(failure)
+
+        // when / then
+        assertThatThrownBy { s3Service.process(request) }.isInstanceOf(AppException::class.java).hasCause(failure)
+        verifyNoInteractions(engine, index)
+        verify(documents).update(failedDocument())
+        verify(documents, never()).update(completedDocument())
+    }
+
+    @Test
+    fun storage_miss_falls_back_to_local_path_ko(@TempDir tempDir: Path) {
+        // given
+        val s3Service = OcrProcessingServiceImpl(documents, engine, index, properties.copy(storageDir = tempDir), files)
+        val failure = OcrEngineException("Source file not found: ${tempDir.resolve("abc_invoice.pdf")}")
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument())
+        `when`(files.find(request.storageKey)).thenReturn(null)
+        doThrow(failure).`when`(engine).extractText(any())
+
+        // when / then
+        assertThatThrownBy { s3Service.process(request) }.isInstanceOf(AppException::class.java).hasCause(failure)
+        verify(engine).extractText(tempDir.resolve("abc_invoice.pdf"))
+        verify(documents).update(failedDocument())
     }
 }

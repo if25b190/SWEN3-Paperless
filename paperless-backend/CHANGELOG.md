@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.3-SNAPSHOT]
 
+### Dependencies
+- Updated the Kotlin/Spring toolchain and direct libraries to current stable releases;
+  see [dependency upgrade notes](../docs/dependency-upgrades.md) for versions and migration details.
+
 ### Added
 - OpenTelemetry tracing via the OpenTelemetry Java agent
   (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and

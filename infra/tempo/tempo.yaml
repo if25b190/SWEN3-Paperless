@@ -4,7 +4,7 @@
 # infra/otel-collector/config.yaml) and serves the Grafana Tempo data source
 # over its HTTP API on 3200 (published on localhost as well). Traces are kept
 # in local storage on the `tempo-data` volume; the compactor prunes blocks
-# after `block_retention`.
+# after the retention configured under `overrides.defaults.compaction`.
 stream_over_http_enabled: true
 
 server:
@@ -19,13 +19,16 @@ distributor:
         http:
           endpoint: 0.0.0.0:4318
 
-ingester:
-  trace_idle_period: 10s
+live_store:
+  max_trace_idle: 10s
   max_block_duration: 50s
+  wal:
+    path: /var/tempo/wal
 
-compactor:
-  compaction:
-    block_retention: 72h
+overrides:
+  defaults:
+    compaction:
+      block_retention: 72h
 
 storage:
   trace:

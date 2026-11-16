@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.3-SNAPSHOT]
 
+### Fixed
+- OCR now downloads the source document from S3/RustFS by its full storage key when
+  it is not present in the shared `document-files` volume, so uploads stored via the
+  backend's S3 storage no longer fail with "Source file not found". The legacy flat
+  volume layout is still preferred when the file exists locally; downloaded files are
+  written to a temporary file and deleted after processing.
+
+### Dependencies
+- Updated the Kotlin/Spring toolchain and direct libraries to current stable releases;
+  see [dependency upgrade notes](../docs/dependency-upgrades.md) for versions and migration details.
+
 ### Changed
 - Merged upstream observability with the RustFS backend and local Logstash fixes.
   Grafana uses separate indexed log datasources, trace links, a selected-trace
