@@ -6,6 +6,10 @@ info:
     The backend publishes JSON `OcrRequest` messages on the `paperless.ocr`
     exchange (routing key `document.uploaded`) after a document upload;
     the worker consumes and processes them.
+    On document deletion the backend publishes a JSON `DocumentDeletion`
+    message (fields: `documentId`) on routing key `document.deleted`
+    (queue `paperless.ocr.deletions`); the worker removes the document's
+    Elasticsearch entry.
   version: 1.0.0
 paths: {}
 components:

@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch._types.mapping.DateProperty
 import co.elastic.clients.elasticsearch._types.mapping.KeywordProperty
 import co.elastic.clients.elasticsearch._types.mapping.Property
 import co.elastic.clients.elasticsearch._types.mapping.TextProperty
+import co.elastic.clients.elasticsearch.core.DeleteRequest
 import co.elastic.clients.elasticsearch.core.IndexRequest
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
 import co.elastic.clients.elasticsearch.indices.ExistsRequest
@@ -63,6 +64,21 @@ class ElasticsearchDocumentIndexPersistence(
             documentId,
             properties.indexName,
             ocrContent.length,
+        )
+    }
+
+    override fun delete(documentId: UUID) {
+        client.delete(
+            DeleteRequest.of { request ->
+                request
+                    .index(properties.indexName)
+                    .id(documentId.toString())
+            },
+        )
+        logger.info(
+            "[INDEX] - ACTION: delete: documentId: {}, indexName: {}",
+            documentId,
+            properties.indexName,
         )
     }
 

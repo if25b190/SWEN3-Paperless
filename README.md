@@ -119,6 +119,13 @@ The durable exchange `paperless.ocr` routes `document.uploaded` to
 Delivery is at least once: a confirmation timeout or a crash between publishing
 and deleting the pending job can produce duplicates.
 
+The same exchange routes `document.deleted` to `paperless.ocr.deletions`: after
+a document deletion commits, the backend publishes a JSON `DocumentDeletion`
+message (field `documentId`; the AMQP message ID is the document ID) and the
+worker removes the document's entry from the Elasticsearch index. Like the
+post-commit file deletion, a failed publish is logged and swallowed, so a
+broker outage during deletion can leave the index entry behind.
+
 OCR processing runs in the separate **`worker`** application (`paperless-worker`),
 which consumes `paperless.ocr.requests`. Its container image bundles **Ghostscript**
 and **Tesseract** (English by default). For each job the worker reads the file named
@@ -133,6 +140,9 @@ the text as the document's `ocr_content` and sets its status to `COMPLETED`
 (configurable via `OCR_FINAL_STATUS`). Indexing happens before the document is
 completed, so a `COMPLETED` document always has a search entry; if the index run
 fails, the document is set to `FAILED` and the message is retried and reindexed.
+If the document is deleted while OCR is running, the worker removes the freshly
+created index entry instead of completing the document; already indexed
+documents are cleaned up by the `document.deleted` message.
 On any other failure the worker sets `FAILED` and rethrows so the message is retried
 and then routed to the durable dead-letter queue `paperless.ocr.failed` through
 `paperless.ocr.dead-letter`. The compose stack runs a single-node Elasticsearch

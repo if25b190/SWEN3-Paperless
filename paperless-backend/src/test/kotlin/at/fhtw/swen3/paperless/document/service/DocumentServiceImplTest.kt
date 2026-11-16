@@ -14,6 +14,8 @@ import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
+import at.fhtw.swen3.paperless.exception.OcrPublishException
+import at.fhtw.swen3.paperless.ocr.messaging.OcrMessagePublisher
 import at.fhtw.swen3.paperless.ocr.model.OcrJob
 import at.fhtw.swen3.paperless.ocr.persistence.OcrJobPersistence
 import at.fhtw.swen3.paperless.exception.TeamNotFoundException
@@ -42,6 +44,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.doAnswer
+import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
@@ -70,6 +73,9 @@ class DocumentServiceImplTest {
     @Mock
     lateinit var ocrJobs: OcrJobPersistence
 
+    @Mock
+    lateinit var publisher: OcrMessagePublisher
+
     lateinit var service: DocumentServiceImpl
 
     private val converters = MappingConverters()
@@ -88,7 +94,7 @@ class DocumentServiceImplTest {
         originalTempDirectory = System.getProperty("java.io.tmpdir")
         System.setProperty("java.io.tmpdir", tempDir.toString())
         actor = uuid(1)
-        service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs, FileSystemDocumentStorage())
+        service = DocumentServiceImpl(repository, references, teamMemberRepository, ocrJobs, FileSystemDocumentStorage(), publisher)
     }
 
     @AfterEach
@@ -462,6 +468,32 @@ class DocumentServiceImplTest {
 
         verify(repository).delete(entity)
         assertThat(blocked).exists()
+    }
+
+    @Test
+    fun delete_publishes_index_deletion_only_after_transaction_commit() {
+        val entity = documentEntity().withStorageKey(null)
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
+        TransactionSynchronizationManager.initSynchronization()
+
+        service.deleteDocument(actor, uuid(1))
+
+        verify(publisher, never()).publishDeletion(uuid(1))
+        TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
+        verify(publisher).publishDeletion(uuid(1))
+    }
+
+    @Test
+    fun committed_delete_does_not_fail_when_deletion_publish_fails() {
+        val entity = documentEntity().withStorageKey(null)
+        `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
+        doThrow(OcrPublishException()).`when`(publisher).publishDeletion(uuid(1))
+        TransactionSynchronizationManager.initSynchronization()
+
+        service.deleteDocument(actor, uuid(1))
+        TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
+
+        verify(repository).delete(entity)
     }
 
     private fun update(

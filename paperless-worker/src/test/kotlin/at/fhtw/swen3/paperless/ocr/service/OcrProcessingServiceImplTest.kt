@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
+import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
@@ -101,6 +102,31 @@ class OcrProcessingServiceImplTest {
         // then
         verifyNoInteractions(engine, index)
         verify(documents, never()).update(any())
+    }
+
+    @Test
+    fun deletion_removes_index_entry_ok() {
+        // when
+        service.processDeletion(DocumentDeletion(documentId))
+
+        // then
+        verify(index).delete(documentId)
+    }
+
+    @Test
+    fun deletion_during_ocr_removes_index_entry_and_skips_completion_ok() {
+        // given
+        `when`(documents.findLockedById(documentId)).thenReturn(pendingDocument(), null)
+        `when`(engine.extractText(any())).thenReturn("text")
+
+        // when
+        service.process(request)
+
+        // then
+        verify(index).index(documentId, "text")
+        verify(index).delete(documentId)
+        verify(documents, never()).update(completedDocument())
+        verify(documents, never()).update(failedDocument())
     }
 
     @Test

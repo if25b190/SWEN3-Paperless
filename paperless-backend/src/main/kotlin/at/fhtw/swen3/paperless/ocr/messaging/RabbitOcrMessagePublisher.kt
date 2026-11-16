@@ -2,6 +2,7 @@ package at.fhtw.swen3.paperless.ocr.messaging
 
 import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
+import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import org.springframework.amqp.AmqpException
 import org.springframework.amqp.core.MessageDeliveryMode
@@ -19,10 +20,18 @@ class RabbitOcrMessagePublisher(
     private val properties: OcrMessagingProperties
 ) : OcrMessagePublisher {
     override fun publish(request: OcrRequest) {
+        send(properties.routingKey, request.jobId.toString(), request)
+    }
+
+    override fun publishDeletion(documentId: UUID) {
+        send(properties.deletionRoutingKey, documentId.toString(), DocumentDeletion(documentId))
+    }
+
+    private fun send(routingKey: String, messageId: String, payload: Any) {
         val correlation = CorrelationData(UUID.randomUUID().toString())
         try {
-            template.convertAndSend(properties.exchange, properties.routingKey, request, { message ->
-                message.messageProperties.messageId = request.jobId.toString()
+            template.convertAndSend(properties.exchange, routingKey, payload, { message ->
+                message.messageProperties.messageId = messageId
                 message.messageProperties.deliveryMode = MessageDeliveryMode.PERSISTENT
                 message
             }, correlation)

@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.3-SNAPSHOT]
 
+### Added
+- Elasticsearch index cleanup for deleted documents. The worker now also consumes
+  `DocumentDeletion` messages from the `paperless.ocr.deletions` queue (exchange
+  `paperless.ocr`, routing key `document.deleted`) that the backend publishes after a
+  document deletion commits, and removes the document's entry from the index via the new
+  `DocumentIndexPersistence.delete` method (`ElasticsearchDocumentIndexPersistence`
+  uses the client's `DeleteRequest`, which is idempotent for missing entries).
+  If a document is deleted while OCR is running, `process` re-checks the document
+  before the final status update and removes the freshly created index entry instead
+  of completing the document, so an index entry can never outlive its document.
+
 ### Fixed
 - OCR now downloads the source document from S3/RustFS by its full storage key when
   it is not present in the shared `document-files` volume, so uploads stored via the

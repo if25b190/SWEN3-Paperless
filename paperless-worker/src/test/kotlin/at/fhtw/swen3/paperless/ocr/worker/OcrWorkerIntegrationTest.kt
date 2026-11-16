@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
 import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
+import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
@@ -85,9 +86,22 @@ class OcrWorkerIntegrationTest {
     fun cleanUp() {
         registry.stop()
         admin.deleteQueue(properties.queue)
+        admin.deleteQueue(properties.deletionQueue)
         admin.deleteQueue(properties.deadLetterQueue)
         admin.deleteExchange(properties.exchange)
         admin.deleteExchange(properties.deadLetterExchange)
+    }
+
+    @Test
+    fun deletion_message_removes_index_entry_ok() {
+        // given
+        val documentId = UUID.randomUUID()
+
+        // when
+        template.convertAndSend(properties.exchange, properties.deletionRoutingKey, DocumentDeletion(documentId))
+
+        // then
+        verify(index, timeout(TEST_TIMEOUT.toMillis())).delete(documentId)
     }
 
     @Test
@@ -236,6 +250,7 @@ class OcrWorkerIntegrationTest {
         fun rabbitProperties(registry: DynamicPropertyRegistry) {
             registry.add("paperless.ocr.exchange") { topologyName }
             registry.add("paperless.ocr.queue") { "$topologyName.requests" }
+            registry.add("paperless.ocr.deletion-queue") { "$topologyName.deletions" }
             registry.add("paperless.ocr.dead-letter-exchange") { "$topologyName.dlx" }
             registry.add("paperless.ocr.dead-letter-queue") { "$topologyName.failed" }
         }

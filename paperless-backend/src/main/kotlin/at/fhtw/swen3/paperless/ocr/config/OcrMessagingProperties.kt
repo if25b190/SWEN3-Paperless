@@ -8,6 +8,8 @@ data class OcrMessagingProperties(
     val exchange: String = "paperless.ocr",
     val queue: String = "paperless.ocr.requests",
     val routingKey: String = "document.uploaded",
+    val deletionQueue: String = "paperless.ocr.deletions",
+    val deletionRoutingKey: String = "document.deleted",
     val deadLetterExchange: String = "paperless.ocr.dead-letter",
     val deadLetterQueue: String = "paperless.ocr.failed",
     val confirmTimeout: Duration = Duration.ofSeconds(5)

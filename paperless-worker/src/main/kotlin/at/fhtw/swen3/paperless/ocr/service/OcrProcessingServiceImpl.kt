@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.exception.AppErrorMessage
 import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
+import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import at.fhtw.swen3.paperless.ocr.model.WorkerDocument
@@ -53,6 +54,16 @@ class OcrProcessingServiceImpl(
             markFailed(claimed, exception)
             throw AppException(AppErrorMessage.OCR_PROCESSING_FAILED, exception)
         }
+        if (documents.findLockedById(request.documentId) == null) {
+            index.delete(request.documentId)
+            logger.warn(
+                "[OCR] - ACTION: process: deletedDuringOcr: documentId: {}, textLength: {}",
+                request.documentId,
+                text.length,
+            )
+
+            return
+        }
         documents.update(claimed.copy(status = properties.finalStatus, ocrContent = text))
         logger.info(
             "[OCR] - ACTION: process: completed: jobId: {}, documentId: {}, textLength: {}, finalStatus: {}",
@@ -61,6 +72,11 @@ class OcrProcessingServiceImpl(
             text.length,
             properties.finalStatus,
         )
+    }
+
+    override fun processDeletion(deletion: DocumentDeletion) {
+        index.delete(deletion.documentId)
+        logger.info("[OCR] - ACTION: processDeletion: documentId: {}", deletion.documentId)
     }
 
     /**

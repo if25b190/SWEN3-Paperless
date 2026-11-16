@@ -10,6 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   see [dependency upgrade notes](../docs/dependency-upgrades.md) for versions and migration details.
 
 ### Added
+- Index deletion on document deletion: after a document deletion commits, the backend
+  publishes a `DocumentDeletion` message (field `documentId`; the AMQP message ID is the
+  document ID) on the `paperless.ocr` exchange with routing key `document.deleted`
+  (durable queue `paperless.ocr.deletions`, dead-lettered like the upload queue), and the
+  OCR worker removes the document's Elasticsearch index entry. Like the post-commit
+  storage-file deletion, a failed publish is logged and swallowed so a broker outage does
+  not fail the delete. `RabbitOcrMessagePublisher` now shares one confirmed-publish path
+  for upload and deletion messages.
 - OpenTelemetry tracing via the OpenTelemetry Java agent
   (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and
   started with `-javaagent` through `JAVA_OPTS`): spans for HTTP requests,

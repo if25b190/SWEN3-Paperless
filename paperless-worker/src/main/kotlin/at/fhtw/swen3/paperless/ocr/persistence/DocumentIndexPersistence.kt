@@ -5,4 +5,6 @@ import java.util.UUID
 interface DocumentIndexPersistence {
 
     fun index(documentId: UUID, ocrContent: String)
+
+    fun delete(documentId: UUID)
 }

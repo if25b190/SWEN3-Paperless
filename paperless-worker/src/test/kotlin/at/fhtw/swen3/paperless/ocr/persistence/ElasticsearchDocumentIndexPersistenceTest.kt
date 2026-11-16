@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
 import at.fhtw.swen3.paperless.ocr.model.IndexedDocument
 import at.fhtw.swen3.paperless.testsupport.any
 import co.elastic.clients.elasticsearch.ElasticsearchClient
+import co.elastic.clients.elasticsearch.core.DeleteRequest
 import co.elastic.clients.elasticsearch.core.IndexRequest
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
 import co.elastic.clients.elasticsearch.indices.ElasticsearchIndicesClient
@@ -60,6 +61,20 @@ class ElasticsearchDocumentIndexPersistenceTest {
             { assertThat(request.id()).isEqualTo(documentId.toString()) },
             { assertThat(stored.id).isEqualTo(documentId.toString()) },
             { assertThat(stored.content).isEqualTo("INVOICE #9821") },
+        )
+    }
+
+    @Test
+    fun delete_removes_document_by_id_ok() {
+        // when
+        persistence.delete(documentId)
+
+        // then
+        val captor: ArgumentCaptor<DeleteRequest> = ArgumentCaptor.forClass(DeleteRequest::class.java)
+        verify(client).delete(captor.capture())
+        assertAll(
+            { assertThat(captor.value.index()).isEqualTo("paperless-documents") },
+            { assertThat(captor.value.id()).isEqualTo(documentId.toString()) },
         )
     }
 

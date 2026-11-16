@@ -40,6 +40,7 @@ class OcrPipelineIntegrationTest(
 ) {
     private var storageDir: Path = Files.createTempDirectory("paperless-pipeline-test")
     private val indexedDocuments = mutableListOf<Pair<UUID, String>>()
+    private val deletedDocuments = mutableListOf<UUID>()
     private lateinit var service: OcrProcessingServiceImpl
     private var documentId: UUID = UUID.randomUUID()
 
@@ -112,6 +113,10 @@ class OcrPipelineIntegrationTest(
     private fun recordingIndex() = object : DocumentIndexPersistence {
         override fun index(documentId: UUID, ocrContent: String) {
             indexedDocuments += documentId to ocrContent
+        }
+
+        override fun delete(documentId: UUID) {
+            deletedDocuments += documentId
         }
     }
 

@@ -51,6 +51,8 @@ paperless:
     exchange: paperless.ocr
     queue: paperless.ocr.requests
     routing-key: document.uploaded
+    deletion-queue: paperless.ocr.deletions
+    deletion-routing-key: document.deleted
     dead-letter-exchange: paperless.ocr.dead-letter
     dead-letter-queue: paperless.ocr.failed
     confirm-timeout: 5s
