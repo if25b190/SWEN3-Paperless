@@ -8,14 +8,17 @@ import org.springframework.stereotype.Repository
 import java.util.UUID
 
 @Repository
-class JpaOcrJobPersistence(private val repository: OcrJobRepository) : OcrJobPersistence {
+class JpaOcrJobPersistence(
+    private val repository: OcrJobRepository,
+    private val mapper: OcrJobEntityMapper
+) : OcrJobPersistence {
     override fun enqueue(job: OcrJob) {
-        repository.saveAndFlush(OcrJobEntityMapper.toEntity(job))
+        repository.saveAndFlush(mapper.toEntity(job))
     }
 
     override fun findNextForDispatch(): OcrJob? {
         return repository.findAllByOrderByCreatedAtAsc(PageRequest.of(0, 1)).firstOrNull()
-            ?.let(OcrJobEntityMapper::toModel)
+            ?.let(mapper::toModel)
     }
 
     override fun delete(id: UUID) {
