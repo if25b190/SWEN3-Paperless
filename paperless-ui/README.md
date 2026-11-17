@@ -61,3 +61,9 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+Dependency tooling uses Node.js 26.13.1+ (26.x) and pnpm 12.21.0. Run
+`pnpm lint`, `pnpm test`, `pnpm typecheck`, and `pnpm build` after dependency changes.
+The `tsc` command uses TypeScript 7.0.2. The `typescript` package name aliases
+Microsoft's TypeScript 6 compatibility API for Next.js and typescript-eslint;
+`@typescript/native` supplies the native TypeScript 7 compiler alongside it.

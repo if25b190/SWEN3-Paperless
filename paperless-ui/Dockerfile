@@ -1,8 +1,8 @@
 # Base stage
-FROM node:22-alpine AS base
+FROM node:26.13.1-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN npm install -g pnpm@12.4.2
+RUN npm install -g pnpm@12.21.0
 
 # Dependencies stage
 FROM base AS deps
@@ -23,7 +23,7 @@ ENV NODE_ENV=production
 RUN pnpm run build
 
 # Production runner stage
-FROM node:22-alpine AS runner
+FROM node:26.13.1-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -2,6 +2,7 @@ package at.fhtw.swen3.paperless.ocr.messaging
 
 import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
+import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.testsupport.any
 import org.assertj.core.api.Assertions.assertThat
@@ -13,6 +14,7 @@ import org.mockito.Mock
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.eq
+import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
 import org.springframework.amqp.AmqpConnectException
 import org.springframework.amqp.core.Message
@@ -47,6 +49,38 @@ class RabbitOcrMessagePublisherTest {
 
         // when
         publisher().publish(request)
+    }
+
+    @Test
+    fun confirmed_deletion_message_has_stable_id_and_persistent_delivery_ok() {
+        // given
+        val documentId = UUID.randomUUID()
+        doAnswer { invocation ->
+            val postProcessor = invocation.getArgument<MessagePostProcessor>(3)
+            val message = postProcessor.postProcessMessage(Message(byteArrayOf(), MessageProperties()))
+            assertThat(message.messageProperties.messageId).isEqualTo(documentId.toString())
+            assertThat(message.messageProperties.deliveryMode).isEqualTo(MessageDeliveryMode.PERSISTENT)
+            invocation.getArgument<CorrelationData>(4).future.complete(CorrelationData.Confirm(true, null))
+            null
+        }.`when`(template).convertAndSend(
+            eq(properties.exchange),
+            eq(properties.deletionRoutingKey),
+            eq(DocumentDeletion(documentId)),
+            any(MessagePostProcessor::class.java),
+            any(CorrelationData::class.java)
+        )
+
+        // when
+        publisher().publishDeletion(documentId)
+
+        // then
+        verify(template).convertAndSend(
+            eq(properties.exchange),
+            eq(properties.deletionRoutingKey),
+            eq(DocumentDeletion(documentId)),
+            any(MessagePostProcessor::class.java),
+            any(CorrelationData::class.java)
+        )
     }
 
     @Test

@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: paperless-worker
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:paperless}
+    password: ${RABBITMQ_PASS:paperless_secure_password}
+    connection-timeout: 5s
+    listener:
+      simple:
+        auto-startup: ${paperless.worker.enabled:true}
+        acknowledge-mode: auto
+        prefetch: 1
+        concurrency: ${OCR_WORKER_CONCURRENCY:1}
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-retries: 3
+          initial-interval: 1s
+          max-interval: 5s
+          multiplier: 2
+  elasticsearch:
+    uris: http://${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}
+    username: ${ELASTIC_USER:elastic}
+    password: ${ELASTIC_PASSWORD:}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/paperless}
+    username: ${SPRING_DATASOURCE_USERNAME:paperless}
+    password: ${SPRING_DATASOURCE_PASSWORD:paperless}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
+
+paperless:
+  storage:
+    type: ${DOCUMENT_STORAGE_TYPE:s3}
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:paperless-documents}
+    access-key: ${RUSTFS_ACCESS_KEY:paperless}
+    secret-key: ${RUSTFS_SECRET_KEY:paperless_secure_password}
+  ocr:
+    exchange: paperless.ocr
+    queue: paperless.ocr.requests
+    routing-key: document.uploaded
+    deletion-queue: paperless.ocr.deletions
+    deletion-routing-key: document.deleted
+    dead-letter-exchange: paperless.ocr.dead-letter
+    dead-letter-queue: paperless.ocr.failed
+    confirm-timeout: 5s
+  worker:
+    enabled: ${WORKER_ENABLED:true}
+    storage-dir: ${OCR_STORAGE_DIR:/tmp/paperless-documents}
+    tesseract-languages: ${OCR_TESSERACT_LANGUAGES:eng}
+    dpi: ${OCR_DPI:300}
+    process-timeout: ${OCR_PROCESS_TIMEOUT:120s}
+    final-status: ${OCR_FINAL_STATUS:COMPLETED}
+    index-name: ${OCR_INDEX_NAME:paperless-documents}
+
+logging:
+  file:
+    name: ${WORKER_LOG_FILE:}
+  structured:
+    format:
+      file: ecs
+    json:
+      rename:
+        trace_id: trace.id
+        span_id: span.id
+  logback:
+    rollingpolicy:
+      file-name-pattern: ${WORKER_LOG_FILE:worker.json}.%d{yyyy-MM-dd}.%i
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
+  level:
+    at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
+  pattern:
+    # trace_id is injected into the MDC by the OpenTelemetry Java agent's
+    # Logback MDC instrumentation (see Dockerfile).
+    level: "%5p [trace_id=%X{trace_id:-none}]"

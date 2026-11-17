@@ -1,0 +1,29 @@
+# Standalone Elastic Agent: collects the container logs of every service in
+# the compose stack via a filestream input with the container parser (reads
+# the Docker log files from the mounted container log directory) and ships
+# them to Elasticsearch as the `paperless-container-logs` index. The
+# `paperless-container-logs` ingest pipeline (loaded by the
+# `elasticsearch-bootstrap` service) transforms each event before indexing.
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["http://elasticsearch:9200"]
+
+agent:
+  monitoring:
+    enabled: false
+  logging:
+    to_stderr: true
+
+inputs:
+  - type: filestream
+    id: container-logs
+    streams:
+      - input: filestream
+        index: paperless-container-logs
+        prospector.scanner.symlinks: true
+        parsers:
+          - container:
+              format: docker
+        paths:
+          - "/var/lib/docker/containers/*/*.log"

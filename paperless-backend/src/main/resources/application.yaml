@@ -51,12 +51,13 @@ paperless:
     exchange: paperless.ocr
     queue: paperless.ocr.requests
     routing-key: document.uploaded
+    deletion-queue: paperless.ocr.deletions
+    deletion-routing-key: document.deleted
     dead-letter-exchange: paperless.ocr.dead-letter
     dead-letter-queue: paperless.ocr.failed
     confirm-timeout: 5s
     dispatch-enabled: ${OCR_DISPATCH_ENABLED:true}
     dispatch-delay: ${OCR_DISPATCH_DELAY:1000}
-    worker-enabled: ${OCR_WORKER_ENABLED:false}
 
 server:
   tomcat:
@@ -67,7 +68,9 @@ logging:
   level:
     at.fhtw.swen3.paperless: ${PAPERLESS_LOG_LEVEL:INFO}
   pattern:
-    level: "%5p [requestId=%X{requestId:-none}]"
+    # trace_id/span_id are injected into the MDC by the OpenTelemetry Java
+    # agent's Logback MDC instrumentation (see Dockerfile).
+    level: "%5p [trace_id=%X{trace_id:-none} requestId=%X{requestId:-none}]"
 
 springdoc:
   api-docs:

@@ -14,6 +14,7 @@ import at.fhtw.swen3.paperless.exception.TeamNotFoundException
 import at.fhtw.swen3.paperless.exception.UserNotFoundException
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
+import at.fhtw.swen3.paperless.ocr.messaging.OcrMessagePublisher
 import at.fhtw.swen3.paperless.ocr.model.OcrJob
 import at.fhtw.swen3.paperless.ocr.persistence.OcrJobPersistence
 import jakarta.validation.ConstraintViolationException
@@ -39,7 +40,8 @@ class DocumentServiceImpl(
     private val referencesPersistence: DocumentReferencesPersistence,
     private val teamMemberRepository: TeamMemberPersistence,
     private val ocrJobs: OcrJobPersistence,
-    private val storage: DocumentStoragePersistence
+    private val storage: DocumentStoragePersistence,
+    private val publisher: OcrMessagePublisher
 ) : DocumentService {
 
     @Transactional(readOnly = true)
@@ -174,6 +176,7 @@ class DocumentServiceImpl(
         repository.delete(existing)
         repository.flush()
         existing.storageKey?.let(::deleteAfterCommit)
+        registerDeletionAfterCommit(id)
         logger.info("[DOCUMENT] - ACTION: deleteDocument: documentId: {}, actorId: {}", id, actorId)
     }
 
@@ -276,6 +279,30 @@ class DocumentServiceImpl(
             storage.delete(storageKey)
         } catch (exception: Exception) {
             logger.warn("[DOCUMENT] - ACTION: deleteFileFailed: exceptionType: {}", exception.javaClass.name)
+        }
+    }
+
+    private fun registerDeletionAfterCommit(documentId: UUID) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            publishDeletionQuietly(documentId)
+            return
+        }
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                publishDeletionQuietly(documentId)
+            }
+        })
+    }
+
+    private fun publishDeletionQuietly(documentId: UUID) {
+        try {
+            publisher.publishDeletion(documentId)
+        } catch (exception: Exception) {
+            logger.warn(
+                "[DOCUMENT] - ACTION: publishDeletionFailed: documentId: {}, exceptionType: {}",
+                documentId,
+                exception.javaClass.name
+            )
         }
     }
 

@@ -68,6 +68,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
             }.isInstanceOf(OcrPublishException::class.java)
         } finally {
             admin.deleteQueue(properties.queue)
+            admin.deleteQueue(properties.deletionQueue)
             admin.deleteQueue(properties.deadLetterQueue)
             admin.deleteExchange(properties.exchange)
             admin.deleteExchange(properties.deadLetterExchange)

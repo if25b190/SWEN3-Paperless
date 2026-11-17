@@ -29,6 +29,79 @@ services:
       S3_BUCKET: ${S3_BUCKET:-paperless-documents}
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
+      # OpenTelemetry Java agent (baked into the image, see Dockerfile).
+      JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: paperless
+      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
+      # an explicit endpoint is configured; the collector receives gRPC on
+      # 4317, so pin the protocol.
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # Only traces are consumed by the stack; metrics and logs stay disabled
+      # (application logs are already collected by the Elastic Agent).
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      # OTLP gRPC endpoint of the OpenTelemetry collector.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+
+  worker:
+    build:
+      context: ./paperless-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    env_file:
+      - .env.local
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://db:5432/paperless}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-paperless}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
+      DOCUMENT_STORAGE_TYPE: s3
+      S3_ENDPOINT: http://rustfs:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-paperless-documents}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-paperless}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-paperless_secure_password}
+      WORKER_ENABLED: ${WORKER_ENABLED:-true}
+      OCR_TESSERACT_LANGUAGES: ${OCR_TESSERACT_LANGUAGES:-eng}
+      OCR_DPI: ${OCR_DPI:-300}
+      OCR_PROCESS_TIMEOUT: ${OCR_PROCESS_TIMEOUT:-120s}
+      OCR_FINAL_STATUS: ${OCR_FINAL_STATUS:-COMPLETED}
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
+      WORKER_LOG_FILE: /var/log/paperless-worker/worker.json
+      # OpenTelemetry Java agent (baked into the image, see Dockerfile).
+      JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: paperless-worker
+      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
+      # an explicit endpoint is configured; the collector receives gRPC on
+      # 4317, so pin the protocol.
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # Only traces are consumed by the stack; metrics and logs stay disabled
+      # (application logs are already collected by the Elastic Agent).
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      # OTLP gRPC endpoint of the OpenTelemetry collector.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    volumes:
+      - worker-logs:/var/log/paperless-worker
+      - document-files:/tmp/paperless-documents
 
   ui:
     build:
@@ -46,8 +119,160 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.6
+    restart: unless-stopped
+    mem_limit: 1g
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.6
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      LS_JAVA_OPTS: "-Xms256m -Xmx256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    volumes:
+      - ./infra/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./infra/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - worker-logs:/var/log/paperless-worker:ro
+      - logstash-data:/usr/share/logstash/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/pipelines/main"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  elasticsearch-bootstrap:
+    image: curlimages/curl:8.23.0
+    restart: "no"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./infra/elasticsearch/pipelines/paperless-container-logs.json:/pipeline.json:ro
+      - ./infra/elasticsearch/pipelines/paperless-container-logs-template.json:/index-template.json:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "Waiting for Elasticsearch..."
+        until curl -sf http://elasticsearch:9200/ > /dev/null; do sleep 2; done
+        echo "Loading ingest pipeline paperless-container-logs..."
+        curl -sf -X PUT "http://elasticsearch:9200/_ingest/pipeline/paperless-container-logs" \
+          -H "Content-Type: application/json" \
+          --data-binary @/pipeline.json
+        echo
+        echo "Creating index template paperless-container-logs..."
+        curl -sf -X PUT "http://elasticsearch:9200/_index_template/paperless-container-logs" \
+          -H "Content-Type: application/json" \
+          --data-binary @/index-template.json
+        echo
+        echo "Elasticsearch bootstrap complete."
+
+  elastic-agent:
+    image: docker.elastic.co/elastic-agent/elastic-agent:9.5.6
+    restart: unless-stopped
+    mem_limit: 512m
+    # Root is required to read the host's container log files under
+    # /var/lib/docker/containers (root-only on the host).
+    user: root
+    depends_on:
+      elasticsearch-bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - ./infra/elastic-agent/elastic-agent.yml:/usr/share/elastic-agent/elastic-agent.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.6
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+      SERVER_HOST: "0.0.0.0"
+      TELEMETRY_ENABLED: "false"
+      NODE_OPTIONS: "--max-old-space-size=768"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-5601}:5601"
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:5601/api/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 60s
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.165.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - tempo
+    # 4317 is also published on localhost so natively run applications can
+    # export traces to the same collector.
+    ports:
+      - "127.0.0.1:4317:4317"
+    volumes:
+      - ./infra/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+
+  tempo:
+    image: grafana/tempo:3.1.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    ports:
+      - "127.0.0.1:3200:3200"
+    volumes:
+      - ./infra/tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    # Tempo 3's distroless image has no HTTP client for an in-container check.
+    # infra/observability/verify.py checks the published /ready endpoint.
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-paperless}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    depends_on:
+      tempo:
+        condition: service_started
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
   db:
-    image: postgres:16-alpine
+    image: postgres:18.7-alpine
     restart: unless-stopped
     shm_size: 128mb
     ports:
@@ -55,6 +280,7 @@ services:
     env_file:
       - .env.local
     environment:
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: ${POSTGRES_DB:-paperless}
       POSTGRES_USER: ${POSTGRES_USER:-paperless}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
@@ -89,7 +315,7 @@ services:
       retries: 5
 
   rustfs:
-    image: rustfs/rustfs:1.0.4
+    image: rustfs/rustfs:1.0.5
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
@@ -111,7 +337,7 @@ services:
       start_period: 15s
 
   rustfs-init:
-    image: amazon/aws-cli:2.34.0
+    image: amazon/aws-cli:2.40.3
     restart: "no"
     depends_on:
       rustfs:
@@ -136,6 +362,12 @@ configs:
 volumes:
   rustfs-data:
   document-files:
+  elasticsearch-data:
+  logstash-data:
+  kibana-data:
+  tempo-data:
+  grafana-data:
+  worker-logs:
   postgres-data:
   rabbitmq-lib:
     driver: local

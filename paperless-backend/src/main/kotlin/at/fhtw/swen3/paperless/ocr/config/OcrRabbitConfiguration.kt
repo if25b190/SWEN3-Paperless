@@ -21,14 +21,21 @@ class OcrRabbitConfiguration {
             .deadLetterExchange(properties.deadLetterExchange)
             .deadLetterRoutingKey(properties.routingKey)
             .build()
+        val deletionQueue = QueueBuilder.durable(properties.deletionQueue)
+            .deadLetterExchange(properties.deadLetterExchange)
+            .deadLetterRoutingKey(properties.deletionRoutingKey)
+            .build()
         val deadLetterQueue = QueueBuilder.durable(properties.deadLetterQueue).build()
         return Declarables(
             exchange,
             deadLetterExchange,
             queue,
+            deletionQueue,
             deadLetterQueue,
             BindingBuilder.bind(queue).to(exchange).with(properties.routingKey),
-            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.routingKey)
+            BindingBuilder.bind(deletionQueue).to(exchange).with(properties.deletionRoutingKey),
+            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.routingKey),
+            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.deletionRoutingKey)
         )
     }
 

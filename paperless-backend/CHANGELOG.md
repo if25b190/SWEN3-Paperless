@@ -5,7 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.3-SNAPSHOT]
 
+### Dependencies
+- Updated the Kotlin/Spring toolchain and direct libraries to current stable releases;
+  see [dependency upgrade notes](../docs/dependency-upgrades.md) for versions and migration details.
+
 ### Added
+- Index deletion on document deletion: after a document deletion commits, the backend
+  publishes a `DocumentDeletion` message (field `documentId`; the AMQP message ID is the
+  document ID) on the `paperless.ocr` exchange with routing key `document.deleted`
+  (durable queue `paperless.ocr.deletions`, dead-lettered like the upload queue), and the
+  OCR worker removes the document's Elasticsearch index entry. Like the post-commit
+  storage-file deletion, a failed publish is logged and swallowed so a broker outage does
+  not fail the delete. `RabbitOcrMessagePublisher` now shares one confirmed-publish path
+  for upload and deletion messages.
+- OpenTelemetry tracing via the OpenTelemetry Java agent
+  (`opentelemetry-javaagent`, v2.33.1, downloaded into the runtime image and
+  started with `-javaagent` through `JAVA_OPTS`): spans for HTTP requests,
+  database access, and RabbitMQ publish are exported as OTLP to the
+  OpenTelemetry collector (`OTEL_EXPORTER_OTLP_ENDPOINT`). The W3C
+  `traceparent` context propagates with OCR messages into the worker. The log
+  pattern now includes the current trace ID as `trace_id` (agent-injected
+  Logback MDC).
 - Project-local override of the openapi-generator `kotlin-spring` template
   (`openapi-templates/apiInterface.mustache`, wired via `templateDir` in `build.gradle.kts`) that
   appends a nullable `Authentication` parameter to every generated API method.
@@ -34,6 +54,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 - `storage_key` from `DocumentResponse`: the MinIO object key is an internal implementation detail
   and was never consumed by the frontend.
+- The built-in `OcrWorker` listener scaffold (`ocr/worker/OcrWorker.kt`) and the
+  `OCR_WORKER_ENABLED` / `paperless.ocr.worker-enabled` property: real OCR processing happens in
+  the separate `paperless-worker` application, so the disabled scaffold is no longer needed.
 
 ## [0.0.2-SNAPSHOT]
 
