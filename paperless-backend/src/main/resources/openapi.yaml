@@ -1068,8 +1068,9 @@ components:
           example: john_doe
         password:
           type: string
+          description: Base64-encoded UTF-8 password. Encoding is reversible; use HTTPS for transport protection.
           format: password
-          example: "SecretP@ss123"
+          example: "U2VjcmV0UEBzczEyMw=="
 
     LoginResponse:
       type: object

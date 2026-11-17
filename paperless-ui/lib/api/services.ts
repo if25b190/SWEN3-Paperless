@@ -18,7 +18,17 @@ type Opts = Pick<RequestOptions, "silent" | "messages" | "signal" | "anonymous">
 
 export const authApi = {
   login: (body: { username: string; password: string }, opts?: Opts) =>
-    apiFetch<LoginResponse>("/auth/login", { method: "POST", body, ...opts }),
+    apiFetch<LoginResponse>("/auth/login", {
+      method: "POST",
+      body: {
+        ...body,
+        // Encode UTF-8 bytes so passwords containing Unicode also work.
+        password: btoa(
+          Array.from(new TextEncoder().encode(body.password), (byte) => String.fromCharCode(byte)).join(""),
+        ),
+      },
+      ...opts,
+    }),
   me: (opts?: Opts) => apiFetch<User>("/auth/me", opts),
 };
 
