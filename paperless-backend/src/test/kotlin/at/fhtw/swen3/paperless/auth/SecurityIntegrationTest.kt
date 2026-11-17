@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delet
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -70,7 +71,7 @@ class SecurityIntegrationTest(
             .andExpect(status().isUnauthorized)
 
         val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"alice","password":"${"páß🔑".repeat(20)}"}"""))
+            .content("""{"username":"alice","password":"${encodePassword("páß🔑".repeat(20))}"}"""))
             .andExpect(status().isOk).andExpect(jsonPath("$.token_type").value("Bearer"))
             .andReturn().response.contentAsString
         val token = Regex("\"token\":\"([^\"]+)\"").find(login)!!.groupValues[1]
@@ -82,7 +83,7 @@ class SecurityIntegrationTest(
         mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer expired"))
             .andExpect(status().isUnauthorized)
         val replacementLogin = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"alice","password":"${"páß🔑".repeat(20)}"}"""))
+            .content("""{"username":"alice","password":"${encodePassword("páß🔑".repeat(20))}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val replacementToken = Regex("\"token\":\"([^\"]+)\"").find(replacementLogin)!!.groupValues[1]
         assertThat(replacementToken).isNotEqualTo(token)
@@ -118,7 +119,7 @@ class SecurityIntegrationTest(
             .andExpect(status().isOk).andExpect(jsonPath("$.id").value(alice.toString()))
             .andExpect(jsonPath("$.username").value(renamedUsername))
         val renamedLogin = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$renamedUsername","password":"páß🔑${"páß🔑".repeat(19)}"}"""))
+            .content("""{"username":"$renamedUsername","password":"${encodePassword("páß🔑".repeat(20))}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val renamedToken = Regex("\"token\":\"([^\"]+)\"").find(renamedLogin)!!.groupValues[1]
 
@@ -132,11 +133,11 @@ class SecurityIntegrationTest(
         mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $token"))
             .andExpect(status().isUnauthorized)
         mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$renamedUsername","password":"${"páß🔑".repeat(20)}"}"""))
+            .content("""{"username":"$renamedUsername","password":"${encodePassword("páß🔑".repeat(20))}"}"""))
             .andExpect(status().isUnauthorized)
         val newToken = Regex("\"token\":\"([^\"]+)\"").find(mvc.perform(post("/api/v1/auth/login")
             .contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$renamedUsername","password":"new-unicode-🔒"}"""))
+            .content("""{"username":"$renamedUsername","password":"${encodePassword("new-unicode-🔒")}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString)!!.groupValues[1]
         mvc.perform(delete("/api/v1/users/$bob").header("Authorization", "Bearer $newToken"))
             .andExpect(status().isForbidden)
@@ -144,6 +145,24 @@ class SecurityIntegrationTest(
             .andExpect(status().isNoContent)
         mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer $newToken"))
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun login_rejects_raw_and_malformed_password_encoding_ko() {
+        // given
+        val username = "encoding_${System.nanoTime()}"
+        register(username, "password1234")
+
+        // when / then
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content("""{"username":"$username","password":"password1234"}"""))
+            .andExpect(status().isUnauthorized)
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content("""{"username":"$username","password":"%%%invalid%%%"}"""))
+            .andExpect(status().isUnauthorized)
+        mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+            .content("""{"username":"$username","password":"${encodePassword("password1234")}"}"""))
+            .andExpect(status().isOk)
     }
 
     @Test
@@ -157,7 +176,7 @@ class SecurityIntegrationTest(
                 ready.countDown()
                 check(start.await(5, TimeUnit.SECONDS))
                 val body = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"username":"${users.findById(userId).orElseThrow().username}","password":"race-password"}"""))
+                    .content("""{"username":"${users.findById(userId).orElseThrow().username}","password":"${encodePassword("race-password")}"}"""))
                     .andExpect(status().isOk).andReturn().response.contentAsString
                 Regex("\"token\":\"([^\"]+)\"").find(body)!!.groupValues[1]
             }
@@ -205,7 +224,7 @@ class SecurityIntegrationTest(
             .andReturn().response.contentAsString
         val userId = Regex("\"id\":\"([^\"]+)\"").find(createdResponse)!!.groupValues[1]
         val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$initialUsername","password":"12345678"}"""))
+            .content("""{"username":"$initialUsername","password":"${encodePassword("12345678")}"}"""))
             .andExpect(status().isOk).andReturn().response.contentAsString
         val token = Regex("\"token\":\"([^\"]+)\"").find(login)!!.groupValues[1]
 
@@ -246,6 +265,9 @@ class SecurityIntegrationTest(
         mvc.perform(post("/users")).andExpect(status().isUnauthorized)
         mvc.perform(post("/auth/login")).andExpect(status().isUnauthorized)
     }
+
+    private fun encodePassword(password: String): String =
+        Base64.getEncoder().encodeToString(password.toByteArray(Charsets.UTF_8))
 
     private fun boundaryUsername(): String = UUID.randomUUID().toString().replace("-", "").take(4)
 

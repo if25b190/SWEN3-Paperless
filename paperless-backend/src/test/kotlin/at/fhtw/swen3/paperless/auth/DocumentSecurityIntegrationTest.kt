@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.util.Base64
 import java.util.UUID
 
 @SpringBootTest(properties = [
@@ -238,8 +239,9 @@ class DocumentSecurityIntegrationTest(
             .andExpect(jsonPath("$.password").doesNotExist())
             .andReturn().response.contentAsString
         val id = jsonUuid(registration, "id")
+        val encodedPassword = Base64.getEncoder().encodeToString(password.toByteArray(Charsets.UTF_8))
         val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$username","password":"$password"}"""))
+            .content("""{"username":"$username","password":"$encodedPassword"}"""))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.token_type").value("Bearer"))
             .andReturn().response.contentAsString

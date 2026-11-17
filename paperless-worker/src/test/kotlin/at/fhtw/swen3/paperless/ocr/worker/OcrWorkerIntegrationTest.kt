@@ -7,6 +7,7 @@ import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
 import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
+import at.fhtw.swen3.paperless.ocr.persistence.DocumentFilePersistence
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
 import at.fhtw.swen3.paperless.ocr.persistence.repository.OcrDocumentRepository
 import at.fhtw.swen3.paperless.ocr.service.OcrProcessingService
@@ -79,6 +80,9 @@ class OcrWorkerIntegrationTest {
     @MockitoBean
     lateinit var index: DocumentIndexPersistence
 
+    @MockitoBean(enforceOverride = true)
+    lateinit var files: DocumentFilePersistence
+
     @MockitoSpyBean
     lateinit var service: OcrProcessingService
 
@@ -129,6 +133,7 @@ class OcrWorkerIntegrationTest {
         try {
             assertThat(requireNotNull(admin.getQueueInfo(properties.queue)).messageCount).isZero()
             verify(engine).extractText(source)
+            verify(files).find(request.storageKey)
         } finally {
             listener.start()
         }
@@ -197,7 +202,7 @@ class OcrWorkerIntegrationTest {
         // then
         val rejected = requireNotNull(template.receive(properties.deadLetterQueue, TEST_TIMEOUT.toMillis()))
         assertThat(rejected.body).isEqualTo(message.body)
-        verifyNoInteractions(engine, index)
+        verifyNoInteractions(engine, index, files)
     }
 
     @Test
