@@ -51,8 +51,8 @@ including failed requests. Client-provided request IDs are not trusted.
 Both applications run the OpenTelemetry Java agent
 (`-javaagent:/opt/otel/opentelemetry-javaagent.jar`, see the Dockerfiles):
 spans are created for HTTP requests, database access, and RabbitMQ
-publish/consume and exported as OTLP to the collector configured by
-`OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4317`). The W3C
+publish/consume and exported as OTLP to the Elastic APM Server intake configured by
+`OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:8200`). The W3C
 `traceparent` context is propagated with OCR messages, so the worker's
 processing joins the publisher/dispatch trace. Uploads first commit a database outbox
 job; that outbox does not store W3C context. The later scheduled dispatch starts a
@@ -66,9 +66,9 @@ rename it to `trace.id` and `span_id` to `span.id`. Logstash normalizes those
 fields to ECS objects before indexing. Console ingestion also stores `trace.id`.
 `trace_id=none` marks logs outside an active span (for example startup) and is
 excluded from trace correlation. These lines legitimately have no indexed trace.
-Trace lookup also requires sampling to retain the span; the collector indexes
-the retained spans into Elasticsearch's `paperless-traces` index, browsable in
-Kibana.
+Trace lookup also requires sampling to retain the span; the APM server indexes
+the retained spans into Elasticsearch's `traces-apm.*` data streams, browsable in
+Kibana's APM app or Discover.
 
 Services record login, resource creation/update/deletion, and membership changes
 with resource IDs. These are operational milestones within a transaction, not a
@@ -108,16 +108,16 @@ local Compose setup, so the pipeline uses the internal HTTP endpoint without cre
 ## Trace correlation and verification
 
 Logs and traces share one Elasticsearch instance. Logs are indexed as described
-above; the OpenTelemetry collector indexes spans into the `paperless-traces` index
+above; the Elastic APM Server indexes spans into the `traces-apm.*` data streams
 with a `trace.id` field. To find a trace from a log entry, filter the
-`paperless-traces-*` data view in Kibana's Discover by the log's trace ID. The
+`traces-apm.*` data view in Kibana's Discover by the log's trace ID. The
 reverse lookup works the same way: filter the log data views by a trace document's
 `trace.id` to list its log events.
 
 For native applications, attach the same Java agent as the Docker images and set
-`OTEL_EXPORTER_OTLP_PROTOCOL=grpc`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`,
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8200`,
 `OTEL_SERVICE_NAME=paperless` (or `paperless-worker`), and disable metrics/log export.
-Compose pins the exporter to the collector's internal address; a native localhost
+Compose pins the exporter to the APM server's internal address; a native localhost
 endpoint in `.env.local` must not redirect a container to itself.
 
 Run `python3 infra/observability/verify.py` against a running stack to check ingest

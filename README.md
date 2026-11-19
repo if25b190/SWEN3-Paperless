@@ -46,7 +46,7 @@ This starts:
 - **`elasticsearch`**: Elasticsearch — the OCR document search index and the log store
 - **`kibana`**: Kibana UI for browsing the search index and the logs
 - **`elastic-agent`**: [Elastic Agent](https://www.elastic.co/what-is/elastic-agent) — tails every service's container logs and ships them to Elasticsearch
-- **`otel-collector`**: [OpenTelemetry Collector](https://opentelemetry.io/) — receives the OTLP traces exported by the backend and worker and indexes them into Elasticsearch
+- **`apm-server`**: [Elastic APM Server](https://www.elastic.co/guide/en/apm) — receives the OTLP traces exported by the backend and worker and indexes them into Elasticsearch
 
 ---
 
@@ -161,25 +161,27 @@ Docker log directory and ships them to Elasticsearch as the
 `paperless-container-logs` [ingest pipeline](https://www.elastic.co/docs/reference/enrich-pipelines/ingest-pipelines)
 transforms each event. The pipeline is loaded at startup by the one-shot
 `elasticsearch-bootstrap` service (definition in
-`infra/elasticsearch/pipelines/`); it parses each Spring Boot log line into
+`infra/elasticsearch/pipelines/`); it parses each Spring
+Boot log line into
 structured ECS fields — `log.level`, `log.logger`, `log.thread.name`,
 `http.request.id`, and `trace.id` — and tags lines that don't match the Spring
 Boot format with `paperless-log-unparsed`.
 
-The **`otel-collector`** service provides distributed tracing
+The **`apm-server`** service provides distributed tracing
 (OpenTelemetry/APM). Both the backend and the worker create spans for HTTP
 requests, database access, and RabbitMQ publish/consume and export them as OTLP
-to the collector (`OTEL_EXPORTER_OTLP_ENDPOINT`, default
-`http://localhost:4317`). The W3C `traceparent` context travels with the OCR
+to the APM server's intake (`OTEL_EXPORTER_OTLP_ENDPOINT`, default
+`http://localhost:8200`). The W3C `traceparent` context travels with the OCR
 message in the AMQP headers, so the worker's processing joins its publisher's
 trace. The original upload HTTP trace is separate because the database outbox
 dispatches later without retaining trace context. Use `jobId` and `documentId`
-to correlate upload and dispatch. The collector indexes traces into
-**Elasticsearch** as the `paperless-traces` index. Logs inside an active span
+to correlate upload and dispatch. The APM server indexes traces into
+**Elasticsearch** as the `traces-apm.*` data streams. Logs inside an active span
 carry the W3C trace ID: `trace_id` in console output, and `trace.id` in worker
 ECS JSON. Container ingestion also normalizes it to `trace.id`; startup logs
-have no active trace. Browse the traces alongside the logs in
-[Kibana](http://localhost:5601) with a `paperless-traces-*` data view.
+have no active trace. Browse the traces in Kibana's *Observability → APM* app
+(http://localhost:5601), or alongside the logs in *Analytics → Discover* with
+the `traces-apm.*` data view.
 
 Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
 `OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
@@ -221,9 +223,10 @@ in Kibana (http://localhost:5601 by default, bound to localhost only): in
 index, then open *Analytics → Discover*. In the `paperless-container-logs` view you
 can filter on the parsed `log.level` and `log.logger` fields.
 
-Browse traces in the same Kibana UI: create a data view for the
-`paperless-traces-*` index, open *Analytics → Discover*, and filter by a log
-entry's `trace_id` to see that trace's indexed span documents.
+Browse traces in the same Kibana UI: open *Observability → APM* for the trace
+waterfall views, or open *Analytics → Discover* with the `traces-apm.*` data
+view and filter by a log entry's `trace_id` to see that trace's indexed span
+documents.
 
 ---
 
