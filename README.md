@@ -161,7 +161,9 @@ Docker log directory and ships them to Elasticsearch as the
 `paperless-container-logs` [ingest pipeline](https://www.elastic.co/docs/reference/enrich-pipelines/ingest-pipelines)
 transforms each event. The pipeline is loaded at startup by the one-shot
 `elasticsearch-bootstrap` service (definition in
-`infra/elasticsearch/pipelines/`); it parses each Spring
+`infra/elasticsearch/pipelines/`), which also loads the index template; the
+one-shot `kibana-bootstrap` service (definition in `infra/kibana/`) imports the
+predefined Kibana data views and dashboard. The pipeline parses each Spring
 Boot log line into
 structured ECS fields — `log.level`, `log.logger`, `log.thread.name`,
 `http.request.id`, and `trace.id` — and tags lines that don't match the Spring
@@ -216,12 +218,21 @@ Follow container logs:
 docker compose --env-file .env.local logs -f
 ```
 
-Browse the worker's log events, the document search index, and the container logs
-in Kibana (http://localhost:5601 by default, bound to localhost only): in
-*Management → Stack Management → Data Views*, create a view for the
-`paperless-worker-logs-*`, `paperless-documents`, or `paperless-container-logs`
-index, then open *Analytics → Discover*. In the `paperless-container-logs` view you
-can filter on the parsed `log.level` and `log.logger` fields.
+A predefined **[Paperless] Logs** dashboard (open *Analytics → Dashboards*, or
+<http://localhost:5601/app/dashboards#/view/paperless-logs-dashboard>) summarizes
+the application logs: log-event/error/trace-ID/document metrics per time range,
+log events over time split by level, events per service, the noisiest loggers,
+the worker's OCR activity, and a table of the latest ERROR-level application
+logs. It is imported at startup by the one-shot `kibana-bootstrap` service from
+`infra/kibana/saved-objects/` (regenerate that bundle after changing it with
+`python3 infra/kibana/generate-saved-objects.py`).
+
+The same startup peers create the `paperless-container-logs`,
+`paperless-worker-logs-*`, `paperless-documents`, and `traces-apm.*` data
+views, so you can also browse ad hoc in *Analytics → Discover* without creating
+anything. In the
+`paperless-container-logs` view you can filter on the parsed `log.level` and
+`log.logger` fields.
 
 Browse traces in the same Kibana UI: open *Observability → APM* for the trace
 waterfall views, or open *Analytics → Discover* with the `traces-apm.*` data
