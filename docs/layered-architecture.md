@@ -8,12 +8,12 @@ at/fhtw/swen3/paperless/<feature>/
   service/      <Feature>Service, <Feature>ServiceImpl
   model/        immutable domain models and enums
   dto/          request and response types
-  mapper/       <Feature>Mapper — DTO ↔ model
+  mapper/       <Feature>Mapper - DTO ↔ model
   entity/       JPA entities
-  persistence/  <Feature>Persistence — domain-facing interface
-                Jpa<Feature>Persistence — Spring @Repository adapter
+  persistence/  <Feature>Persistence - domain-facing interface
+                Jpa<Feature>Persistence - Spring @Repository adapter
     repository/ plain Spring Data interfaces
-    mapper/     <Feature>EntityMapper — pure model ↔ entity mapping
+    mapper/     <Feature>EntityMapper - pure model ↔ entity mapping
 ```
 
 `model/`, `entity/`, `service/`, and `persistence/` are sibling folders within each
@@ -77,3 +77,11 @@ optimistic locking. Membership updates mutate the managed entity and retain its 
 Flyway V2 adds and backfills the new columns for existing databases.
 `AccessTokenEntity` keeps its digest primary key and expiration lifecycle; it does not
 inherit a generated UUID identity.
+
+## OCR processing ownership
+
+The backend owns document writes and the document search index. The worker reads
+source files and publishes progress/results through RabbitMQ without JPA or a
+long-lived database transaction. Backend result handling locks document then job,
+validates the dispatch attempt token, and copies only processing changes onto the
+latest document model. Retained jobs provide bounded retries and lease recovery.

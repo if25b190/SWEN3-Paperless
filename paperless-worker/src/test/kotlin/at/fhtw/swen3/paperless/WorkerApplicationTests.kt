@@ -28,6 +28,16 @@ class WorkerApplicationTests {
     }
 
     @Test
+    fun worker_has_no_database_or_index_client_ok() {
+        // given
+        val beans = context.beanDefinitionNames.map(context::getType).filterNotNull().map { it.name }
+
+        // then
+        assertThat(beans).noneMatch { it.startsWith("org.hibernate.") || it.contains("DataSource") }
+        assertThat(beans).noneMatch { it.startsWith("co.elastic.clients.elasticsearch.") }
+    }
+
+    @Test
     fun services_do_not_depend_on_other_services_ok() {
         // given
         val dependencies = serviceDependencies()

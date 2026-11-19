@@ -50,15 +50,6 @@ class ConfigurationPropertiesValidationTest {
     }
 
     @Test
-    fun blank_index_name_is_rejected_ko() {
-        val violations = validator.validate(OcrWorkerProperties(indexName = " "))
-
-        assertThat(violations).anySatisfy {
-            assertThat(it.propertyPath.toString()).isEqualTo("indexName")
-        }
-    }
-
-    @Test
     fun default_messaging_properties_are_valid_ok() {
         assertThat(validator.validate(OcrMessagingProperties())).isEmpty()
     }

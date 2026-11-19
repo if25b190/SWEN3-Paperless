@@ -3,6 +3,19 @@
 All notable changes to the Paperless OCR worker are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Workers publish progress and OCR results with job/attempt IDs through RabbitMQ;
+  the backend owns document updates, indexing and deletion cleanup.
+- Removed worker JPA entities, PostgreSQL/H2 drivers, transactions and Elasticsearch
+  client. OCR no longer holds a document row lock or database connection.
+- Backend-retained jobs provide expiring attempts, bounded retries and idempotent
+  result handling. Publication failures still propagate for broker redelivery.
+- Request messages require an attemptId. Upgrade both applications together; see
+  the root README for Flyway V5 recovery and deployment details.
+
 ## [0.0.3-SNAPSHOT]
 
 ### Added
@@ -81,8 +94,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   so the service layer never sees broker DTOs. The worker's message converter uses
   `TypePrecedence.INFERRED`, so the listener's parameter type wins over the `__TypeId__` header
   the backend's publisher stamps onto each message.
-- `OcrRequestDTO` is generated from `src/main/resources/openapi.yaml` — the broker message
-  contract for the `paperless.ocr` queue — with the `org.openapi.generator` Gradle plugin
+- `OcrRequestDTO` is generated from `src/main/resources/openapi.yaml` - the broker message
+  contract for the `paperless.ocr` queue - with the `org.openapi.generator` Gradle plugin
   (`kotlin-spring`, models only), mirroring the backend's `openApiGenerate` task: the generated
   sources are added to the main source set, and `compileKotlin` / `kaptGenerateStubsKotlin`
   depend on `openApiGenerate`. The model-only restriction skips the generator's API support files
@@ -112,8 +125,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `ElasticsearchClient` (`spring-boot-starter-elasticsearch`; connection from
   `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD` via
   `spring.elasticsearch.*`). The index `paperless-documents` (configurable via `OCR_INDEX_NAME`)
-  stores one document per `documentId` — `IndexedDocument` (`ocr/model/`) with `id` (keyword),
-  `content` (text), and `indexedAt` (date) — and is created at startup if missing
+  stores one document per `documentId` - `IndexedDocument` (`ocr/model/`) with `id` (keyword),
+  `content` (text), and `indexedAt` (date) - and is created at startup if missing
   (`ensureIndex`, whose failure is tolerated so a temporarily unavailable cluster does not block
   worker boot). A failed index run marks the document `FAILED` and the message retry reprocesses
   and reindexes it; indexing by `documentId` is idempotent. The compose stack adds a single-node

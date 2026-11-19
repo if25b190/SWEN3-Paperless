@@ -2,6 +2,10 @@ spring:
   application:
     name: paperless-test
   rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:paperless}
+    password: ${RABBITMQ_PASS:paperless_secure_password}
     dynamic: false
     listener:
       simple:

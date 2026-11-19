@@ -20,6 +20,10 @@ spring:
           initial-interval: 1s
           max-interval: 5s
           multiplier: 2
+  elasticsearch:
+    uris: http://${ELASTICSEARCH_HOST:localhost}:${ELASTICSEARCH_PORT:9200}
+    username: ${ELASTIC_USER:elastic}
+    password: ${ELASTIC_PASSWORD:}
   servlet:
     multipart:
       max-file-size: ${MAX_UPLOAD_SIZE:50MB}
@@ -51,11 +55,18 @@ paperless:
     exchange: paperless.ocr
     queue: paperless.ocr.requests
     routing-key: document.uploaded
+    result-queue: paperless.ocr.results
+    result-routing-key: document.ocr.result
     deletion-queue: paperless.ocr.deletions
     deletion-routing-key: document.deleted
     dead-letter-exchange: paperless.ocr.dead-letter
     dead-letter-queue: paperless.ocr.failed
     confirm-timeout: 5s
+    lease-duration: ${OCR_LEASE_DURATION:10m}
+    retry-delay: ${OCR_RETRY_DELAY:5s}
+    max-attempts: ${OCR_MAX_ATTEMPTS:4}
+    final-status: ${OCR_FINAL_STATUS:COMPLETED}
+    index-name: ${OCR_INDEX_NAME:paperless-documents}
     dispatch-enabled: ${OCR_DISPATCH_ENABLED:true}
     dispatch-delay: ${OCR_DISPATCH_DELAY:1000}
 

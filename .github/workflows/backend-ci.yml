@@ -30,6 +30,20 @@ jobs:
     name: Backend Build & Test (Gradle / Java 25)
     runs-on: ubuntu-latest
 
+    services:
+      rabbitmq:
+        image: rabbitmq:4.4.0-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: paperless
+          RABBITMQ_DEFAULT_PASS: backend_test_password
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     defaults:
       run:
         working-directory: paperless-backend
@@ -53,6 +67,11 @@ jobs:
 
       - name: Run tests
         run: ./gradlew test --no-daemon
+        env:
+          PAPERLESS_RABBITMQ_TEST: 'true'
+          RABBITMQ_HOST: localhost
+          RABBITMQ_USER: paperless
+          RABBITMQ_PASS: backend_test_password
 
       - name: Package JAR
         run: ./gradlew bootJar -x test --no-daemon

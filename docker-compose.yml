@@ -11,6 +11,8 @@ services:
         condition: service_healthy
       rustfs-init:
         condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     env_file:
@@ -29,6 +31,15 @@ services:
       S3_BUCKET: ${S3_BUCKET:-paperless-documents}
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-paperless}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-paperless_secure_password}
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      ELASTIC_USER: ${ELASTIC_USER:-elastic}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
+      OCR_FINAL_STATUS: ${OCR_FINAL_STATUS:-COMPLETED}
+      OCR_LEASE_DURATION: ${OCR_LEASE_DURATION:-10m}
+      OCR_RETRY_DELAY: ${OCR_RETRY_DELAY:-5s}
+      OCR_MAX_ATTEMPTS: ${OCR_MAX_ATTEMPTS:-4}
       # OpenTelemetry Java agent (baked into the image, see Dockerfile).
       JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
       OTEL_SERVICE_NAME: paperless
@@ -48,22 +59,13 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_started
-      db:
-        condition: service_healthy
       rabbitmq:
-        condition: service_healthy
-      elasticsearch:
         condition: service_healthy
       rustfs:
         condition: service_healthy
     env_file:
       - .env.local
     environment:
-      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://db:5432/paperless}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-paperless}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-paperless_secure_password}
       DOCUMENT_STORAGE_TYPE: s3
       S3_ENDPOINT: http://rustfs:9000
       S3_REGION: ${S3_REGION:-us-east-1}
@@ -78,12 +80,6 @@ services:
       OCR_TESSERACT_LANGUAGES: ${OCR_TESSERACT_LANGUAGES:-eng}
       OCR_DPI: ${OCR_DPI:-300}
       OCR_PROCESS_TIMEOUT: ${OCR_PROCESS_TIMEOUT:-120s}
-      OCR_FINAL_STATUS: ${OCR_FINAL_STATUS:-COMPLETED}
-      ELASTICSEARCH_HOST: elasticsearch
-      ELASTICSEARCH_PORT: 9200
-      ELASTIC_USER: ${ELASTIC_USER:-elastic}
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
-      OCR_INDEX_NAME: ${OCR_INDEX_NAME:-paperless-documents}
       WORKER_LOG_FILE: /var/log/paperless-worker/worker.json
       # OpenTelemetry Java agent (baked into the image, see Dockerfile).
       JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar

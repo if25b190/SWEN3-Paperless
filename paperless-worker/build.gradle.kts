@@ -1,7 +1,6 @@
 plugins {
     kotlin("jvm") version "2.4.21"
     kotlin("plugin.spring") version "2.4.21"
-    kotlin("plugin.jpa") version "2.4.21"
     id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
     id("org.openapi.generator") version "7.14.0"
@@ -24,8 +23,6 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-amqp")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.boot:spring-boot-starter-elasticsearch")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -37,12 +34,10 @@ dependencies {
     implementation("org.mapstruct:mapstruct:1.6.3")
     implementation("io.swagger.core.v3:swagger-annotations-jakarta:2.2.55")
     implementation("tools.jackson.module:jackson-module-kotlin")
-    runtimeOnly("org.postgresql:postgresql")
-    runtimeOnly("com.h2database:h2")
 
     kapt("org.mapstruct:mapstruct-processor:1.6.3")
 
-    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-amqp-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation(kotlin("test"))
 }
@@ -84,12 +79,6 @@ tasks.named("compileKotlin") {
 
 tasks.matching { it.name == "kaptGenerateStubsKotlin" }.configureEach {
     dependsOn("openApiGenerate")
-}
-
-allOpen {
-    annotation("jakarta.persistence.Entity")
-    annotation("jakarta.persistence.MappedSuperclass")
-    annotation("jakarta.persistence.Embeddable")
 }
 
 tasks.withType<Test> {

@@ -4,6 +4,7 @@ import at.fhtw.swen3.paperless.common.entity.AbstractEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Table
+import java.time.Instant
 import java.util.UUID
 
 @Entity
@@ -14,5 +15,10 @@ class OcrJobEntity(
     @Column(nullable = false)
     val storageKey: String,
     @Column(nullable = false)
-    val contentType: String
+    val contentType: String,
+    var attemptId: UUID? = null,
+    @Column(nullable = false)
+    var attempts: Int = 0,
+    @Column(nullable = false)
+    var availableAt: Instant = Instant.now(),
 ) : AbstractEntity()

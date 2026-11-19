@@ -26,6 +26,7 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:2.59.1"))
     implementation("software.amazon.awssdk:s3")
     implementation("software.amazon.awssdk:url-connection-client")
+    implementation("org.springframework.boot:spring-boot-starter-elasticsearch")
     implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("org.springframework.boot:spring-boot-h2console")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

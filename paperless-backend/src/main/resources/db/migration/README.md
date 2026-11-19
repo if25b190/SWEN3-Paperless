@@ -20,3 +20,8 @@ Back up and verify any data that must be retained before resetting a database.
 Tests retain their existing H2 Hibernate `ddl-auto: create-drop` schema
 lifecycle. Flyway is disabled for the test profile, so PostgreSQL migrations
 are not run against H2.
+
+V5 retains OCR jobs until completion and adds attempt tokens, retry counts and
+lease deadlines. It also backfills recovery jobs for pending/in-progress documents
+whose jobs were removed by the previous dispatcher. Stop old workers before
+upgrading both applications; the broker contract now requires an attemptId.

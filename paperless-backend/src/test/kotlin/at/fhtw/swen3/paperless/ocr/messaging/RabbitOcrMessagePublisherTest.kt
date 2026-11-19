@@ -35,7 +35,7 @@ class RabbitOcrMessagePublisherTest {
     lateinit var template: RabbitTemplate
 
     private val properties = OcrMessagingProperties(confirmTimeout = Duration.ofMillis(10))
-    private val request = OcrRequest(UUID.randomUUID(), UUID.randomUUID(), "documents/test.pdf", "application/pdf")
+    private val request = OcrRequest(UUID.randomUUID(), UUID.randomUUID(), "documents/test.pdf", "application/pdf", UUID.randomUUID())
 
     @AfterEach
     fun clear_interrupt() {

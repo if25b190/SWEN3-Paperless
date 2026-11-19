@@ -1,6 +1,5 @@
 package at.fhtw.swen3.paperless.ocr.config
 
-import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Positive
@@ -24,8 +23,4 @@ data class OcrWorkerProperties(
     @field:NotNull
     @field:DurationMin(nanos = 1, message = "must be a positive duration")
     val processTimeout: Duration = Duration.ofMinutes(2),
-    @field:NotNull
-    val finalStatus: ProcessingStatus = ProcessingStatus.COMPLETED,
-    @field:NotBlank
-    val indexName: String = "paperless-documents",
 )

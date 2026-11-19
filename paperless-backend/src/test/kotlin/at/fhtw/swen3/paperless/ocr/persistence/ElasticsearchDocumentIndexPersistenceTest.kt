@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.ocr.persistence
 
-import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
+import at.fhtw.swen3.paperless.ocr.config.OcrProcessingProperties
 import at.fhtw.swen3.paperless.ocr.model.IndexedDocument
 import at.fhtw.swen3.paperless.testsupport.any
 import co.elastic.clients.elasticsearch.ElasticsearchClient
@@ -23,7 +23,6 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.mockito.junit.jupiter.MockitoExtension
 import java.io.IOException
-import java.nio.file.Paths
 import java.util.UUID
 
 @ExtendWith(MockitoExtension::class)
@@ -41,12 +40,16 @@ class ElasticsearchDocumentIndexPersistenceTest {
     fun setUp() {
         persistence = ElasticsearchDocumentIndexPersistence(
             client,
-            OcrWorkerProperties(enabled = true, storageDir = Paths.get("/tmp")),
+            OcrProcessingProperties(),
         )
     }
 
     @Test
     fun index_stores_document_by_id_ok() {
+        // given
+        `when`(client.indices()).thenReturn(indices)
+        `when`(indices.exists(any(ExistsRequest::class.java))).thenReturn(BooleanResponse(true))
+
         // when
         persistence.index(documentId, "INVOICE #9821")
 
@@ -66,6 +69,10 @@ class ElasticsearchDocumentIndexPersistenceTest {
 
     @Test
     fun delete_removes_document_by_id_ok() {
+        // given
+        `when`(client.indices()).thenReturn(indices)
+        `when`(indices.exists(any(ExistsRequest::class.java))).thenReturn(BooleanResponse(true))
+
         // when
         persistence.delete(documentId)
 
