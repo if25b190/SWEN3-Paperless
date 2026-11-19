@@ -32,16 +32,15 @@ services:
       # OpenTelemetry Java agent (baked into the image, see Dockerfile).
       JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
       OTEL_SERVICE_NAME: paperless
-      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
-      # an explicit endpoint is configured; the collector receives gRPC on
-      # 4317, so pin the protocol.
-      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # The agent appends /v1/traces to the endpoint for the http/protobuf
+      # protocol, which is what the APM server's standalone intake accepts.
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       # Only traces are consumed by the stack; metrics and logs stay disabled
       # (application logs are already collected by the Elastic Agent).
       OTEL_METRICS_EXPORTER: none
       OTEL_LOGS_EXPORTER: none
-      # OTLP gRPC endpoint of the OpenTelemetry collector.
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # OTLP HTTP endpoint of the APM server intake.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://apm-server:8200
 
   worker:
     build:
@@ -89,16 +88,15 @@ services:
       # OpenTelemetry Java agent (baked into the image, see Dockerfile).
       JAVA_OPTS: -javaagent:/opt/otel/opentelemetry-javaagent.jar
       OTEL_SERVICE_NAME: paperless-worker
-      # The agent's OTLP exporter defaults to the HTTP/protobuf protocol when
-      # an explicit endpoint is configured; the collector receives gRPC on
-      # 4317, so pin the protocol.
-      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      # The agent appends /v1/traces to the endpoint for the http/protobuf
+      # protocol, which is what the APM server's standalone intake accepts.
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
       # Only traces are consumed by the stack; metrics and logs stay disabled
       # (application logs are already collected by the Elastic Agent).
       OTEL_METRICS_EXPORTER: none
       OTEL_LOGS_EXPORTER: none
-      # OTLP gRPC endpoint of the OpenTelemetry collector.
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # OTLP HTTP endpoint of the APM server intake.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://apm-server:8200
     volumes:
       - worker-logs:/var/log/paperless-worker
       - document-files:/tmp/paperless-documents
@@ -226,19 +224,30 @@ services:
       retries: 12
       start_period: 60s
 
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.165.0
+  # Standalone Elastic APM Server: receives the OTLP traces exported by the
+  # backend and worker OpenTelemetry Java agents (native OTLP intake, so no
+  # separate OpenTelemetry collector is needed) and indexes them into the
+  # traces-apm.* data streams, browsable in Kibana's APM app and Discover.
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:9.5.6
     restart: unless-stopped
-    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    mem_limit: 512m
     depends_on:
       elasticsearch:
         condition: service_healthy
-    # 4317 is also published on localhost so natively run applications can
-    # export traces to the same collector.
+    # The intake port is also published on localhost so natively run
+    # applications can export traces to the same server.
     ports:
-      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:8200:8200"
     volumes:
-      - ./infra/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./infra/apm-server/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    healthcheck:
+      # The apm-server image ships no curl; check the intake port instead.
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   db:
     image: postgres:18.7-alpine

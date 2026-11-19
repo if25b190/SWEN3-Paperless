@@ -48,7 +48,7 @@ def verify_correlation(elasticsearch, trace_id):
         "query": {"term": {"trace.id": trace_id}}, "size": 1,
     })
     assert logs["hits"]["total"]["value"] > 0, "No indexed logs match this trace"
-    traces = request(elasticsearch, "/paperless-traces*/_search", {
+    traces = request(elasticsearch, "/traces-apm*/_search", {
         "query": {"term": {"trace.id": trace_id}}, "size": 1,
     })
     assert traces["hits"]["total"]["value"] > 0, "No indexed traces match this trace"
