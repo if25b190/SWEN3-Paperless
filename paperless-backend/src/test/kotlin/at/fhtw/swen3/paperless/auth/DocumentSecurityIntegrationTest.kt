@@ -2,15 +2,24 @@ package at.fhtw.swen3.paperless.auth
 
 import at.fhtw.swen3.paperless.auth.persistence.repository.AccessTokenRepository
 import at.fhtw.swen3.paperless.document.persistence.repository.DocumentRepository
+import at.fhtw.swen3.paperless.search.model.SearchHit
+import at.fhtw.swen3.paperless.search.model.SearchQuery
+import at.fhtw.swen3.paperless.search.persistence.SearchPersistence
+import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.persistence.repository.UserRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.Pageable
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
@@ -25,21 +34,41 @@ import java.nio.file.Paths
 import java.util.Base64
 import java.util.UUID
 
-@SpringBootTest(properties = [
-    "spring.datasource.url=jdbc:h2:mem:documentsecuritytest;DB_CLOSE_DELAY=-1",
-    "spring.flyway.locations=classpath:db/migration/h2",
-    "spring.datasource.driver-class-name=org.h2.Driver",
-    "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
-    "spring.jpa.hibernate.ddl-auto=create-drop"
-])
+@SpringBootTest(
+    properties = [
+        "spring.datasource.url=jdbc:h2:mem:documentsecuritytest;DB_CLOSE_DELAY=-1",
+        "spring.flyway.locations=classpath:db/migration/h2",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+    ],
+)
 @AutoConfigureMockMvc
 class DocumentSecurityIntegrationTest(
     @Autowired private val mvc: MockMvc,
     @Autowired private val documents: DocumentRepository,
     @Autowired private val users: UserRepository,
-    @Autowired private val tokens: AccessTokenRepository
+    @Autowired private val tokens: AccessTokenRepository,
 ) {
     private val createdDocuments = linkedMapOf<UUID, String>()
+
+    @MockitoBean private lateinit var search: SearchPersistence
+
+    @BeforeEach
+    fun setUpSearchIndex() {
+        // Simulate indexed fixtures at the persistence boundary; live Elasticsearch queries have separate coverage.
+        `when`(search.search(any(), any(), any())).thenAnswer { invocation ->
+            val ids = invocation.getArgument<Set<UUID>>(0)
+            val query = invocation.getArgument<SearchQuery>(1)
+            val pageable = invocation.getArgument<Pageable>(2)
+            val hits = documents.findAllById(ids)
+                .filter { it.title.contains(query.text, ignoreCase = true) }
+                .map { SearchHit(requireNotNull(it.id), 1.0f, emptyList()) }
+            val content = hits.drop(pageable.offset.toInt()).take(pageable.pageSize)
+
+            PageImpl(content, pageable, hits.size.toLong())
+        }
+    }
 
     @Test
     fun bearer_chain_enforces_private_and_team_document_access() {
@@ -71,13 +100,19 @@ class DocumentSecurityIntegrationTest(
             .andExpect(jsonPath("$.id").value(privateDocument.id.toString()))
         mvc.perform(get("/api/v1/documents/${privateDocument.id}/download").header("Authorization", owner.bearer))
             .andExpect(status().isOk)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(privateDocument.content))
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(
+                    privateDocument.content,
+                ),
+            )
         mvc.perform(get("/api/v1/documents").header("Authorization", owner.bearer).param("size", "1"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(3))
             .andExpect(jsonPath("$.pagination.total_pages").value(3))
-        mvc.perform(get("/api/v1/search").header("Authorization", owner.bearer)
-            .param("query", "ownerprivateprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", owner.bearer)
+                .param("query", "ownerprivateprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(1))
             .andExpect(jsonPath("$.items[0].document.id").value(privateDocument.id.toString()))
@@ -93,8 +128,10 @@ class DocumentSecurityIntegrationTest(
             .andExpect(jsonPath("$.pagination.total_elements").value(1))
             .andExpect(jsonPath("$.pagination.total_pages").value(1))
             .andExpect(jsonPath("$.items[0].id").value(outsiderPrivateDocument.id.toString()))
-        mvc.perform(get("/api/v1/search").header("Authorization", outsider.bearer)
-            .param("query", "ownerprivateprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", outsider.bearer)
+                .param("query", "ownerprivateprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(0))
 
@@ -102,24 +139,36 @@ class DocumentSecurityIntegrationTest(
             .andExpect(status().isOk)
         mvc.perform(get("/api/v1/documents/${writerTeamDocument.id}/download").header("Authorization", reader.bearer))
             .andExpect(status().isOk)
-            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(writerTeamDocument.content))
+            .andExpect(
+                org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().bytes(
+                    writerTeamDocument.content,
+                ),
+            )
         mvc.perform(get("/api/v1/documents").header("Authorization", reader.bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(2))
-        mvc.perform(get("/api/v1/search").header("Authorization", reader.bearer)
-            .param("query", "teamprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", reader.bearer)
+                .param("query", "teamprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(2))
-        mvc.perform(get("/api/v1/search").header("Authorization", reader.bearer)
-            .param("query", "ownerprivateprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", reader.bearer)
+                .param("query", "ownerprivateprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(0))
 
-        mvc.perform(uploadRequest("readonlyuploadprobe", teamId)
-            .header("Authorization", reader.bearer))
+        mvc.perform(
+            uploadRequest("readonlyuploadprobe", teamId)
+                .header("Authorization", reader.bearer),
+        )
             .andExpect(status().isForbidden)
-        mvc.perform(put("/api/v1/documents/${adminTeamDocument.id}").header("Authorization", reader.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"title":"forbidden edit"}"""))
+        mvc.perform(
+            put("/api/v1/documents/${adminTeamDocument.id}").header("Authorization", reader.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"title":"forbidden edit"}"""),
+        )
             .andExpect(status().isForbidden)
         mvc.perform(delete("/api/v1/documents/${adminTeamDocument.id}").header("Authorization", reader.bearer))
             .andExpect(status().isForbidden)
@@ -128,8 +177,10 @@ class DocumentSecurityIntegrationTest(
             .andExpect(status().isNotFound)
         mvc.perform(get("/api/v1/documents/${writerTeamDocument.id}/download").header("Authorization", outsider.bearer))
             .andExpect(status().isNotFound)
-        mvc.perform(get("/api/v1/search").header("Authorization", outsider.bearer)
-            .param("query", "teamprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", outsider.bearer)
+                .param("query", "teamprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(0))
 
@@ -145,8 +196,10 @@ class DocumentSecurityIntegrationTest(
         mvc.perform(get("/api/v1/documents").header("Authorization", writer.bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(0))
-        mvc.perform(get("/api/v1/search").header("Authorization", writer.bearer)
-            .param("query", "writerteamprobe").param("fuzzy", "false"))
+        mvc.perform(
+            get("/api/v1/search").header("Authorization", writer.bearer)
+                .param("query", "writerteamprobe").param("fuzzy", "false"),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.pagination.total_elements").value(0))
         mvc.perform(get("/api/v1/documents/${writerTeamDocument.id}").header("Authorization", owner.bearer))
@@ -199,30 +252,42 @@ class DocumentSecurityIntegrationTest(
         val suffix = System.nanoTime()
         val owner = registerAndLogin("typeowner$suffix")
         val document = upload(owner, owner, "typeclearprobe")
-        val typeId = mvc.perform(post("/api/v1/document-types").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"name":"Type $suffix"}"""))
+        val typeId = mvc.perform(
+            post("/api/v1/document-types").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"name":"Type $suffix"}"""),
+        )
             .andExpect(status().isCreated)
             .andReturn().response.contentAsString.let { jsonUuid(it, "id") }
-        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":"$typeId"}"""))
+        mvc.perform(
+            put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":"$typeId"}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
 
         // when / then
-        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":null}"""))
+        mvc.perform(
+            put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"document_type_id":null}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
-        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"title":"Renamed"}"""))
+        mvc.perform(
+            put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"title":"Renamed"}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.document_type.id").value(typeId.toString()))
-        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""{"document_type_id":"$typeId","clear_document_type":true}"""))
+        mvc.perform(
+            put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"document_type_id":"$typeId","clear_document_type":true}"""),
+        )
             .andExpect(status().isBadRequest)
-        mvc.perform(put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
-            .contentType(MediaType.APPLICATION_JSON).content("""{"clear_document_type":true}"""))
+        mvc.perform(
+            put("/api/v1/documents/${document.id}").header("Authorization", owner.bearer)
+                .contentType(MediaType.APPLICATION_JSON).content("""{"clear_document_type":true}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.document_type").value(org.hamcrest.Matchers.nullValue()))
             .andExpect(jsonPath("$.title").value("Renamed"))
@@ -233,15 +298,19 @@ class DocumentSecurityIntegrationTest(
 
     private fun registerAndLogin(username: String): Account {
         val password = "document-security-password"
-        val registration = mvc.perform(post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$username","password":"$password"}"""))
+        val registration = mvc.perform(
+            post("/api/v1/users").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","password":"$password"}"""),
+        )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.password").doesNotExist())
             .andReturn().response.contentAsString
         val id = jsonUuid(registration, "id")
         val encodedPassword = Base64.getEncoder().encodeToString(password.toByteArray(Charsets.UTF_8))
-        val login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-            .content("""{"username":"$username","password":"$encodedPassword"}"""))
+        val login = mvc.perform(
+            post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","password":"$encodedPassword"}"""),
+        )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.token_type").value("Bearer"))
             .andReturn().response.contentAsString
@@ -249,17 +318,20 @@ class DocumentSecurityIntegrationTest(
         return Account(id, token)
     }
 
-    private fun createTeam(token: String, suffix: Long): UUID =
-        mvc.perform(post("/api/v1/teams").header("Authorization", "Bearer $token")
+    private fun createTeam(token: String, suffix: Long): UUID = mvc.perform(
+        post("/api/v1/teams").header("Authorization", "Bearer $token")
             .contentType(MediaType.APPLICATION_JSON)
-            .content("""{"name":"Document security $suffix"}"""))
-            .andExpect(status().isCreated)
-            .andReturn().response.contentAsString.let { jsonUuid(it, "id") }
+            .content("""{"name":"Document security $suffix"}"""),
+    )
+        .andExpect(status().isCreated)
+        .andReturn().response.contentAsString.let { jsonUuid(it, "id") }
 
     private fun addMember(token: String, teamId: UUID, member: Account, role: String) {
-        mvc.perform(post("/api/v1/teams/$teamId/members").header("Authorization", "Bearer $token")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""{"user_id":"${member.id}","role":"$role"}"""))
+        mvc.perform(
+            post("/api/v1/teams/$teamId/members").header("Authorization", "Bearer $token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"user_id":"${member.id}","role":"$role"}"""),
+        )
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.role").value(role))
     }
@@ -268,7 +340,7 @@ class DocumentSecurityIntegrationTest(
         uploader: Account,
         cleanupAccount: Account,
         title: String,
-        teamId: UUID? = null
+        teamId: UUID? = null,
     ): UploadedDocument {
         val content = "$title\nGenerated integration PDF payload".toByteArray()
         val result = mvc.perform(uploadRequest(title, teamId).header("Authorization", uploader.bearer))
@@ -284,15 +356,24 @@ class DocumentSecurityIntegrationTest(
         jsonPath("$.content_type").value(MediaType.APPLICATION_PDF_VALUE).match(result)
         jsonPath("$.file_size").value(content.size).match(result)
         jsonPath("$.status").value("PENDING").match(result)
-        if (teamId != null) jsonPath("$.team_id").value(teamId.toString()).match(result)
-        else jsonPath("$.team_id").value(org.hamcrest.Matchers.nullValue()).match(result)
+        if (teamId != null) {
+            jsonPath("$.team_id").value(teamId.toString()).match(result)
+        } else {
+            jsonPath("$.team_id").value(org.hamcrest.Matchers.nullValue()).match(result)
+        }
         return UploadedDocument(id, content)
     }
 
     private fun uploadRequest(title: String, teamId: UUID?): MockMultipartHttpServletRequestBuilder {
         val request = multipart("/api/v1/documents")
-            .file(MockMultipartFile("document", "$title.pdf", MediaType.APPLICATION_PDF_VALUE,
-                "$title\nGenerated integration PDF payload".toByteArray()))
+            .file(
+                MockMultipartFile(
+                    "document",
+                    "$title.pdf",
+                    MediaType.APPLICATION_PDF_VALUE,
+                    "$title\nGenerated integration PDF payload".toByteArray(),
+                ),
+            )
             .param("title", title)
         if (teamId != null) {
             request.param("team_id", teamId.toString())

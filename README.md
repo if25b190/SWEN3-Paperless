@@ -132,6 +132,14 @@ are ignored before indexing, so late workers cannot recreate their search entrie
 The index (`OCR_INDEX_NAME`, default `paperless-documents`) contains `id`, `content`,
 and `indexedAt` and is provisioned on the first accepted success.
 
+Full-text search queries the same Elasticsearch index for OCR content, with optional
+fuzzy matching, relevance scores, and HTML-escaped highlight snippets. Current
+private ownership and team memberships determine the allowed document IDs before
+Elasticsearch ranks, counts, or paginates hits. Results use current document metadata
+from the database. Documents become searchable after OCR indexing and Elasticsearch
+refresh; a missing index returns an empty page. Titles and summaries are returned
+as metadata but are not indexed for full-text matching.
+
 `OCR_LEASE_DURATION` defaults to 10 minutes, measured from dispatch; configure it
 above the maximum queue wait plus total document processing and result delivery
 time. `OCR_PROCESS_TIMEOUT` limits each tool invocation, not the whole document.

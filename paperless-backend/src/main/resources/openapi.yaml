@@ -35,7 +35,7 @@ tags:
     description: |
       Private documents are visible only to their uploader. Team-shared documents are visible only to current team members; an uploader who is removed from the team loses access. READONLY members can read, search, and download; READ_WRITE and ADMIN members can also upload, edit, and delete team documents.
   - name: Search
-    description: Full-text and fuzzy search across document content, titles, and summaries.
+    description: Full-text and fuzzy search across indexed OCR document content.
   - name: Document Types
     description: Document classifications (e.g., Invoice, Contract, Receipt, Bank Statement).
 
@@ -754,7 +754,7 @@ paths:
       tags:
         - Search
       summary: Full-text and fuzzy search across documents
-      description: Performs full-text and fuzzy queries against OCR extracted text, titles, and summaries; results include only documents visible to the authenticated user. READONLY, READ_WRITE, and ADMIN members can search team documents.
+      description: Performs Elasticsearch full-text and fuzzy queries against indexed OCR extracted text; results include only documents visible to the authenticated user. READONLY, READ_WRITE, and ADMIN members can search team documents. Documents become searchable after OCR indexing and index refresh.
       operationId: searchDocumentsFullText
       parameters:
         - name: query
