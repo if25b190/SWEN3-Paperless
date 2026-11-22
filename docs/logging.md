@@ -51,8 +51,8 @@ including failed requests. Client-provided request IDs are not trusted.
 Both applications run the OpenTelemetry Java agent
 (`-javaagent:/opt/otel/opentelemetry-javaagent.jar`, see the Dockerfiles):
 spans are created for HTTP requests, database access, and RabbitMQ
-publish/consume and exported as OTLP to the collector configured by
-`OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:4317`). The W3C
+publish/consume and exported as OTLP to the Elastic APM Server intake configured by
+`OTEL_EXPORTER_OTLP_ENDPOINT` (default `http://localhost:8200`). The W3C
 `traceparent` context is propagated with OCR messages, so the worker's
 processing joins the publisher/dispatch trace. Uploads first commit a database outbox
 job; that outbox does not store W3C context. The later scheduled dispatch starts a
@@ -65,11 +65,10 @@ it does not set the SLF4J thread-local MDC, so application code must not rely on
 rename it to `trace.id` and `span_id` to `span.id`. Logstash normalizes those
 fields to ECS objects before indexing. Console ingestion also stores `trace.id`.
 `trace_id=none` marks logs outside an active span (for example startup) and is
-excluded from trace correlation. These lines legitimately have no Tempo trace.
-Trace lookup also requires sampling to retain the span and the trace to be within
-Tempo's configured 72-hour retention. Tempo 3 runs in monolithic mode without Kafka;
-its live-store replaces the 2.x ingester, and retention is configured under
-`overrides.defaults.compaction.block_retention`.
+excluded from trace correlation. These lines legitimately have no indexed trace.
+Trace lookup also requires sampling to retain the span; the APM server indexes
+the retained spans into Elasticsearch's `traces-apm.*` data streams, browsable in
+Kibana's APM app or Discover.
 
 Services record login, resource creation/update/deletion, and membership changes
 with resource IDs. These are operational milestones within a transaction, not a
@@ -106,29 +105,25 @@ Inspect pipeline errors with `docker compose logs logstash`. The Logstash health
 requires the `main` pipeline to be running. Elasticsearch security is disabled in this
 local Compose setup, so the pipeline uses the internal HTTP endpoint without credentials.
 
-## Grafana correlation and verification
+## Trace correlation and verification
 
-Grafana provisions separate Elasticsearch datasources for container logs and worker
-logs, each with an explicit index and a `trace.id` data link to Tempo. Expand a log's
-fields in Explore and select **View trace**. Tempo's trace-to-logs link searches
-container logs by the same ID. Datasource provisioning escapes Grafana macros with
-`$$` so startup does not substitute them as environment variables.
-
-The dashboard lists recent traces separately from the selected trace's span view.
-Select a trace in the table or paste its ID into **Trace ID**. Only that ID is sent
-to Tempo's trace endpoint; a TraceQL search expression cannot populate a span view.
+Logs and traces share one Elasticsearch instance. Logs are indexed as described
+above; the Elastic APM Server indexes spans into the `traces-apm.*` data streams
+with a `trace.id` field. To find a trace from a log entry, filter the
+`traces-apm.*` data view in Kibana's Discover by the log's trace ID. The
+reverse lookup works the same way: filter the log data views by a trace document's
+`trace.id` to list its log events.
 
 For native applications, attach the same Java agent as the Docker images and set
-`OTEL_EXPORTER_OTLP_PROTOCOL=grpc`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`,
+`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8200`,
 `OTEL_SERVICE_NAME=paperless` (or `paperless-worker`), and disable metrics/log export.
-Compose pins the exporter to the collector's internal address; a native localhost
+Compose pins the exporter to the APM server's internal address; a native localhost
 endpoint in `.env.local` must not redirect a container to itself.
 
 Run `python3 infra/observability/verify.py` against a running stack to check ingest
-parsing and live Grafana provisioning. Add `--trace-id <32-character-id>` from a
-recent application log to verify that the indexed event resolves to Tempo spans.
-Set `GRAFANA_ADMIN_PASSWORD` when using a custom password. The script accepts
-`--elasticsearch`, `--grafana`, and `--tempo` URLs for an isolated test stack.
+parsing. Add `--trace-id <32-character-id>` from a recent application log to verify
+that the indexed event resolves to indexed trace documents. The script accepts an
+`--elasticsearch` URL for an isolated test stack.
 
 Existing Elasticsearch data from 8.17 cannot be mounted directly into 9.5. Follow
 the supported upgrade path through 8.19 with a snapshot first. Do not delete the

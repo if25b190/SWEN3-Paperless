@@ -1,0 +1,22 @@
+# Standalone APM Server: receives the OTLP traces exported by the backend
+# and worker OpenTelemetry Java agents over the native OTLP HTTP intake
+# (/v1/traces on port 8200, see OTEL_EXPORTER_OTLP_ENDPOINT) and indexes them
+# into Elasticsearch as the traces-apm.* data streams, browsable in Kibana's
+# APM app and Discover. In standalone mode the apm-server.otlp.* gRPC/HTTP
+# listener options are ignored; the intake lives on the main HTTP listener.
+queue.mem:
+  events: 4096
+  flush.min_events: 500
+  flush.timeout: 1s
+
+apm-server:
+  host: 0.0.0.0:8200
+  rum:
+    enabled: false
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+
+logging:
+  level: info
+  to_stderr: true
