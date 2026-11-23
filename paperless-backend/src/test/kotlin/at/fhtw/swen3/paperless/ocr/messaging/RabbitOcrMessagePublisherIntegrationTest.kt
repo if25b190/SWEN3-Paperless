@@ -23,7 +23,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
         // given
         val name = "paperless.test.${UUID.randomUUID()}"
         val properties = OcrMessagingProperties(
-            exchange = name, queue = "$name.requests", deadLetterExchange = "$name.dlx", deadLetterQueue = "$name.failed"
+            exchange = name, queue = "$name.requests", resultQueue = "$name.results", deletionQueue = "$name.deletions", deadLetterExchange = "$name.dlx", deadLetterQueue = "$name.failed"
         )
         val connection = CachingConnectionFactory(System.getenv("RABBITMQ_HOST") ?: "localhost")
         connection.username = System.getenv("RABBITMQ_USER") ?: "paperless"
@@ -44,7 +44,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
             val jsonMapper = JsonMapper.builder().findAndAddModules().build()
             template.messageConverter = OcrRabbitConfiguration().ocrMessageConverter(jsonMapper)
             val publisher = RabbitOcrMessagePublisher(template, properties)
-            val request = OcrRequest(UUID.randomUUID(), UUID.randomUUID(), "documents/test.pdf", "application/pdf")
+            val request = OcrRequest(UUID.randomUUID(), UUID.randomUUID(), "documents/test.pdf", "application/pdf", UUID.randomUUID())
 
             // when
             publisher.publish(request)
@@ -68,6 +68,7 @@ class RabbitOcrMessagePublisherIntegrationTest {
             }.isInstanceOf(OcrPublishException::class.java)
         } finally {
             admin.deleteQueue(properties.queue)
+            admin.deleteQueue(properties.resultQueue)
             admin.deleteQueue(properties.deletionQueue)
             admin.deleteQueue(properties.deadLetterQueue)
             admin.deleteExchange(properties.exchange)

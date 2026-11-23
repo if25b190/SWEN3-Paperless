@@ -21,6 +21,10 @@ data class OcrMessagingProperties(
     @field:NotBlank
     val deletionRoutingKey: String = "document.deleted",
     @field:NotBlank
+    val resultQueue: String = "paperless.ocr.results",
+    @field:NotBlank
+    val resultRoutingKey: String = "document.ocr.result",
+    @field:NotBlank
     val deadLetterExchange: String = "paperless.ocr.dead-letter",
     @field:NotBlank
     val deadLetterQueue: String = "paperless.ocr.failed",

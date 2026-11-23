@@ -85,11 +85,13 @@ class OcrOutboxIntegrationTest(
         assertThat(jobs.existsById(jobId)).isTrue()
         doNothing().`when`(publisher).publish(any(OcrRequest::class.java))
         dispatch.dispatchNext()
-        assertThat(jobs.count()).isZero()
+        assertThat(jobs.count()).isEqualTo(1)
+        assertThat(jobs.findById(jobId).orElseThrow().attempts).isEqualTo(1)
         assertThat(documents.getDocument(ownerId, requireNotNull(document.id)).status).isEqualTo(ProcessingStatus.PENDING)
-        verify(publisher, times(2)).publish(
-            OcrRequest(jobId, requireNotNull(document.id), requireNotNull(document.storageKey), document.contentType)
-        )
+        val requests = org.mockito.ArgumentCaptor.forClass(OcrRequest::class.java)
+        verify(publisher, times(2)).publish(requests.capture() ?: OcrRequest(jobId, requireNotNull(document.id), "", "", UUID.randomUUID()))
+        assertThat(requests.allValues.map { it.jobId }).containsOnly(jobId)
+        assertThat(requests.allValues[0].attemptId).isNotEqualTo(requests.allValues[1].attemptId)
     }
 
     @Test

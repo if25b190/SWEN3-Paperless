@@ -26,15 +26,22 @@ class OcrWorkerRabbitConfiguration {
             .deadLetterExchange(properties.deadLetterExchange)
             .deadLetterRoutingKey(properties.deletionRoutingKey)
             .build()
+        val resultQueue = QueueBuilder.durable(properties.resultQueue)
+            .deadLetterExchange(properties.deadLetterExchange)
+            .deadLetterRoutingKey(properties.resultRoutingKey)
+            .build()
         val deadLetterQueue = QueueBuilder.durable(properties.deadLetterQueue).build()
         return Declarables(
             exchange,
             deadLetterExchange,
             queue,
             deletionQueue,
+            resultQueue,
             deadLetterQueue,
             BindingBuilder.bind(queue).to(exchange).with(properties.routingKey),
             BindingBuilder.bind(deletionQueue).to(exchange).with(properties.deletionRoutingKey),
+            BindingBuilder.bind(resultQueue).to(exchange).with(properties.resultRoutingKey),
+            BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.resultRoutingKey),
             BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.routingKey),
             BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(properties.deletionRoutingKey),
         )

@@ -3,27 +3,20 @@ package at.fhtw.swen3.paperless.ocr.worker
 import at.fhtw.swen3.paperless.ocr.config.OcrMessagingProperties
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngine
 import at.fhtw.swen3.paperless.ocr.engine.OcrEngineException
-import at.fhtw.swen3.paperless.ocr.entity.WorkerDocumentEntity
-import at.fhtw.swen3.paperless.ocr.model.DocumentDeletion
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
-import at.fhtw.swen3.paperless.ocr.model.ProcessingStatus
+import at.fhtw.swen3.paperless.ocr.model.OcrResult
+import at.fhtw.swen3.paperless.ocr.model.OcrResultStatus
 import at.fhtw.swen3.paperless.ocr.persistence.DocumentFilePersistence
-import at.fhtw.swen3.paperless.ocr.persistence.DocumentIndexPersistence
-import at.fhtw.swen3.paperless.ocr.persistence.repository.OcrDocumentRepository
-import at.fhtw.swen3.paperless.ocr.service.OcrProcessingService
+import at.fhtw.swen3.paperless.testsupport.any
 import org.assertj.core.api.Assertions.assertThat
-import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable
-import org.mockito.Mockito.timeout
-import org.mockito.Mockito.times
-import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import org.springframework.amqp.core.Message
+import org.springframework.amqp.core.MessageDeliveryMode
 import org.springframework.amqp.core.MessageProperties
 import org.springframework.amqp.rabbit.core.RabbitAdmin
 import org.springframework.amqp.rabbit.core.RabbitTemplate
@@ -33,21 +26,12 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import tools.jackson.databind.json.JsonMapper
-import java.nio.file.Path
-import java.time.Duration
 import java.util.UUID
 
 @SpringBootTest(
     properties = [
         "spring.config.location=file:src/main/resources/application.yaml",
-        "spring.datasource.url=jdbc:h2:mem:ocr-rabbit-test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
-        "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.rabbitmq.listener.simple.retry.initial-interval=10ms",
         "spring.rabbitmq.listener.simple.retry.max-interval=10ms",
         "paperless.worker.enabled=true",
@@ -56,40 +40,26 @@ import java.util.UUID
 @EnabledIfEnvironmentVariable(named = "PAPERLESS_RABBITMQ_TEST", matches = "true")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OcrWorkerIntegrationTest {
-    @Autowired
-    lateinit var template: RabbitTemplate
+    @Autowired lateinit var template: RabbitTemplate
 
-    @Autowired
-    lateinit var admin: RabbitAdmin
+    @Autowired lateinit var admin: RabbitAdmin
 
-    @Autowired
-    lateinit var registry: RabbitListenerEndpointRegistry
+    @Autowired lateinit var registry: RabbitListenerEndpointRegistry
 
-    @Autowired
-    lateinit var properties: OcrMessagingProperties
+    @Autowired lateinit var properties: OcrMessagingProperties
 
-    @Autowired
-    lateinit var documents: OcrDocumentRepository
+    @Autowired lateinit var jsonMapper: JsonMapper
 
-    @Autowired
-    lateinit var jsonMapper: JsonMapper
-
-    @MockitoBean
-    lateinit var engine: OcrEngine
-
-    @MockitoBean
-    lateinit var index: DocumentIndexPersistence
+    @MockitoBean lateinit var engine: OcrEngine
 
     @MockitoBean(enforceOverride = true)
     lateinit var files: DocumentFilePersistence
-
-    @MockitoSpyBean
-    lateinit var service: OcrProcessingService
 
     @AfterAll
     fun cleanUp() {
         registry.stop()
         admin.deleteQueue(properties.queue)
+        admin.deleteQueue(properties.resultQueue)
         admin.deleteQueue(properties.deletionQueue)
         admin.deleteQueue(properties.deadLetterQueue)
         admin.deleteExchange(properties.exchange)
@@ -97,167 +67,74 @@ class OcrWorkerIntegrationTest {
     }
 
     @Test
-    fun deletion_message_removes_index_entry_ok() {
+    fun backend_json_without_type_headers_produces_confirmed_results_ok() {
         // given
-        val documentId = UUID.randomUUID()
-
+        val request = request()
+        `when`(engine.extractText(any())).thenReturn("INVOICE #9821")
         // when
-        template.convertAndSend(properties.exchange, properties.deletionRoutingKey, DocumentDeletion(documentId))
-
+        template.send(properties.exchange, properties.routingKey, jsonMessage(request))
         // then
-        verify(index, timeout(TEST_TIMEOUT.toMillis())).delete(documentId)
+        assertThat(receiveResult()).isEqualTo(result(request, OcrResultStatus.STARTED))
+        assertThat(receiveResult()).isEqualTo(result(request, OcrResultStatus.SUCCEEDED, "INVOICE #9821"))
     }
 
     @Test
-    fun backend_message_is_consumed_and_duplicate_is_skipped_ok() {
+    fun ocr_failure_is_reported_for_backend_retry_without_reprocessing_locally_ok() {
         // given
-        val request = pendingRequest()
-        val source = source(request)
-        `when`(engine.extractText(source)).thenReturn("INVOICE #9821")
-
+        val request = request()
+        `when`(engine.extractText(any())).thenThrow(OcrEngineException("tool unavailable"))
         // when
-        template.convertAndSend(properties.exchange, properties.routingKey, request)
-
+        template.send(properties.exchange, properties.routingKey, jsonMessage(request))
         // then
-        awaitCompleted(request)
-        assertThat(documents.findById(request.documentId).orElseThrow().ocrContent).isEqualTo("INVOICE #9821")
-        verify(index).index(request.documentId, "INVOICE #9821")
-
-        // when
-        template.convertAndSend(properties.exchange, properties.routingKey, request)
-
-        // then
-        verify(service, timeout(TEST_TIMEOUT.toMillis()).times(2)).process(request)
-        val listener = requireNotNull(registry.getListenerContainer("ocrWorker"))
-        listener.stop()
-        try {
-            assertThat(requireNotNull(admin.getQueueInfo(properties.queue)).messageCount).isZero()
-            verify(engine).extractText(source)
-            verify(files).find(request.storageKey)
-        } finally {
-            listener.start()
-        }
-    }
-
-    @Test
-    fun json_without_java_type_headers_is_consumed_ok() {
-        // given
-        val request = pendingRequest()
-        `when`(engine.extractText(source(request))).thenReturn("text")
-        val message = Message(jsonMapper.writeValueAsBytes(request), jsonProperties())
-
-        // when
-        template.send(properties.exchange, properties.routingKey, message)
-
-        // then
-        awaitCompleted(request)
-        verify(index).index(request.documentId, "text")
-    }
-
-    @Test
-    fun transient_failure_retries_in_a_new_transaction_ok() {
-        // given
-        val request = pendingRequest()
-        `when`(engine.extractText(source(request)))
-            .thenThrow(OcrEngineException("temporary failure"))
-            .thenReturn("recovered")
-
-        // when
-        template.convertAndSend(properties.exchange, properties.routingKey, request)
-
-        // then
-        awaitCompleted(request)
-        verify(engine, times(2)).extractText(source(request))
-        verify(index).index(request.documentId, "recovered")
-        assertThat(documents.findById(request.documentId).orElseThrow().version).isEqualTo(4)
-    }
-
-    @Test
-    fun exhausted_retries_commit_failed_status_and_dead_letter_message_ko() {
-        // given
-        val request = pendingRequest()
-        `when`(engine.extractText(source(request))).thenThrow(OcrEngineException("permanent failure"))
-
-        // when
-        template.convertAndSend(properties.exchange, properties.routingKey, request)
-
-        // then
-        val rejected = requireNotNull(template.receive(properties.deadLetterQueue, TEST_TIMEOUT.toMillis()))
-        assertThat(jsonMapper.readValue(rejected.body, OcrRequest::class.java)).isEqualTo(request)
-        val document = documents.findById(request.documentId).orElseThrow()
-        assertThat(document.status).isEqualTo(ProcessingStatus.FAILED)
-        assertThat(document.version).isEqualTo(8)
-        verify(engine, times(4)).extractText(source(request))
-        verifyNoInteractions(index)
+        assertThat(receiveResult()).isEqualTo(result(request, OcrResultStatus.STARTED))
+        assertThat(receiveResult()).isEqualTo(result(request, OcrResultStatus.FAILED))
     }
 
     @Test
     fun invalid_json_is_dead_lettered_without_processing_ko() {
         // given
         val message = Message("{invalid".toByteArray(), jsonProperties())
-
         // when
         template.send(properties.exchange, properties.routingKey, message)
-
         // then
-        val rejected = requireNotNull(template.receive(properties.deadLetterQueue, TEST_TIMEOUT.toMillis()))
+        val rejected = requireNotNull(template.receive(properties.deadLetterQueue, 10000))
         assertThat(rejected.body).isEqualTo(message.body)
-        verifyNoInteractions(engine, index, files)
+        verifyNoInteractions(engine, files)
     }
 
-    @Test
-    fun unhandled_failure_rolls_back_claim_and_allows_redelivery_ko() {
-        // given
-        val request = pendingRequest()
-        val failure = AssertionError("interrupted attempt")
-        `when`(engine.extractText(source(request))).thenThrow(failure).thenReturn("recovered")
+    private fun receiveResult(): OcrResult {
+        val message = requireNotNull(template.receive(properties.resultQueue, 10000))
+        assertThat(message.messageProperties.receivedDeliveryMode).isEqualTo(MessageDeliveryMode.PERSISTENT)
+        val result = jsonMapper.readValue(message.body, OcrResult::class.java)
+        assertThat(message.messageProperties.messageId).isEqualTo("${result.attemptId}:${result.status}")
 
-        // when / then
-        assertThatThrownBy { service.process(request) }.isSameAs(failure)
-        val document = documents.findById(request.documentId).orElseThrow()
-        assertThat(document.status).isEqualTo(ProcessingStatus.PENDING)
-        assertThat(document.version).isZero()
-
-        // when
-        template.convertAndSend(properties.exchange, properties.routingKey, request)
-
-        // then
-        awaitCompleted(request)
-        verify(engine, times(2)).extractText(source(request))
+        return result
     }
 
-    private fun pendingRequest(): OcrRequest {
-        val documentId = UUID.randomUUID()
-        documents.saveAndFlush(WorkerDocumentEntity(id = documentId))
-
-        return OcrRequest(UUID.randomUUID(), documentId, "documents/$documentId.pdf", "application/pdf")
-    }
-
-    private fun source(request: OcrRequest): Path =
-        Path.of("/tmp/paperless-documents").resolve(request.storageKey.substringAfterLast('/'))
-
-    private fun jsonProperties(): MessageProperties = MessageProperties().apply { contentType = "application/json" }
-
-    private fun awaitCompleted(request: OcrRequest) {
-        await().atMost(TEST_TIMEOUT).untilAsserted {
-            assertThat(
-                documents.findById(request.documentId).orElseThrow().status,
-            ).isEqualTo(ProcessingStatus.COMPLETED)
-        }
-    }
+    private fun request() = OcrRequest(
+        UUID.randomUUID(),
+        UUID.randomUUID(),
+        "documents/${UUID.randomUUID()}.pdf",
+        "application/pdf",
+        UUID.randomUUID(),
+    )
+    private fun result(request: OcrRequest, status: OcrResultStatus, text: String? = null) =
+        OcrResult(request.jobId, request.documentId, request.attemptId, status, text)
+    private fun jsonMessage(request: OcrRequest) = Message(jsonMapper.writeValueAsBytes(request), jsonProperties())
+    private fun jsonProperties() = MessageProperties().apply { contentType = "application/json" }
 
     companion object {
-        private val TEST_TIMEOUT = Duration.ofSeconds(10)
-        private val topologyName = "paperless.worker.test.${UUID.randomUUID()}"
+        private val name = "paperless.worker.test.${UUID.randomUUID()}"
 
         @JvmStatic
         @DynamicPropertySource
         fun rabbitProperties(registry: DynamicPropertyRegistry) {
-            registry.add("paperless.ocr.exchange") { topologyName }
-            registry.add("paperless.ocr.queue") { "$topologyName.requests" }
-            registry.add("paperless.ocr.deletion-queue") { "$topologyName.deletions" }
-            registry.add("paperless.ocr.dead-letter-exchange") { "$topologyName.dlx" }
-            registry.add("paperless.ocr.dead-letter-queue") { "$topologyName.failed" }
+            registry.add("paperless.ocr.exchange") { name }
+            registry.add("paperless.ocr.queue") { "$name.requests" }
+            registry.add("paperless.ocr.result-queue") { "$name.results" }
+            registry.add("paperless.ocr.deletion-queue") { "$name.deletions" }
+            registry.add("paperless.ocr.dead-letter-exchange") { "$name.dlx" }
+            registry.add("paperless.ocr.dead-letter-queue") { "$name.failed" }
         }
     }
 }

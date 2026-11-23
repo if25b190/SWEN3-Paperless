@@ -24,6 +24,9 @@ interface OcrJobEntityMapper {
         OcrJobEntity(
             documentId = job.documentId,
             storageKey = job.storageKey,
-            contentType = job.contentType
+            contentType = job.contentType,
+            attemptId = job.attemptId,
+            attempts = job.attempts,
+            availableAt = job.availableAt,
         )
 }

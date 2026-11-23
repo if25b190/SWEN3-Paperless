@@ -38,15 +38,15 @@ docker compose --env-file .env.local up --build -d
 
 This starts:
 - **`backend`**: Spring Boot REST API
-- **`worker`**: OCR worker — consumes OCR jobs from RabbitMQ and extracts text with Ghostscript + Tesseract
+- **`worker`**: OCR worker - consumes OCR jobs from RabbitMQ and extracts text with Ghostscript + Tesseract
 - **`ui`**: Next.js frontend application
 - **`db`**: PostgreSQL 18 database
 - **`rabbitmq`**: RabbitMQ broker with the management UI
 - **`rustfs`**: Persistent S3-compatible document storage; `rustfs-init` creates the private bucket
-- **`elasticsearch`**: Elasticsearch — the OCR document search index and the log store
+- **`elasticsearch`**: Elasticsearch - the OCR document search index and the log store
 - **`kibana`**: Kibana UI for browsing the search index and the logs
-- **`elastic-agent`**: [Elastic Agent](https://www.elastic.co/what-is/elastic-agent) — tails every service's container logs and ships them to Elasticsearch
-- **`apm-server`**: [Elastic APM Server](https://www.elastic.co/guide/en/apm) — receives the OTLP traces exported by the backend and worker and indexes them into Elasticsearch
+- **`elastic-agent`**: [Elastic Agent](https://www.elastic.co/what-is/elastic-agent) - tails every service's container logs and ships them to Elasticsearch
+- **`apm-server`**: [Elastic APM Server](https://www.elastic.co/guide/en/apm) - receives the OTLP traces exported by the backend and worker and indexes them into Elasticsearch
 
 ---
 
@@ -110,39 +110,60 @@ PAPERLESS_S3_TEST=true ./gradlew test --tests '*S3DocumentStorageIntegrationTest
 ```
 
 The durable exchange `paperless.ocr` routes `document.uploaded` to
-`paperless.ocr.requests`. Messages contain JSON fields `jobId`, `documentId`,
-`storageKey`, and `contentType`; the AMQP message ID is the stable `jobId`.
-Delivery is at least once: a confirmation timeout or a crash between publishing
-and deleting the pending job can produce duplicates.
+`paperless.ocr.requests`. Requests contain `jobId`, `documentId`, `storageKey`,
+`contentType`, and `attemptId`; the AMQP message ID remains the stable `jobId`.
+The backend retains the job until a terminal result is accepted. Each dispatch
+gets a new attempt token and an expiring lease, so a worker crash or a lost result
+can be recovered without retaining a document lock during OCR.
 
-The same exchange routes `document.deleted` to `paperless.ocr.deletions`: after
-a document deletion commits, the backend publishes a JSON `DocumentDeletion`
-message (field `documentId`; the AMQP message ID is the document ID) and the
-worker removes the document's entry from the Elasticsearch index. Like the
-post-commit file deletion, a failed publish is logged and swallowed, so a
-broker outage during deletion can leave the index entry behind.
+The **`worker`** application (`paperless-worker`) only reads source files and
+runs **Ghostscript** and **Tesseract**. It uses S3, with the shared document volume
+as a legacy fallback, and publishes `STARTED`, `SUCCEEDED`, or `FAILED` JSON results
+to `document.ocr.result` / `paperless.ocr.results`. Results carry the job, document,
+and attempt IDs, and successful results include `ocrContent`. The worker has no
+JPA mapping, database driver, or Elasticsearch client.
 
-OCR processing runs in the separate **`worker`** application (`paperless-worker`),
-which consumes `paperless.ocr.requests`. Its container image bundles **Ghostscript**
-and **Tesseract** (English by default). For each job the worker reads the file named
-by `storageKey` from the shared `document-files` volume, rasterizes the PDF pages with
-Ghostscript, and extracts text with Tesseract. Idempotency comes from a claim step:
-the document is moved `PENDING → OCR_IN_PROGRESS`, so a duplicate job for an already
-claimed document is skipped rather than reprocessed. On success the worker indexes the
-extracted text in **Elasticsearch** — one document per `documentId` in the
-`paperless-documents` index (configurable via `OCR_INDEX_NAME`, with fields `id`,
-`content`, and `indexedAt`; the index is created at startup if missing) — and stores
-the text as the document's `ocr_content` and sets its status to `COMPLETED`
-(configurable via `OCR_FINAL_STATUS`). Indexing happens before the document is
-completed, so a `COMPLETED` document always has a search entry; if the index run
-fails, the document is set to `FAILED` and the message is retried and reindexed.
-If the document is deleted while OCR is running, the worker removes the freshly
-created index entry instead of completing the document; already indexed
-documents are cleaned up by the `document.deleted` message.
-On any other failure the worker sets `FAILED` and rethrows so the message is retried
-and then routed to the durable dead-letter queue `paperless.ocr.failed` through
-`paperless.ocr.dead-letter`. The compose stack runs a single-node Elasticsearch
-(`elasticsearch` service, security disabled) that the worker connects to via
+The backend consumes results in short transactions. It locks the document, checks
+the active attempt, and updates only processing fields, preserving metadata edits.
+Accepted successes are indexed by document ID in Elasticsearch before the status
+advances to `COMPLETED` (or `GENAI_IN_PROGRESS` via `OCR_FINAL_STATUS`). Duplicate
+terminal results and obsolete attempts are ignored. Results for deleted documents
+are ignored before indexing, so late workers cannot recreate their search entries.
+The index (`OCR_INDEX_NAME`, default `paperless-documents`) contains `id`, `content`,
+and `indexedAt` and is provisioned on the first accepted success.
+
+Full-text search queries the same Elasticsearch index for OCR content, with optional
+fuzzy matching, relevance scores, and HTML-escaped highlight snippets. Current
+private ownership and team memberships determine the allowed document IDs before
+Elasticsearch ranks, counts, or paginates hits. Results use current document metadata
+from the database. Documents become searchable after OCR indexing and Elasticsearch
+refresh; a missing index returns an empty page. Titles and summaries are returned
+as metadata but are not indexed for full-text matching.
+
+`OCR_LEASE_DURATION` defaults to 10 minutes, measured from dispatch; configure it
+above the maximum queue wait plus total document processing and result delivery
+time. `OCR_PROCESS_TIMEOUT` limits each tool invocation, not the whole document.
+Failed attempts retry after `OCR_RETRY_DELAY` (5 seconds), with a fresh token.
+`OCR_MAX_ATTEMPTS` (4) bounds failures and expired leases; exhaustion leaves the
+document `FAILED`. Duplicate broker deliveries can repeat OCR computation, but
+accepted results are idempotent. Publisher confirms and mandatory returns protect
+both message directions. Conversion errors and exhausted broker delivery retries
+are routed to `paperless.ocr.failed`; OCR engine failures are reported to the
+backend, which owns processing retries. Database updates and Elasticsearch are
+separate systems: indexing failures roll back result application, allowing replay.
+
+The same exchange routes `document.deleted` to `paperless.ocr.deletions`. After
+deletion commits, the backend publishes the document ID; a backend listener removes
+its search entry. The existing deletion publication remains best effort: a broker
+outage at deletion can leave an old index entry, although late OCR cannot create
+one. PostgreSQL cascades deletion to its retained OCR job.
+
+Upgrade the backend and worker together, stopping old workers before the backend
+runs Flyway V5. V5 retains existing queued jobs and creates recovery jobs for
+`PENDING` / `OCR_IN_PROGRESS` documents whose old outbox rows were already removed.
+Old request messages without an attempt token go to the dead-letter queue; the
+new or retained jobs dispatch compatible requests. Do not replay old message
+bodies unchanged. Configure Elasticsearch on the backend using
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, and `ELASTIC_PASSWORD`.
 
 The same Elasticsearch instance also stores the worker's log events. The worker
@@ -165,8 +186,8 @@ transforms each event. The pipeline is loaded at startup by the one-shot
 one-shot `kibana-bootstrap` service (definition in `infra/kibana/`) imports the
 predefined Kibana data views and dashboard. The pipeline parses each Spring
 Boot log line into
-structured ECS fields — `log.level`, `log.logger`, `log.thread.name`,
-`http.request.id`, and `trace.id` — and tags lines that don't match the Spring
+structured ECS fields - `log.level`, `log.logger`, `log.thread.name`,
+`http.request.id`, and `trace.id` - and tags lines that don't match the Spring
 Boot format with `paperless-log-unparsed`.
 
 The **`apm-server`** service provides distributed tracing
@@ -186,7 +207,7 @@ have no active trace. Browse the traces in Kibana's *Observability → APM* app
 the `traces-apm.*` data view.
 
 Worker behaviour is configured with `WORKER_ENABLED`, `OCR_TESSERACT_LANGUAGES`,
-`OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`,
+`OCR_DPI`, `OCR_PROCESS_TIMEOUT`, `OCR_FINAL_STATUS`, `OCR_LEASE_DURATION`, `OCR_RETRY_DELAY`, `OCR_MAX_ATTEMPTS`,
 `ELASTICSEARCH_HOST`, `ELASTICSEARCH_PORT`, `ELASTIC_USER`, `ELASTIC_PASSWORD`,
 `OCR_INDEX_NAME`, `WORKER_LOG_FILE`, and `OTEL_EXPORTER_OTLP_ENDPOINT`.
 

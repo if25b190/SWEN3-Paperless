@@ -1,17 +1,15 @@
 package at.fhtw.swen3.paperless.ocr.persistence
 
-import at.fhtw.swen3.paperless.ocr.config.OcrWorkerProperties
+import at.fhtw.swen3.paperless.ocr.config.OcrProcessingProperties
 import at.fhtw.swen3.paperless.ocr.model.IndexedDocument
 import co.elastic.clients.elasticsearch.ElasticsearchClient
 import co.elastic.clients.elasticsearch._types.mapping.DateProperty
 import co.elastic.clients.elasticsearch._types.mapping.KeywordProperty
-import co.elastic.clients.elasticsearch._types.mapping.Property
 import co.elastic.clients.elasticsearch._types.mapping.TextProperty
 import co.elastic.clients.elasticsearch.core.DeleteRequest
 import co.elastic.clients.elasticsearch.core.IndexRequest
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest
 import co.elastic.clients.elasticsearch.indices.ExistsRequest
-import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Repository
 import java.time.Instant
@@ -20,10 +18,9 @@ import java.util.UUID
 @Repository
 class ElasticsearchDocumentIndexPersistence(
     private val client: ElasticsearchClient,
-    private val properties: OcrWorkerProperties,
+    private val properties: OcrProcessingProperties,
 ) : DocumentIndexPersistence {
 
-    @PostConstruct
     fun ensureIndex() {
         try {
             val exists = client.indices().exists(ExistsRequest.of { it.index(properties.indexName) }).value()
@@ -51,6 +48,7 @@ class ElasticsearchDocumentIndexPersistence(
     }
 
     override fun index(documentId: UUID, ocrContent: String) {
+        ensureIndex()
         client.index(
             IndexRequest.of { request ->
                 request
@@ -68,6 +66,8 @@ class ElasticsearchDocumentIndexPersistence(
     }
 
     override fun delete(documentId: UUID) {
+        if (!client.indices().exists(ExistsRequest.of { it.index(properties.indexName) }).value()) return
+
         client.delete(
             DeleteRequest.of { request ->
                 request

@@ -6,5 +6,6 @@ data class OcrRequest(
     val jobId: UUID,
     val documentId: UUID,
     val storageKey: String,
-    val contentType: String
+    val contentType: String,
+    val attemptId: UUID
 )

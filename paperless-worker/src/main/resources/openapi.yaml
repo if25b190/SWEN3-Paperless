@@ -6,10 +6,9 @@ info:
     The backend publishes JSON `OcrRequest` messages on the `paperless.ocr`
     exchange (routing key `document.uploaded`) after a document upload;
     the worker consumes and processes them.
-    On document deletion the backend publishes a JSON `DocumentDeletion`
-    message (fields: `documentId`) on routing key `document.deleted`
-    (queue `paperless.ocr.deletions`); the worker removes the document's
-    Elasticsearch entry.
+    The worker publishes OcrResult messages to routing key document.ocr.result.
+    The backend applies results, maintains Elasticsearch, and consumes deletions.
+    Every dispatch has an attemptId; results from obsolete attempts are ignored.
   version: 1.0.0
 paths: {}
 components:
@@ -17,11 +16,16 @@ components:
     OcrRequestDTO:
       type: object
       required:
+        - attemptId
         - jobId
         - documentId
         - storageKey
         - contentType
       properties:
+        attemptId:
+          type: string
+          format: uuid
+          description: Fencing token for this processing attempt.
         jobId:
           type: string
           format: uuid
@@ -36,3 +40,23 @@ components:
         contentType:
           type: string
           description: MIME type of the uploaded file.
+    OcrResult:
+      type: object
+      required: [jobId, documentId, attemptId, status]
+      properties:
+        jobId:
+          type: string
+          format: uuid
+        documentId:
+          type: string
+          format: uuid
+        attemptId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [STARTED, SUCCEEDED, FAILED]
+        ocrContent:
+          type: string
+          nullable: true
+          description: Required for SUCCEEDED, including an empty string when no text was found.
