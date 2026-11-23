@@ -1,4 +1,4 @@
-package at.fhtw.swen3.paperless.auth.model
+package at.fhtw.swen3.paperless.auth.security
 
 import at.fhtw.swen3.paperless.exception.AuthenticationRequiredException
 import java.util.UUID

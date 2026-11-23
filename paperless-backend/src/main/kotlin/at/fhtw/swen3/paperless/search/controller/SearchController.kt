@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.search.controller
 
 import at.fhtw.swen3.paperless.api.SearchApi
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
+import at.fhtw.swen3.paperless.auth.security.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.dto.PageMetadata
 import at.fhtw.swen3.paperless.dto.SearchResponse
 import at.fhtw.swen3.paperless.search.mapper.SearchMapper

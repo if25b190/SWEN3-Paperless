@@ -10,4 +10,6 @@ interface AuthService {
     fun login(credentials: LoginCredentials): AuthenticatedUser
 
     fun getCurrentUser(userId: UUID): User
+
+    fun resolveAccessToken(token: String): UUID?
 }

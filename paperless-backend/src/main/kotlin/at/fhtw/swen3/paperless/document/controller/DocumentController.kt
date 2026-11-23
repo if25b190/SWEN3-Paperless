@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.document.controller
 
 import at.fhtw.swen3.paperless.api.DocumentsApi
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
+import at.fhtw.swen3.paperless.auth.security.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.dto.DocumentDetailResponse
 import at.fhtw.swen3.paperless.dto.DocumentResponse
 import at.fhtw.swen3.paperless.dto.DocumentPageResponse
