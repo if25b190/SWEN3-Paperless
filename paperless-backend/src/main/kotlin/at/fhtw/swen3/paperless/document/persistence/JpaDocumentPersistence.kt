@@ -5,12 +5,14 @@ import at.fhtw.swen3.paperless.document.entity.DocumentEntity
 import at.fhtw.swen3.paperless.document.persistence.mapper.DocumentEntityMapper
 import at.fhtw.swen3.paperless.document.persistence.repository.DocumentRepository
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
+import at.fhtw.swen3.paperless.exception.DocumentConflictException
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.user.entity.UserEntity
 import jakarta.persistence.EntityManager
 import jakarta.persistence.OptimisticLockException
 import java.util.Optional
 import java.util.UUID
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Repository
@@ -53,20 +55,30 @@ class JpaDocumentPersistence(
 
     override fun findLockedById(id: UUID): Document? = repository.findLockedById(id)?.let(documentEntityMapper::toModel)
 
-    override fun update(id: UUID, update: Document): Document {
-        val entity = repository.findLockedById(id)
-            ?: throw OptimisticLockException("Document was deleted concurrently")
-        documentEntityMapper.applyTo(entity, update)
-        entity.team = update.teamId?.let { entityManager.getReference(TeamEntity::class.java, it) }
-        entity.documentType = update.documentType?.id?.let { entityManager.getReference(DocumentTypeEntity::class.java, it) }
-        entityManager.flush()
+    override fun update(id: UUID, update: Document): Document =
+        translateOptimisticConflict {
+            val entity = repository.findLockedById(id) ?: throw DocumentConflictException()
+            documentEntityMapper.applyTo(entity, update)
+            entity.team = update.teamId?.let { entityManager.getReference(TeamEntity::class.java, it) }
+            entity.documentType = update.documentType?.id?.let {
+                entityManager.getReference(DocumentTypeEntity::class.java, it)
+            }
+            entityManager.flush()
 
-        return documentEntityMapper.toModel(entity)
-    }
+            documentEntityMapper.toModel(entity)
+        }
 
-    override fun delete(document: Document) {
+    override fun delete(document: Document): Unit = translateOptimisticConflict {
         repository.delete(entityManager.getReference(DocumentEntity::class.java, requireNotNull(document.id)))
     }
 
-    override fun flush() = entityManager.flush()
+    override fun flush(): Unit = translateOptimisticConflict { entityManager.flush() }
+
+    private inline fun <T> translateOptimisticConflict(operation: () -> T): T = try {
+        operation()
+    } catch (exception: OptimisticLockException) {
+        throw DocumentConflictException(exception)
+    } catch (exception: OptimisticLockingFailureException) {
+        throw DocumentConflictException(exception)
+    }
 }

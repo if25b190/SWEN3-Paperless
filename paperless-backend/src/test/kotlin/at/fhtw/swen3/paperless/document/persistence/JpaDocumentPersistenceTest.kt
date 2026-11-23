@@ -8,6 +8,7 @@ import at.fhtw.swen3.paperless.document.persistence.mapper.DocumentEntityMapperI
 
 import at.fhtw.swen3.paperless.documenttype.entity.DocumentTypeEntity
 import at.fhtw.swen3.paperless.documenttype.persistence.mapper.DocumentTypeEntityMapperImpl
+import at.fhtw.swen3.paperless.exception.DocumentConflictException
 
 import at.fhtw.swen3.paperless.team.model.Role
 import at.fhtw.swen3.paperless.team.model.TeamMember
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.context.annotation.Import
-import jakarta.persistence.OptimisticLockException
 
 @DataJpaTest
 @Import(
@@ -89,7 +89,7 @@ class JpaDocumentPersistenceTest(
     @Test
     fun update_of_missing_document_ko() {
         assertThatThrownBy { persistence.update(java.util.UUID.randomUUID(), document(java.util.UUID.randomUUID())) }
-            .isInstanceOf(OptimisticLockException::class.java)
+            .isInstanceOf(DocumentConflictException::class.java)
     }
 
     @Test
