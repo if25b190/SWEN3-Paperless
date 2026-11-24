@@ -3,18 +3,21 @@
 All notable changes to the Paperless OCR worker are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.0.4-SNAPSHOT]
+
+### Added
+- Startup validation on `@ConfigurationProperties` and architecture tests enforcing controller/service boundaries.
 
 ### Changed
+- Workers publish OCR results with job/attempt IDs through RabbitMQ (`OcrRequest` requires `attemptId`); the backend owns document updates, Elasticsearch indexing, and deletion cleanup.
+- OCR source lookup and temporary-file cleanup moved behind `DocumentFilePersistence` (`LocalFirstDocumentFilePersistence`, `S3DocumentFilePersistence`).
+- Tracing exports to Elastic APM Server instead of `otel-collector`, Grafana, and Tempo.
 
-- Workers publish progress and OCR results with job/attempt IDs through RabbitMQ;
-  the backend owns document updates, indexing and deletion cleanup.
-- Removed worker JPA entities, PostgreSQL/H2 drivers, transactions and Elasticsearch
-  client. OCR no longer holds a document row lock or database connection.
-- Backend-retained jobs provide expiring attempts, bounded retries and idempotent
-  result handling. Publication failures still propagate for broker redelivery.
-- Request messages require an attemptId. Upgrade both applications together; see
-  the root README for Flyway V5 recovery and deployment details.
+### Fixed
+- Mapped the OpenAPI Generator Gradle plugin module in `settings.gradle.kts` for CI builds.
+
+### Removed
+- Worker JPA entities, PostgreSQL/H2 drivers, transactions, and Elasticsearch client so OCR no longer holds a database connection or row lock.
 
 ## [0.0.3-SNAPSHOT]
 

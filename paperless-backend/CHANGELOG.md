@@ -3,6 +3,21 @@
 All notable changes to the Paperless backend are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.4-SNAPSHOT]
+
+### Added
+- S3-compatible document storage (`S3DocumentStorage` / RustFS) alongside `FileSystemDocumentStorage` behind `DocumentStoragePersistence`.
+- Backend-owned OCR result handling (`OcrResultWorker` / `OcrResultService`) with Flyway V5 attempt tracking, expiring leases, bounded retries, and Elasticsearch indexing/cleanup.
+- Elasticsearch full-text and fuzzy search (`ElasticsearchSearchPersistence`).
+- Startup validation on `@ConfigurationProperties` (`ObjectStorageProperties`, `OcrMessagingProperties`, `OcrProcessingProperties`) and architecture tests enforcing controller/service boundaries.
+
+### Changed
+- Persistence updates use fetch-then-mutate inside JPA adapters, and document-type updates merge fields under the row lock.
+- `OcrJobEntityMapper` migrated to MapStruct.
+- Bearer-token validation moved into `AuthService`, and `AuthMapper` decodes Base64-encoded login passwords.
+- Document version/lock conflicts map to HTTP `409 Conflict` via `DocumentConflictException`.
+- Tracing exports to Elastic APM Server with predefined Kibana data views and dashboards (replacing `otel-collector`, Grafana, and Tempo).
+
 ## [0.0.3-SNAPSHOT]
 
 ### Dependencies
