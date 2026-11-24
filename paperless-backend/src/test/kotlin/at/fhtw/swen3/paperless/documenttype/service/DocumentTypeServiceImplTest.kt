@@ -1,6 +1,7 @@
 package at.fhtw.swen3.paperless.documenttype.service
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.documenttype.model.DocumentTypeUpdate
 import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
 import at.fhtw.swen3.paperless.exception.AppException
 import at.fhtw.swen3.paperless.exception.DocumentTypeNameAlreadyExistsException
@@ -106,7 +107,7 @@ class DocumentTypeServiceImplTest {
         `when`(repository.update(any(), any(DocumentType::class.java))).thenAnswer { it.arguments[1] as DocumentType }
 
         // when
-        val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(OTHER_ID, "Receipt", "Proof"))
+        val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentTypeUpdate("Receipt", "Proof"))
 
         // then
         assertAll(
@@ -118,6 +119,21 @@ class DocumentTypeServiceImplTest {
     }
 
     @Test
+    fun omitted_document_type_field_keeps_locked_value_ok() {
+        // given
+        val current = entity().copy(description = "Updated by another request", version = 7)
+        val expected = current.copy(name = "Receipt")
+        `when`(repository.findLockedById(DOCUMENT_TYPE_ID)).thenReturn(current)
+        `when`(repository.update(DOCUMENT_TYPE_ID, expected)).thenReturn(expected)
+
+        // when
+        val result = service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentTypeUpdate("Receipt", null))
+
+        // then
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
     fun update_duplicate_document_type_ko() {
         // given
         `when`(repository.findLockedById(DOCUMENT_TYPE_ID)).thenReturn(entity())
@@ -125,7 +141,11 @@ class DocumentTypeServiceImplTest {
 
         // when / then
         assertAll(
-            { assertAppError(DocumentTypeNameAlreadyExistsException::class) { service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentType(DOCUMENT_TYPE_ID, "Receipt", null)) } },
+            {
+                assertAppError(DocumentTypeNameAlreadyExistsException::class) {
+                    service.updateDocumentType(DOCUMENT_TYPE_ID, DocumentTypeUpdate("Receipt", null))
+                }
+            },
             { verify(repository, never()).update(any(), any(DocumentType::class.java)) }
         )
     }

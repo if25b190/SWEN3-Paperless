@@ -8,6 +8,7 @@ import at.fhtw.swen3.paperless.document.persistence.DocumentPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentReferencesPersistence
 import at.fhtw.swen3.paperless.document.persistence.DocumentStoragePersistence
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.exception.DocumentConflictException
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
 import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
 import at.fhtw.swen3.paperless.exception.TeamNotFoundException
@@ -23,7 +24,6 @@ import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
@@ -142,7 +142,7 @@ class DocumentServiceImpl(
                 throw AccessDeniedException("Only the document uploader can change sharing")
             }
             if (requestedTeamId == existing.teamId) {
-                throw DataIntegrityViolationException("The requested sharing transition conflicts with current sharing state")
+                throw DocumentConflictException()
             }
             updatedTeamId = requestedTeamId?.let {
                 if (roles[it]?.canWrite() != true) throw AccessDeniedException("Write access to the team is required")

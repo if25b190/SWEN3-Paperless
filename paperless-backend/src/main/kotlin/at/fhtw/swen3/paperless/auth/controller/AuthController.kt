@@ -2,7 +2,7 @@ package at.fhtw.swen3.paperless.auth.controller
 
 import at.fhtw.swen3.paperless.api.AuthApi
 import at.fhtw.swen3.paperless.auth.mapper.AuthMapper
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
+import at.fhtw.swen3.paperless.auth.security.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.auth.service.AuthService
 import at.fhtw.swen3.paperless.dto.LoginRequest
 import at.fhtw.swen3.paperless.dto.LoginResponse

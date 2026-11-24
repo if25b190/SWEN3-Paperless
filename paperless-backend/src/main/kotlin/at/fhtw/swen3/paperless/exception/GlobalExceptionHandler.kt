@@ -3,10 +3,9 @@ package at.fhtw.swen3.paperless.exception
 import at.fhtw.swen3.paperless.dto.InvalidParam
 import at.fhtw.swen3.paperless.dto.Problem
 import jakarta.validation.ConstraintViolationException
-import jakarta.persistence.OptimisticLockException
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -48,13 +47,8 @@ class GlobalExceptionHandler {
             detail = exception.message ?: "The request is invalid."
         )
 
-    @ExceptionHandler(DataIntegrityViolationException::class, OptimisticLockException::class, ObjectOptimisticLockingFailureException::class)
-    fun handleConflict(): ResponseEntity<Problem> =
-        problem(
-            status = HttpStatus.CONFLICT,
-            title = "Conflict",
-            detail = "The request conflicts with an existing resource."
-        )
+    @ExceptionHandler(DataIntegrityViolationException::class, OptimisticLockingFailureException::class)
+    fun handleConflict(): ResponseEntity<Problem> = problem(AppErrorMessage.RESOURCE_CONFLICT)
 
     @ExceptionHandler(AccessDeniedException::class)
     fun handleAccessDenied(): ResponseEntity<Problem> =

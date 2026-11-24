@@ -3,7 +3,7 @@ package at.fhtw.swen3.paperless.auth
 import at.fhtw.swen3.paperless.auth.persistence.repository.AccessTokenRepository
 import at.fhtw.swen3.paperless.auth.entity.AccessTokenEntity
 import at.fhtw.swen3.paperless.auth.service.TokenDigests
-import at.fhtw.swen3.paperless.auth.service.LocalTokenIntrospector
+import at.fhtw.swen3.paperless.auth.security.LocalTokenIntrospector
 import at.fhtw.swen3.paperless.team.entity.TeamEntity
 import at.fhtw.swen3.paperless.team.entity.TeamMemberEntity
 import at.fhtw.swen3.paperless.team.model.Role

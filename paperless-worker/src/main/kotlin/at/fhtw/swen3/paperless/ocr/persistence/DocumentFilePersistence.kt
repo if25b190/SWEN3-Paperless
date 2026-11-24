@@ -1,9 +1,8 @@
 package at.fhtw.swen3.paperless.ocr.persistence
 
-/**
- * Domain-facing access to the stored document bytes (e.g. object storage).
- * Returns `null` when no object exists for the given storage key.
- */
+import java.nio.file.Path
+
 interface DocumentFilePersistence {
-    fun find(storageKey: String): ByteArray?
+    /** The path is valid for the duration of [action]. Returns null when the source is missing. */
+    fun <T : Any> withLocalFile(storageKey: String, action: (Path) -> T): T?
 }

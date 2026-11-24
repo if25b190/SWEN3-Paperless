@@ -87,6 +87,30 @@ class AuthServiceImplTest {
     }
 
     @Test
+    fun active_access_token_resolves_user_id_ok() {
+        // given
+        val token = "active"
+        val digest = TokenDigests.sha256(token)
+        val stored = AccessToken(digest, userId(), Instant.now().plusSeconds(3600))
+        `when`(tokenRepository.findById(digest)).thenReturn(Optional.of(stored))
+
+        // when / then
+        assertThat(service.resolveAccessToken(token)).isEqualTo(userId())
+    }
+
+    @Test
+    fun expired_access_token_does_not_resolve_user_id_ko() {
+        // given
+        val token = "expired"
+        val digest = TokenDigests.sha256(token)
+        val stored = AccessToken(digest, userId(), Instant.EPOCH)
+        `when`(tokenRepository.findById(digest)).thenReturn(Optional.of(stored))
+
+        // when / then
+        assertThat(service.resolveAccessToken(token)).isNull()
+    }
+
+    @Test
     fun wrong_password_does_not_replace_existing_session_ko() {
         // given
         val hashed = requireNotNull(passwordEncoder.encode("secret"))

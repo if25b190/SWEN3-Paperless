@@ -12,6 +12,7 @@ enum class AppErrorMessage(
     TEAM_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource Not Found", "The requested team membership was not found."),
     DOCUMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource Not Found", "The requested document was not found."),
     DOCUMENT_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource Not Found", "The requested document type was not found."),
+    RESOURCE_CONFLICT(HttpStatus.CONFLICT, "Conflict", "The request conflicts with an existing resource."),
     USERNAME_ALREADY_EXISTS(HttpStatus.CONFLICT, "Conflict", "The username is already in use."),
     TEAM_MEMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "Conflict", "The user is already a member of this team."),
     LAST_TEAM_ADMIN(HttpStatus.CONFLICT, "Conflict", "The last team administrator cannot be deleted."),

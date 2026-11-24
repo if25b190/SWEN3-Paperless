@@ -11,9 +11,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception
 
 @Repository
 @ConditionalOnProperty(prefix = "paperless.storage", name = ["type"], havingValue = "s3", matchIfMissing = true)
-class S3DocumentFilePersistence(private val client: S3Client, private val properties: ObjectStorageProperties) :
-    DocumentFilePersistence {
-    override fun find(storageKey: String): ByteArray? = translateFailure {
+class S3DocumentFilePersistence(private val client: S3Client, private val properties: ObjectStorageProperties) {
+    fun find(storageKey: String): ByteArray? = translateFailure {
         try {
             val request = GetObjectRequest.builder().bucket(properties.bucket).key(storageKey).build()
 

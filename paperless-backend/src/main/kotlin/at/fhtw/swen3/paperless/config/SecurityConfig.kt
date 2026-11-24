@@ -1,6 +1,6 @@
 package at.fhtw.swen3.paperless.config
 
-import at.fhtw.swen3.paperless.auth.service.LocalTokenIntrospector
+import at.fhtw.swen3.paperless.auth.security.LocalTokenIntrospector
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
@@ -18,7 +18,7 @@ import org.springframework.http.HttpMethod
 
 @Configuration
 @EnableWebSecurity
-class SecurityConfig(private val introspector: LocalTokenIntrospector) {
+class SecurityConfig {
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Bean
@@ -28,7 +28,7 @@ class SecurityConfig(private val introspector: LocalTokenIntrospector) {
     }
 
     @Bean
-    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun securityFilterChain(http: HttpSecurity, introspector: LocalTokenIntrospector): SecurityFilterChain {
         http
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }

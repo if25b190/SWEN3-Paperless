@@ -27,6 +27,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import tools.jackson.databind.json.JsonMapper
+import java.nio.file.Path
 import java.util.UUID
 
 @SpringBootTest(
@@ -70,6 +71,7 @@ class OcrWorkerIntegrationTest {
     fun backend_json_without_type_headers_produces_confirmed_results_ok() {
         // given
         val request = request()
+        provideSource(request)
         `when`(engine.extractText(any())).thenReturn("INVOICE #9821")
         // when
         template.send(properties.exchange, properties.routingKey, jsonMessage(request))
@@ -82,6 +84,7 @@ class OcrWorkerIntegrationTest {
     fun ocr_failure_is_reported_for_backend_retry_without_reprocessing_locally_ok() {
         // given
         val request = request()
+        provideSource(request)
         `when`(engine.extractText(any())).thenThrow(OcrEngineException("tool unavailable"))
         // when
         template.send(properties.exchange, properties.routingKey, jsonMessage(request))
@@ -100,6 +103,12 @@ class OcrWorkerIntegrationTest {
         val rejected = requireNotNull(template.receive(properties.deadLetterQueue, 10000))
         assertThat(rejected.body).isEqualTo(message.body)
         verifyNoInteractions(engine, files)
+    }
+
+    private fun provideSource(request: OcrRequest) {
+        `when`(files.withLocalFile(any<String>(), any<(Path) -> String>())).thenAnswer { invocation ->
+            invocation.getArgument<(Path) -> String>(1)(Path.of(request.storageKey))
+        }
     }
 
     private fun receiveResult(): OcrResult {

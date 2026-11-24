@@ -46,9 +46,8 @@ class DocumentTypeController(
         updateDocumentTypeRequest: UpdateDocumentTypeRequest,
         authentication: Authentication?
     ): ResponseEntity<DocumentTypeResponse> {
-        val current = service.getDocumentTypeById(id)
-        val documentType = documentTypeMapper.applyUpdate(current, updateDocumentTypeRequest)
-        val updated = service.updateDocumentType(id, documentType)
+        val update = documentTypeMapper.toUpdateModel(updateDocumentTypeRequest)
+        val updated = service.updateDocumentType(id, update)
         val response = documentTypeMapper.toDto(updated)
         return ResponseEntity.ok(response)
     }

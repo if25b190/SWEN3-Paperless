@@ -1,6 +1,7 @@
 package at.fhtw.swen3.paperless.documenttype.service
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.documenttype.model.DocumentTypeUpdate
 import at.fhtw.swen3.paperless.documenttype.persistence.DocumentTypePersistence
 import at.fhtw.swen3.paperless.exception.DocumentTypeNameAlreadyExistsException
 import at.fhtw.swen3.paperless.exception.DocumentTypeNotFoundException
@@ -35,18 +36,18 @@ class DocumentTypeServiceImpl(
     override fun getDocumentTypeById(id: UUID): DocumentType =
         findDocumentType(id)
 
-    override fun updateDocumentType(id: UUID, documentType: DocumentType): DocumentType {
+    override fun updateDocumentType(id: UUID, update: DocumentTypeUpdate): DocumentType {
         val current = repository.findLockedById(id)
             ?: throw DocumentTypeNotFoundException()
-        val duplicate = repository.findByName(documentType.name)
+        val updated = current.copy(
+            name = update.name ?: current.name,
+            description = update.description ?: current.description,
+        )
+        val duplicate = repository.findByName(updated.name)
         if (duplicate != null && duplicate.id != current.id) {
             throw DocumentTypeNameAlreadyExistsException()
         }
 
-        val updated = current.copy(
-            name = documentType.name,
-            description = documentType.description
-        )
         log.info("[DOCUMENT_TYPE] - ACTION: updateDocumentType: documentTypeId: {}", id)
 
         return repository.update(id, updated)

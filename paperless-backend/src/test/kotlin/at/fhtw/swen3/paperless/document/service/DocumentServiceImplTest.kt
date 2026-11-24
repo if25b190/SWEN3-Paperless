@@ -13,6 +13,7 @@ import at.fhtw.swen3.paperless.documenttype.mapper.DocumentTypeMapperImpl
 
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
 import at.fhtw.swen3.paperless.exception.AppException
+import at.fhtw.swen3.paperless.exception.DocumentConflictException
 import at.fhtw.swen3.paperless.exception.DocumentNotFoundException
 import at.fhtw.swen3.paperless.exception.OcrPublishException
 import at.fhtw.swen3.paperless.ocr.messaging.OcrMessagePublisher
@@ -25,7 +26,6 @@ import at.fhtw.swen3.paperless.team.model.TeamMember
 import at.fhtw.swen3.paperless.team.persistence.TeamMemberPersistence
 import at.fhtw.swen3.paperless.testsupport.any
 import at.fhtw.swen3.paperless.user.model.User
-import jakarta.persistence.OptimisticLockException
 import jakarta.validation.ConstraintViolationException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -49,7 +49,6 @@ import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.junit.jupiter.MockitoExtension
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -365,9 +364,9 @@ class DocumentServiceImplTest {
         val entity = documentEntity(teamId = uuid(4))
         `when`(repository.findLockedById(uuid(1))).thenReturn(entity)
         stubTeamRole(uuid(4), uuid(1), Role.ADMIN)
-        `when`(repository.update(any(), any(Document::class.java))).thenThrow(OptimisticLockException("Concurrent update"))
+        `when`(repository.update(any(), any(Document::class.java))).thenThrow(DocumentConflictException())
 
-        assertThrows<OptimisticLockException> { service.updateDocument(actor, uuid(1), update(title = "Stale")) }
+        assertThrows<DocumentConflictException> { service.updateDocument(actor, uuid(1), update(title = "Stale")) }
         verify(repository, never()).delete(entity)
     }
 
@@ -414,7 +413,7 @@ class DocumentServiceImplTest {
 
         actor = uuid(1)
         stubTeamRole(uuid(4), uuid(1), Role.ADMIN)
-        assertThrows<DataIntegrityViolationException> { service.updateDocument(actor, uuid(1), update(teamId = uuid(4))) }
+        assertThrows<DocumentConflictException> { service.updateDocument(actor, uuid(1), update(teamId = uuid(4))) }
     }
 
     @Test

@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.team.controller
 
 import at.fhtw.swen3.paperless.api.TeamsApi
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
+import at.fhtw.swen3.paperless.auth.security.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.dto.AddTeamMemberRequest
 import at.fhtw.swen3.paperless.dto.CreateTeamRequest
 import at.fhtw.swen3.paperless.dto.TeamListResponse

@@ -48,4 +48,11 @@ class AuthServiceImpl(
     @Transactional(readOnly = true)
     override fun getCurrentUser(userId: UUID): User =
         userRepository.findById(userId).orElseThrow { UserNotFoundException() }
+
+    @Transactional(readOnly = true)
+    override fun resolveAccessToken(token: String): UUID? =
+        tokenRepository.findById(TokenDigests.sha256(token))
+            .filter { it.expiresAt.isAfter(Instant.now()) }
+            .map { it.userId }
+            .orElse(null)
 }

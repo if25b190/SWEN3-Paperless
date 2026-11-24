@@ -7,7 +7,7 @@ import at.fhtw.swen3.paperless.ocr.messaging.OcrResultPublisher
 import at.fhtw.swen3.paperless.ocr.model.OcrRequest
 import at.fhtw.swen3.paperless.ocr.model.OcrResult
 import at.fhtw.swen3.paperless.ocr.model.OcrResultStatus
-import at.fhtw.swen3.paperless.ocr.persistence.DocumentFilePersistence
+import at.fhtw.swen3.paperless.ocr.persistence.LocalFirstDocumentFilePersistence
 import at.fhtw.swen3.paperless.ocr.service.OcrProcessingServiceImpl
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -33,10 +33,8 @@ class OcrPipelineIntegrationTest {
                 results += result
             }
         }
-        val files = object : DocumentFilePersistence {
-            override fun find(storageKey: String): ByteArray? = null
-        }
-        service = OcrProcessingServiceImpl(publisher, TesseractOcrEngine(properties), files, properties)
+        val files = LocalFirstDocumentFilePersistence(properties, objectStorage = null)
+        service = OcrProcessingServiceImpl(publisher, TesseractOcrEngine(properties), files)
     }
 
     @Test

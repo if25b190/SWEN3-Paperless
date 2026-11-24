@@ -2,6 +2,7 @@ package at.fhtw.swen3.paperless.documenttype.mapper
 
 import at.fhtw.swen3.paperless.common.mapper.MappingConverters
 import at.fhtw.swen3.paperless.documenttype.model.DocumentType
+import at.fhtw.swen3.paperless.documenttype.model.DocumentTypeUpdate
 import at.fhtw.swen3.paperless.dto.CreateDocumentTypeRequest
 import at.fhtw.swen3.paperless.dto.DocumentTypeResponse
 import at.fhtw.swen3.paperless.dto.UpdateDocumentTypeRequest
@@ -29,9 +30,6 @@ interface DocumentTypeMapper {
             description = dto.description
         )
 
-    fun applyUpdate(documentType: DocumentType, dto: UpdateDocumentTypeRequest): DocumentType =
-        documentType.copy(
-            name = dto.name ?: documentType.name,
-            description = dto.description ?: documentType.description
-        )
+    fun toUpdateModel(dto: UpdateDocumentTypeRequest): DocumentTypeUpdate =
+        DocumentTypeUpdate(name = dto.name, description = dto.description)
 }

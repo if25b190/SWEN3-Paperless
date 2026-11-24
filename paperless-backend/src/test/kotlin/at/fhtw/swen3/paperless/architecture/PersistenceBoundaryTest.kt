@@ -7,6 +7,28 @@ import java.nio.file.Path
 
 class PersistenceBoundaryTest {
     @Test
+    fun services_do_not_reference_other_service_types_ok() {
+        val sources = sourcesOutsidePersistence().filter { it.parent.fileName.toString() == "service" }
+        val serviceType = """at\.fhtw\.swen3\.paperless\.\w+\.service\.\w+Service(?:Impl)?\b"""
+
+        assertThat(sources).isNotEmpty()
+        assertThat(sources).allSatisfy { path ->
+            assertThat(Files.readString(path)).describedAs(path.toString()).doesNotContainPattern(serviceType)
+        }
+    }
+
+    @Test
+    fun controllers_do_not_reference_other_controllers_or_persistence_ok() {
+        val sources = sourcesOutsidePersistence().filter { it.parent.fileName.toString() == "controller" }
+        val forbiddenPackage = """at\.fhtw\.swen3\.paperless\.\w+\.(?:controller|persistence)\."""
+
+        assertThat(sources).isNotEmpty()
+        assertThat(sources).allSatisfy { path ->
+            assertThat(Files.readString(path)).describedAs(path.toString()).doesNotContainPattern(forbiddenPackage)
+        }
+    }
+
+    @Test
     fun business_layers_do_not_import_jpa_implementation_details_ok() {
         val sources = sourcesOutsidePersistence()
 

@@ -1,7 +1,7 @@
 package at.fhtw.swen3.paperless.user.controller
 
 import at.fhtw.swen3.paperless.api.UsersApi
-import at.fhtw.swen3.paperless.auth.model.AuthenticatedPrincipal
+import at.fhtw.swen3.paperless.auth.security.AuthenticatedPrincipal
 import at.fhtw.swen3.paperless.dto.CreateUserRequest
 import at.fhtw.swen3.paperless.dto.UpdateUserRequest
 import at.fhtw.swen3.paperless.dto.UserListResponse
